@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>纯金经典翻译计划 - 义工追踪系统</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/map.css">
+</head>
+<body>
+    <header>
+        <h1>纯金经典翻译计划义工追踪系统</h1>
+        <nav>
+            <a href="index.html">地图视图</a>
+            <a href="pages/statistics.html">统计</a>
+            <a href="pages/volunteer-form.html">加入我们</a>
+            <a href="pages/about.html">关于</a>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="sidebar">
+                <div class="stats-panel">
+                    <h3>全球统计</h3>
+                    <div id="global-stats">加载中...</div>
+                </div>
+                <div class="region-info">
+                    <h3>区域信息</h3>
+                    <div id="region-details">点击地图区域查看详情</div>
+                </div>
+            </div>
+            
+            <div class="map-container">
+                <div id="world-map"></div>
+                <div class="map-controls">
+                    <button id="zoom-in">+</button>
+                    <button id="zoom-out">-</button>
+                    <button id="reset-view">复位</button>
+                </div>
+            </div>
+
+            <div class="volunteer-list">
+                <h3>义工列表</h3>
+                <div id="volunteer-table">选择区域查看义工</div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 纯金经典翻译计划. 保留所有权利.</p>
+        <p>数据最后更新: <span id="last-updated">2024-03-20</span></p>
+    </footer>
+
+    <!-- 引入库 -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- 引入自定义JS -->
+    <script src="assets/js/utils.js"></script>
+    <script src="assets/js/map-loader.js"></script>
+    <script src="assets/js/data-manager.js"></script>
+    <script src="assets/js/region-handler.js"></script>
+    <script src="assets/js/main.js"></script>
+</body>
+</html>
