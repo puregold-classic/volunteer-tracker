@@ -1,0 +1,14 @@
+{
+  "country": "",
+  "code": "",
+  "lastUpdated": "",
+  "stats": {
+    "total": 0,
+    "active": 0,
+    "translators": 0,
+    "reviewers": 0,
+    "coordinators": 0,
+    "languages": 0
+  },
+  "volunteers": []
+}

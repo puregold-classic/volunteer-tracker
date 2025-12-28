@@ -1,0 +1,166 @@
+#world-map {
+    height: 600px;
+    width: 100%;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.map-container {
+    position: relative;
+    margin: 20px 0;
+}
+
+.map-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+}
+
+.map-controls button {
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 2px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.region-info {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+/* 国家信息面板样式 */
+.country-info {
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.country-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.country-header h4 {
+    margin: 0;
+    color: #2c3e50;
+}
+
+.country-code {
+    background: #e8f4fc;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #0369a1;
+    font-weight: bold;
+}
+
+.country-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+}
+
+.stat-label {
+    display: block;
+    font-size: 12px;
+    color: #6c757d;
+    margin-bottom: 5px;
+}
+
+.stat-value {
+    display: block;
+    font-size: 18px;
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.country-actions {
+    display: flex;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.btn-action {
+    flex: 1;
+    padding: 8px 12px;
+    background: #4a90e2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 0.3s;
+}
+
+.btn-action:hover {
+    background: #357ae8;
+}
+
+.last-updated {
+    font-size: 12px;
+    color: #888;
+    text-align: center;
+    margin-top: 10px;
+}
+
+/* 加载状态 */
+.country-info-loading {
+    text-align: center;
+    padding: 20px;
+}
+
+.loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* 空状态 */
+.country-info-empty {
+    text-align: center;
+    padding: 20px;
+}
+
+.btn-primary {
+    background: #2ecc71;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.btn-primary:hover {
+    background: #27ae60;
+}

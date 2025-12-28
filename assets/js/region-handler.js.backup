@@ -1,9 +1,3 @@
-// 确保函数全局可用
-window.showCountryInfo = window.showCountryInfo || function(countryName, countryCode) {
-    console.log("region-handler: 显示", countryName);
-    const panel = document.getElementById("region-details");
-    if (panel) panel.innerHTML = `<h4>${countryName}</h4><p>代码: ${countryCode}</p>`;
-};
 // 显示国家信息
 async function showCountryInfo(countryName, countryCode) {
     console.log(`显示国家信息: ${countryName} (${countryCode})`);
