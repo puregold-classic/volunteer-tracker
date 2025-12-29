@@ -23,12 +23,12 @@
         <div class="container">
             <div class="sidebar">
                 <div class="stats-panel">
-                    <h3>全球统计</h3>
-                    <div id="global-stats">加载中...</div>
-                </div>
-                <div class="region-info">
-                    <h3>区域信息</h3>
-                    <div id="region-details">点击地图区域查看详情</div>
+                    <h3 id="panel-title">🌍 全球义工统计</h3>
+                    <div id="data-panel">
+                        <!-- 这里会动态显示：全球统计 或 国家详情 -->
+                        <div id="global-stats">加载中...</div>
+                        <div id="country-details" style="display: none;"></div>
+                    </div>
                 </div>
             </div>
             
@@ -60,6 +60,8 @@
     <script src="assets/js/map-loader.js"></script>      <!-- 使用showCountryInfo -->
     <script src="assets/js/data-manager.js"></script>
     <script src="assets/js/region-handler.js"></script>  <!-- 定义showCountryInfo -->
+    <script src="assets/js/volunteer-manager.js"></script>
+    <script src="assets/js/data-panel.js"></script>
     <script src="assets/js/main.js"></script>
 </body>
 </html>

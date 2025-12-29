@@ -14,12 +14,24 @@
     {
       "id": "US001",
       "name": "John Smith",
-      "role": "翻译员",
+      "role": "translator",
       "languages": ["英语", "西班牙语"],
       "location": "California",
       "joinedDate": "2023-03-10",
       "status": "active",
-      "completedTasks": 35
+      "completedTasks": 35,
+      "email": "john@example.com"
+    },
+    {
+      "id": "US002",
+      "name": "Emma Johnson",
+      "role": "reviewer",
+      "languages": ["英语", "法语"],
+      "location": "New York",
+      "joinedDate": "2023-05-15",
+      "status": "active",
+      "completedTasks": 22,
+      "email": "emma@example.com"
     }
   ]
 }

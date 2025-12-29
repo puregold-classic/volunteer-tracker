@@ -233,11 +233,13 @@ async function loadCountryBorders(map) {
                     // 高亮选中国家
                     highlightSelectedCountry(layer);
                     
-                    // 🔧 安全的显示国家信息（方案4）
-                    safelyShowCountryInfo(countryName, countryCode);
-                    
-                    // 🔧 安全的加载义工数据
-                    safelyLoadVolunteerData(countryCode);
+                    // 🔥 调用统一数据面板
+                    if (window.dataPanel && typeof window.dataPanel.showCountryDetails === 'function') {
+                        window.dataPanel.showCountryDetails(countryName, countryCode);
+                    } else {
+                        // 回退到旧方法
+                        safelyShowCountryInfo(countryName, countryCode);
+                    }
                 });
             }
         }).addTo(map);

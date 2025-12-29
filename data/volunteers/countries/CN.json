@@ -14,22 +14,35 @@
     {
       "id": "CN001",
       "name": "张三",
-      "role": "翻译员",
+      "role": "translator",
       "languages": ["中文", "英语"],
       "location": "北京",
       "joinedDate": "2023-01-15",
       "status": "active",
-      "completedTasks": 42
+      "completedTasks": 42,
+      "email": "zhangsan@example.com"
     },
     {
       "id": "CN002",
       "name": "李四",
-      "role": "审校员",
+      "role": "reviewer",
       "languages": ["中文", "日语"],
       "location": "上海",
       "joinedDate": "2023-03-20",
       "status": "active",
-      "completedTasks": 28
+      "completedTasks": 28,
+      "email": "lisi@example.com"
+    },
+    {
+      "id": "CN003",
+      "name": "王五",
+      "role": "coordinator",
+      "languages": ["中文", "英语", "法语"],
+      "location": "广州",
+      "joinedDate": "2023-06-10",
+      "status": "active",
+      "completedTasks": 15,
+      "email": "wangwu@example.com"
     }
   ]
 }
