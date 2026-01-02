@@ -1,22 +1,30 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
-import Home from './pages/Home/Home'
-import Dashboard from './pages/Dashboard/Dashboard'
-import VolunteerForm from './pages/VolunteerForm/VolunteerForm'
-import Statistics from './pages/Statistics/Statistics'
-import Layout from './components/Layout/Layout'
+import React from 'react'
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Home />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="volunteer/new" element={<VolunteerForm />} />
-          <Route path="statistics" element={<Statistics />} />
-        </Route>
-      </Routes>
-    </Router>
+    <div style={{
+      padding: '40px',
+      fontFamily: 'Arial, sans-serif',
+      textAlign: 'center'
+    }}>
+      <h1 style={{ color: '#2563eb', fontSize: '3rem' }}>
+        🎉 Vite React 启动成功！
+      </h1>
+      <p style={{ fontSize: '1.2rem', margin: '20px 0' }}>
+        如果你能看到这个页面，说明一切正常。
+      </p>
+      <div style={{
+        marginTop: '30px',
+        padding: '20px',
+        background: '#f3f4f6',
+        borderRadius: '10px',
+        display: 'inline-block'
+      }}>
+        <h3>服务器信息：</h3>
+        <p>端口: 5173</p>
+        <p>时间: {new Date().toLocaleTimeString()}</p>
+      </div>
+    </div>
   )
 }
 
