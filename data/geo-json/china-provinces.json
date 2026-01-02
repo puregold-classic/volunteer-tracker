@@ -1,7 +1,0 @@
-{
-  "type": "FeatureCollection",
-  "features": [
-    {"type": "Feature", "properties": {"name": "北京市"}, "geometry": {...}},
-    {"type": "Feature", "properties": {"name": "上海市"}, "geometry": {...}}
-  ]
-}

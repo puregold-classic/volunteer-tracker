@@ -1,33 +1,6 @@
-# 依赖目录
 node_modules/
-vendor/
-
-# 环境变量
-.env
-.env.local
-
-# 编辑器文件
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# 系统文件
+dist/
 .DS_Store
-Thumbs.db
-
-# 日志文件
+.env
 *.log
-npm-debug.log*
-
-# 临时文件
-*.tmp
-*.temp
-
-# 数据备份
-*.bak
-data/backups/
-
-# 敏感数据
-private/
-config.local.json
+coverage/
