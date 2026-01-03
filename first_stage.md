@@ -256,7 +256,7 @@ VITE_APP_VERSION=0.1.0
 cp .env.example .env
 ```
 
-**backend/.env:**
+**frontend/.env:**
 
 ```bash
 # cd到frontend，同样复制对应的.env.example为.env
@@ -295,8 +295,9 @@ export default defineConfig({
 
 ### 4.2 TypeScript配置（如果需要）
 
+**frontend/tsconfig.json:**
+
 ```json
-// frontend/tsconfig.json
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -325,8 +326,9 @@ export default defineConfig({
 }
 ```
 
+**frontend/tsconfig.node.json:**
+
 ```json
-// frontend/tsconfig.node.json
 {
   "compilerOptions": {
     "composite": true,
@@ -366,8 +368,9 @@ module.exports = {
 
 ### 4.4 后端创建nodemon配置文件（可选）
 
+**backend/nodemon.json:**
+
 ```json
-// backend/nodemon.json
 {
   "watch": ["src"],
   "ext": "js,json",
@@ -551,6 +554,6 @@ git push origin demo --force  # 如果之前有内容需要强制推送
 
 ## AI对话链接
 
-```http
+```text
 https://chat.deepseek.com/share/utonv90brjlpiwp656
 ```
