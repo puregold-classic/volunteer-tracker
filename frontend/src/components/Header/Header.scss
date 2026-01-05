@@ -1,0 +1,78 @@
+@import "@styles/variables.scss";
+@import "@styles/mixins.scss";
+
+.header {
+  background: $primary-color;
+  color: $white;
+  box-shadow: $shadow;
+  position: sticky;
+  top: 0;
+  z-index: $z-index-sticky;
+  
+  .header-content {
+    @extend .container !optional;
+    @include flex-between;
+    padding: $spacing-lg 0;
+    
+    .logo {
+      @include flex-center;
+      gap: $spacing-md;
+      
+      .logo-icon {
+        font-size: $font-size-xxl;
+      }
+      
+      .title {
+        font-size: $font-size-xl;
+        font-weight: $font-weight-bold;
+        margin: 0;
+        color: $white;
+      }
+    }
+    
+    .subtitle {
+      color: rgba($white, 0.8);
+      font-size: $font-size-sm;
+      margin: 0;
+    }
+    
+    .nav {
+      display: flex;
+      gap: $spacing-xl;
+      
+      .nav-link {
+        color: rgba($white, 0.8);
+        text-decoration: none;
+        font-weight: $font-weight-medium;
+        padding: $spacing-xs $spacing-sm;
+        border-radius: $border-radius-sm;
+        transition: all $transition-fast;
+        
+        &:hover, &.active {
+          color: $white;
+          background: rgba($white, 0.1);
+        }
+      }
+    }
+  }
+  
+  // 移动端适配
+  @include mobile-only {
+    .header-content {
+      flex-direction: column;
+      gap: $spacing-md;
+      text-align: center;
+      
+      .nav {
+        width: 100%;
+        justify-content: center;
+        gap: $spacing-md;
+        
+        .nav-link {
+          font-size: $font-size-sm;
+          padding: $spacing-xs;
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,20 @@
+@import "@styles/variables.scss";
+@import "@styles/mixins.scss";
+
+.loading-spinner {
+  @include flex-column-center;
+  gap: $spacing-md;
+  
+  .spinner {
+    border: 3px solid $light-color;
+    border-top: 3px solid $secondary-color;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  
+  .loading-text {
+    color: $gray;
+    font-size: $font-size-sm;
+    font-weight: $font-weight-medium;
+  }
+}

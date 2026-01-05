@@ -1,4 +1,3 @@
-// frontend/tsconfig.json
 {
   "compilerOptions": {
     "target": "ES2020",
@@ -19,7 +18,10 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@components/*": ["src/components/*"]
+      "@components/*": ["src/components/*"],
+      "@services/*": ["src/services/*"],
+      "@utils/*": ["src/utils/*"],
+      "@styles/*": ["src/styles/*"]
     }
   },
   "include": ["src"],

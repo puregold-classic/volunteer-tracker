@@ -1,0 +1,324 @@
+@import "@styles/variables.scss";
+@import "@styles/mixins.scss";
+
+.volunteer-card {
+  @include card-effect(1);
+  transition: all $transition-normal;
+  overflow: hidden;
+  cursor: pointer;
+  background: $card-bg;
+  
+  &:hover {
+    @include card-effect(2);
+    transform: translateY(-4px);
+  }
+  
+  &:focus-visible {
+    outline: 2px solid $secondary-color;
+    outline-offset: 2px;
+  }
+
+  // 紧凑版样式
+  &.compact {
+    padding: $spacing-lg;
+    
+    .card-header {
+      @include flex-between;
+      margin-bottom: $spacing-md;
+      
+      .avatar {
+        width: $avatar-size-sm;
+        height: $avatar-size-sm;
+        border-radius: $border-radius-round;
+        object-fit: cover;
+      }
+      
+      .name-section {
+        flex: 1;
+        margin-left: $spacing-md;
+        
+        .chinese-name {
+          font-size: $font-size-lg;
+          font-weight: $font-weight-semibold;
+          margin-bottom: $spacing-xs;
+          color: $dark-color;
+        }
+        
+        .english-name {
+          font-size: $font-size-sm;
+          color: $gray;
+        }
+      }
+    }
+    
+    .card-body {
+      .info-row {
+        @include flex-between;
+        margin-bottom: $spacing-sm;
+        align-items: flex-start;
+        
+        &:last-child {
+          margin-bottom: 0;
+        }
+        
+        .label {
+          font-weight: $font-weight-medium;
+          color: $gray;
+          min-width: 80px;
+          flex-shrink: 0;
+        }
+        
+        .value {
+          flex: 1;
+          color: $dark-color;
+          text-align: right;
+        }
+        
+        .services {
+          display: flex;
+          flex-wrap: wrap;
+          gap: $spacing-xs;
+          justify-content: flex-end;
+          
+          .service-tag {
+            @include tag-style($secondary-light, $white);
+            font-size: $font-size-xs;
+          }
+        }
+        
+        .status {
+          font-weight: $font-weight-semibold;
+          
+          &.active {
+            color: $success-color;
+          }
+          
+          &.inactive {
+            color: $danger-color;
+          }
+        }
+      }
+    }
+  }
+
+  // 完整版样式
+  &.full {
+    .card-header {
+      padding: $spacing-xl;
+      @include flex-center;
+      flex-direction: column;
+      text-align: center;
+      background: linear-gradient(135deg, $secondary-light 0%, $secondary-color 100%);
+      color: $white;
+      
+      .avatar {
+        width: $avatar-size-lg;
+        height: $avatar-size-lg;
+        border-radius: $border-radius-round;
+        object-fit: cover;
+        border: 4px solid $white;
+        box-shadow: $shadow;
+        margin-bottom: $spacing-md;
+      }
+      
+      .name-section {
+        .chinese-name {
+          font-size: $font-size-xxl;
+          font-weight: $font-weight-bold;
+          margin-bottom: $spacing-xs;
+        }
+        
+        .english-name {
+          font-size: $font-size-lg;
+          opacity: 0.9;
+          margin-bottom: $spacing-md;
+        }
+        
+        .id-badge {
+          display: inline-block;
+          background: rgba($white, 0.2);
+          backdrop-filter: blur(10px);
+          color: $white;
+          padding: $spacing-xs $spacing-lg;
+          border-radius: $border-radius-round;
+          font-size: $font-size-sm;
+          font-weight: $font-weight-medium;
+          border: 1px solid rgba($white, 0.3);
+        }
+      }
+    }
+    
+    .card-divider {
+      height: 1px;
+      background: rgba($dark-color, 0.1);
+      margin: 0 $spacing-xl;
+    }
+    
+    .card-body {
+      padding: $spacing-xl;
+      
+      .section {
+        margin-bottom: $spacing-xl;
+        
+        &:last-child {
+          margin-bottom: 0;
+        }
+        
+        .section-title {
+          font-size: $font-size-sm;
+          font-weight: $font-weight-semibold;
+          color: $gray;
+          margin-bottom: $spacing-md;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          display: flex;
+          align-items: center;
+          gap: $spacing-sm;
+          
+          &::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: $secondary-color;
+            border-radius: $border-radius-sm;
+          }
+        }
+        
+        .services-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: $spacing-sm;
+          
+          .service-pill {
+            background: $secondary-color;
+            color: $white;
+            padding: $spacing-xs $spacing-md;
+            border-radius: $border-radius-round;
+            font-size: $font-size-sm;
+            font-weight: $font-weight-medium;
+            transition: all $transition-fast;
+            
+            &:hover {
+              background: $secondary-dark;
+              transform: translateY(-1px);
+            }
+          }
+        }
+        
+        .stats {
+          display: flex;
+          gap: $spacing-xl;
+          
+          .stat-item {
+            text-align: center;
+            flex: 1;
+            
+            .stat-value {
+              display: block;
+              font-size: $font-size-xxxl;
+              font-weight: $font-weight-bold;
+              color: $primary-color;
+              line-height: 1;
+            }
+            
+            .stat-label {
+              display: block;
+              font-size: $font-size-xs;
+              color: $gray;
+              margin-top: $spacing-xs;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+          }
+        }
+        
+        .status-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: $spacing-xs;
+          padding: $spacing-sm $spacing-lg;
+          border-radius: $border-radius-round;
+          font-weight: $font-weight-semibold;
+          
+          &::before {
+            content: '';
+            width: $status-indicator-size;
+            height: $status-indicator-size;
+            border-radius: $border-radius-round;
+          }
+          
+          &.active {
+            background: rgba($success-color, 0.1);
+            color: $success-dark;
+            
+            &::before {
+              background: $success-color;
+            }
+          }
+          
+          &.inactive {
+            background: rgba($danger-color, 0.1);
+            color: $danger-dark;
+            
+            &::before {
+              background: $danger-color;
+            }
+          }
+        }
+        
+        .region {
+          font-size: $font-size-lg;
+          color: $dark-color;
+          font-weight: $font-weight-medium;
+          @include flex-center;
+          gap: $spacing-sm;
+          
+          &::before {
+            content: '📍';
+          }
+        }
+      }
+    }
+  }
+}
+
+// 响应式设计
+@include mobile-only {
+  .volunteer-card {
+    &.full {
+      .card-header {
+        padding: $spacing-lg;
+        
+        .avatar {
+          width: $avatar-size-md;
+          height: $avatar-size-md;
+        }
+        
+        .chinese-name {
+          font-size: $font-size-xl;
+        }
+      }
+      
+      .card-body {
+        padding: $spacing-lg;
+        
+        .stats {
+          flex-direction: column;
+          gap: $spacing-lg;
+        }
+      }
+    }
+  }
+}
+
+// 打印样式
+@media print {
+  .volunteer-card {
+    box-shadow: none !important;
+    border: 1px solid $border-color;
+    
+    &:hover {
+      transform: none !important;
+    }
+  }
+}

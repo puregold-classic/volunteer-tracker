@@ -1,0 +1,154 @@
+@import '@styles/variables.scss';
+
+.volunteer-list {
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: $spacing-md;
+    margin-bottom: $spacing-xl;
+    
+    .stat-card {
+      background: white;
+      padding: $spacing-lg;
+      border-radius: $card-border-radius;
+      box-shadow: $card-shadow;
+      text-align: center;
+      transition: transform 0.3s ease;
+      
+      &:hover {
+        transform: translateY(-2px);
+      }
+      
+      .stat-value {
+        font-size: 32px;
+        font-weight: 700;
+        color: $primary-color;
+        margin-bottom: $spacing-xs;
+      }
+      
+      .stat-label {
+        font-size: 14px;
+        color: #666;
+      }
+    }
+  }
+  
+  .volunteers-grid {
+    &.compact {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: $spacing-lg;
+      
+      @media (max-width: $breakpoint-tablet) {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: $spacing-md;
+      }
+      
+      @media (max-width: $breakpoint-mobile) {
+        grid-template-columns: 1fr;
+      }
+    }
+    
+    &.full {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+      gap: $spacing-xl;
+      
+      @media (max-width: $breakpoint-tablet) {
+        grid-template-columns: 1fr;
+        gap: $spacing-lg;
+      }
+    }
+  }
+  
+  .pagination-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: $spacing-xl;
+    padding-top: $spacing-lg;
+    border-top: 1px solid #eee;
+    color: #666;
+    font-size: 14px;
+  }
+}
+
+// 加载状态
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  
+  .spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid $light-color;
+    border-top: 3px solid $secondary-color;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: $spacing-lg;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+}
+
+// 错误状态
+.error-container {
+  text-align: center;
+  padding: $spacing-xl;
+  
+  .error-icon {
+    font-size: 48px;
+    margin-bottom: $spacing-md;
+  }
+  
+  h3 {
+    color: $danger-color;
+    margin-bottom: $spacing-sm;
+  }
+  
+  p {
+    color: #666;
+    margin-bottom: $spacing-lg;
+  }
+  
+  .retry-button {
+    background: $secondary-color;
+    color: white;
+    border: none;
+    padding: $spacing-sm $spacing-lg;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.3s ease;
+    
+    &:hover {
+      background: darken($secondary-color, 10%);
+    }
+  }
+}
+
+// 空状态
+.empty-container {
+  text-align: center;
+  padding: $spacing-xl;
+  
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: $spacing-md;
+  }
+  
+  h3 {
+    color: #666;
+    margin-bottom: $spacing-sm;
+  }
+  
+  p {
+    color: #999;
+  }
+}

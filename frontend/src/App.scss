@@ -1,0 +1,151 @@
+// ============================================
+// App组件专用样式
+// ============================================
+@import "@styles/global.scss";
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: $bg-secondary;
+  
+  // 主要内容区域
+  .main-content {
+    flex: 1;
+    padding: $spacing-xl 0;
+    
+    .container {
+      @extend .container;
+    }
+  }
+  
+  // 控制栏
+  .controls-bar {
+    background: $bg-primary;
+    padding: $spacing-lg;
+    margin-bottom: $spacing-xl;
+    border-radius: $border-radius-lg;
+    @include card-effect(1);
+    @include flex-between;
+    
+    .view-controls {
+      display: flex;
+      gap: $spacing-sm;
+      
+      .view-btn {
+        @include button-style($light-color, $dark-color);
+        border: 2px solid transparent;
+        
+        &.active {
+          @include button-style($secondary-color, $white);
+        }
+        
+        &:hover:not(.active) {
+          border-color: $secondary-color;
+          color: $secondary-color;
+          background: transparent;
+        }
+      }
+    }
+    
+    .info-text {
+      color: $gray;
+      font-size: $font-size-sm;
+      font-weight: $font-weight-medium;
+    }
+  }
+  
+  // 响应式调整
+  @include mobile-only {
+    .main-content {
+      padding: $spacing-lg 0;
+    }
+    
+    .controls-bar {
+      flex-direction: column;
+      gap: $spacing-md;
+      text-align: center;
+      
+      .view-controls {
+        justify-content: center;
+      }
+    }
+  }
+}
+
+// ============================================
+// 全局加载状态
+// ============================================
+.loading-overlay {
+  @include flex-center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba($white, 0.9);
+  z-index: $z-index-modal;
+  backdrop-filter: blur(4px);
+  
+  .loading-content {
+    text-align: center;
+    
+    .spinner {
+      width: 60px;
+      height: 60px;
+      border: 3px solid $light-color;
+      border-top: 3px solid $secondary-color;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: $spacing-lg;
+    }
+    
+    .loading-text {
+      color: $dark-color;
+      font-size: $font-size-lg;
+      font-weight: $font-weight-medium;
+    }
+  }
+}
+
+// ============================================
+// 全局错误提示
+// ============================================
+.error-toast {
+  position: fixed;
+  top: $spacing-lg;
+  right: $spacing-lg;
+  background: $danger-color;
+  color: $white;
+  padding: $spacing-md $spacing-lg;
+  border-radius: $border-radius;
+  box-shadow: $shadow-lg;
+  z-index: $z-index-tooltip;
+  @include flex-between;
+  gap: $spacing-md;
+  max-width: 400px;
+  animation: slideIn 0.3s ease-out;
+  
+  .error-message {
+    flex: 1;
+  }
+  
+  .close-btn {
+    background: none;
+    color: $white;
+    border: none;
+    cursor: pointer;
+    font-size: $font-size-lg;
+    opacity: 0.8;
+    
+    &:hover {
+      opacity: 1;
+    }
+  }
+  
+  @include mobile-only {
+    left: $spacing-md;
+    right: $spacing-md;
+    max-width: none;
+  }
+}
