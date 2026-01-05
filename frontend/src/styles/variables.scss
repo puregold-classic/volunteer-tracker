@@ -4,29 +4,28 @@
 
 // 主色系
 $primary-color: #2c3e50;
-$primary-light: lighten($primary-color, 10%);
-$primary-dark: darken($primary-color, 10%);
+$primary-light: color.adjust($primary-color, $lightness: 10%);
+$primary-dark: color.adjust($primary-color, $lightness: -10%);
 
 $secondary-color: #3498db;
-$secondary-light: lighten($secondary-color, 10%);
-$secondary-dark: darken($secondary-color, 10%);
+$secondary-light: color.adjust($secondary-color, $lightness: 10%);
+$secondary-dark: color.adjust($secondary-color, $lightness: -10%);
 
 // 状态色
 $success-color: #27ae60;
-$success-light: lighten($success-color, 10%);
-$success-dark: darken($success-color, 10%);
+$success-light: color.adjust($success-color, $lightness: 10%);
+$success-dark: color.adjust($success-color, $lightness: -10%);
 
 $warning-color: #f39c12;
-$warning-light: lighten($warning-color, 10%);
-$warning-dark: darken($warning-color, 10%);
+$warning-light: color.adjust($warning-color, $lightness: 10%);
+$warning-dark: color.adjust($warning-color, $lightness: -10%);
 
 $danger-color: #e74c3c;
-$danger-light: lighten($danger-color, 10%);
-$danger-dark: darken($danger-color, 10%);
-
+$danger-light: color.adjust($danger-color, $lightness: 10%);
+$danger-dark: color.adjust($danger-color, $lightness: -10%);
 $info-color: #3498db;
-$info-light: lighten($info-color, 10%);
-$info-dark: darken($info-color, 10%);
+$info-light: color.adjust($info-color, $lightness: 10%);
+$info-dark: color.adjust($info-color, $lightness: -10%);
 
 // 中性色
 $light-color: #ecf0f1;
@@ -97,8 +96,8 @@ $border-width-thick: 2px;
 
 // 边框颜色
 $border-color: #dee2e6;
-$border-color-light: lighten($border-color, 5%);
-$border-color-dark: darken($border-color, 10%);
+$border-color-light: color.adjust($border-color, $lightness: 5%);
+$border-color-dark: color.adjust($border-color, $lightness: -10%);
 
 // 圆角
 $border-radius-sm: 4px;

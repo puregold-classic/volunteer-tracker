@@ -75,9 +75,7 @@ export default defineConfig(({ mode }) => {
       preprocessorOptions: {
         scss: {
           additionalData: `
-            @import "@styles/variables.scss";
-            @import "@styles/mixins.scss";
-            @import "@styles/animations.scss";
+            @use "sass:color";
           `
         }
       }
