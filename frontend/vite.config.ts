@@ -74,8 +74,10 @@ export default defineConfig(({ mode }) => {
     css: {
       preprocessorOptions: {
         scss: {
+          // 关键配置：强制使用新版 API
+          api: 'modern',
           additionalData: `
-            @use "sass:color";
+            
           `
         }
       }

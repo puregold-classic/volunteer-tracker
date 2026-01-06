@@ -1,154 +1,324 @@
-@import '@styles/variables.scss';
+@use "@styles/variables" as var;
+
+// ============================================
+// 列表容器
+// ============================================
 
 .volunteer-list {
-  .stats-bar {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: $spacing-md;
-    margin-bottom: $spacing-xl;
-    
-    .stat-card {
-      background: white;
-      padding: $spacing-lg;
-      border-radius: $card-border-radius;
-      box-shadow: $card-shadow;
-      text-align: center;
-      transition: transform 0.3s ease;
-      
-      &:hover {
-        transform: translateY(-2px);
-      }
-      
-      .stat-value {
-        font-size: 32px;
-        font-weight: 700;
-        color: $primary-color;
-        margin-bottom: $spacing-xs;
-      }
-      
-      .stat-label {
-        font-size: 14px;
-        color: #666;
-      }
-    }
-  }
+  padding: var.$spacing-4;
+}
+
+// ============================================
+// 统计栏
+// ============================================
+
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var.$spacing-3;
+  margin-bottom: var.$spacing-6;
   
-  .volunteers-grid {
-    &.compact {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-      gap: $spacing-lg;
-      
-      @media (max-width: $breakpoint-tablet) {
-        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-        gap: $spacing-md;
-      }
-      
-      @media (max-width: $breakpoint-mobile) {
-        grid-template-columns: 1fr;
-      }
+  .stat-card {
+    background: white;
+    padding: var.$spacing-4;
+    border-radius: var.$border-radius;
+    box-shadow: var.$shadow;
+    text-align: center;
+    
+    .stat-value {
+      font-size: 28px;
+      font-weight: var.$font-weight-bold;
+      color: var.$color-primary-700;
+      margin-bottom: 4px;
     }
     
-    &.full {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-      gap: $spacing-xl;
-      
-      @media (max-width: $breakpoint-tablet) {
-        grid-template-columns: 1fr;
-        gap: $spacing-lg;
-      }
+    .stat-label {
+      font-size: 14px;
+      color: var.$color-gray-600;
     }
-  }
-  
-  .pagination-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: $spacing-xl;
-    padding-top: $spacing-lg;
-    border-top: 1px solid #eee;
-    color: #666;
-    font-size: 14px;
   }
 }
 
+// ============================================
+// 网格布局
+// ============================================
+
+.volunteers-grid {
+  &.compact {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var.$spacing-4;
+    
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+      gap: var.$spacing-3;
+    }
+  }
+  
+  &.full {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var.$spacing-6;
+    
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+      gap: var.$spacing-4;
+    }
+  }
+}
+
+// ============================================
+// 分页信息
+// ============================================
+
+.pagination-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var.$spacing-6;
+  padding-top: var.$spacing-4;
+  border-top: 1px solid var.$color-gray-200;
+  color: var.$color-gray-600;
+  font-size: 14px;
+  
+  .pagination-controls {
+    display: flex;
+    gap: var.$spacing-2;
+    
+    button {
+      padding: 6px 12px;
+      border: 1px solid var.$color-gray-300;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      
+      &:hover:not(:disabled) {
+        background: var.$color-gray-100;
+      }
+      
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      
+      &.active {
+        background: var.$color-primary-500;
+        color: white;
+        border-color: var.$color-primary-500;
+      }
+    }
+  }
+}
+
+// ============================================
 // 加载状态
+// ============================================
+
 .loading-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 400px;
+  min-height: 300px;
   
   .spinner {
-    width: 50px;
-    height: 50px;
-    border: 3px solid $light-color;
-    border-top: 3px solid $secondary-color;
+    width: 40px;
+    height: 40px;
+    border: 3px solid var.$color-gray-200;
+    border-top: 3px solid var.$color-primary-500;
     border-radius: 50%;
     animation: spin 1s linear infinite;
-    margin-bottom: $spacing-lg;
-  }
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    margin-bottom: var.$spacing-3;
   }
 }
 
+// ============================================
 // 错误状态
+// ============================================
+
 .error-container {
   text-align: center;
-  padding: $spacing-xl;
+  padding: var.$spacing-8;
+  background: rgba(var.$color-danger, 0.05);
+  border-radius: var.$border-radius;
+  margin: var.$spacing-4;
   
   .error-icon {
-    font-size: 48px;
-    margin-bottom: $spacing-md;
+    font-size: 32px;
+    margin-bottom: var.$spacing-3;
   }
   
   h3 {
-    color: $danger-color;
-    margin-bottom: $spacing-sm;
+    color: var.$color-danger;
+    margin-bottom: var.$spacing-2;
   }
   
   p {
-    color: #666;
-    margin-bottom: $spacing-lg;
+    color: var.$color-gray-700;
+    margin-bottom: var.$spacing-4;
   }
   
   .retry-button {
-    background: $secondary-color;
+    background: var.$color-primary-500;
     color: white;
     border: none;
-    padding: $spacing-sm $spacing-lg;
-    border-radius: 20px;
+    padding: 8px 16px;
+    border-radius: 4px;
     cursor: pointer;
     font-weight: 500;
-    transition: background 0.3s ease;
     
     &:hover {
-      background: color.adjust($secondary-color, $lightness: -10%);
+      background: var.$color-primary-600;
     }
   }
 }
 
+// ============================================
 // 空状态
+// ============================================
+
 .empty-container {
   text-align: center;
-  padding: $spacing-xl;
+  padding: var.$spacing-8;
   
   .empty-icon {
     font-size: 48px;
-    margin-bottom: $spacing-md;
+    margin-bottom: var.$spacing-3;
   }
   
   h3 {
-    color: #666;
-    margin-bottom: $spacing-sm;
+    color: var.$color-gray-700;
+    margin-bottom: var.$spacing-2;
   }
   
   p {
-    color: #999;
+    color: var.$color-gray-500;
+  }
+}
+
+// ============================================
+// 筛选工具栏
+// ============================================
+
+.filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var.$spacing-3;
+  margin-bottom: var.$spacing-4;
+  padding: var.$spacing-3;
+  background: white;
+  border-radius: var.$border-radius;
+  box-shadow: var.$shadow-sm;
+  
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: var.$spacing-2;
+    
+    label {
+      font-size: 14px;
+      color: var.$color-gray-600;
+      font-weight: 500;
+    }
+    
+    select,
+    input {
+      padding: 6px 12px;
+      border: 1px solid var.$color-gray-300;
+      border-radius: 4px;
+      font-size: 14px;
+      
+      &:focus {
+        outline: 2px solid var.$color-primary-500;
+        outline-offset: 2px;
+      }
+    }
+  }
+  
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+    
+    input {
+      width: 100%;
+    }
+  }
+}
+
+// ============================================
+// 视图切换
+// ============================================
+
+.view-toggle {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var.$spacing-4;
+  
+  .view-buttons {
+    display: flex;
+    border: 1px solid var.$color-gray-300;
+    border-radius: 6px;
+    overflow: hidden;
+    
+    button {
+      padding: 8px 16px;
+      border: none;
+      background: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      
+      &:hover:not(.active) {
+        background: var.$color-gray-100;
+      }
+      
+      &.active {
+        background: var.$color-primary-500;
+        color: white;
+      }
+      
+      &:first-child {
+        border-right: 1px solid var.$color-gray-300;
+      }
+    }
+  }
+}
+
+// ============================================
+// 动画定义
+// ============================================
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+// ============================================
+// 响应式调整
+// ============================================
+
+@media (max-width: 768px) {
+  .stats-bar {
+    grid-template-columns: 1fr;
+  }
+  
+  .filter-toolbar {
+    flex-direction: column;
+    
+    .search-box {
+      min-width: 100%;
+    }
+  }
+  
+  .view-toggle {
+    justify-content: center;
+  }
+  
+  .pagination-info {
+    flex-direction: column;
+    gap: var.$spacing-3;
+    text-align: center;
   }
 }
