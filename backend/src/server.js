@@ -22,7 +22,16 @@ database;
 // 安全中间件
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: function (origin, callback) {
+    // 允许所有Netlify域名 + 本地开发
+    if (!origin || 
+        origin.endsWith('.netlify.app') || 
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1')) {
+      return callback(null, origin);
+    }
+    callback(new Error('CORS not allowed'));
+  },
   credentials: true
 }));
 
