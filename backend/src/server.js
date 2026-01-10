@@ -21,57 +21,9 @@ database;
 
 // 安全中间件
 app.use(helmet());
-// 从环境变量读取允许的域名
-const getAllowedOrigins = () => {
-  // 从环境变量获取，用逗号分隔多个域名
-  const envOrigins = process.env.CORS_ORIGINS || 
-                    process.env.CORS_ORIGIN || 
-                    'http://localhost:3000';
-  
-  // 分割成数组
-  const origins = envOrigins.split(',').map(origin => origin.trim());
-  
-  // 添加固定的本地开发域名
-  const defaultOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5173',
-    'https://volunteer-tracker.onrender.com', // 后端自身
-  ];
-  
-  // 合并并去重
-  return [...new Set([...origins, ...defaultOrigins])];
-};
-
-const allowedOrigins = getAllowedOrigins();
-
 app.use(cors({
-  origin: function (origin, callback) {
-    // 允许没有origin的请求
-    if (!origin) return callback(null, true);
-    
-    // 检查是否在允许列表中
-    if (allowedOrigins.includes(origin) || 
-        allowedOrigins.some(allowed => allowed === '*')) {
-      return callback(null, origin); // 返回具体的origin，不是true
-    }
-    
-    // 检查通配符匹配（如 *.netlify.app）
-    const isWildcardMatch = allowedOrigins.some(allowed => {
-      if (allowed.includes('*')) {
-        const pattern = allowed.replace('.', '\\.').replace('*', '.*');
-        const regex = new RegExp(`^${pattern}$`);
-        return regex.test(origin);
-      }
-      return false;
-    });
-    
-    if (isWildcardMatch) {
-      return callback(null, origin);
-    }
-    
-    return callback(new Error('CORS not allowed'), false);
-  },
-  credentials: true,
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  credentials: true
 }));
 
 // 日志中间件
