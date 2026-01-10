@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import mongoose from 'mongoose';  // 导入 mongoose
+import fetch from 'node-fetch'; // 需要安装: npm install node-fetch
 
 import database from './utils/database.js';
 import volunteerRoutes from './routes/volunteerRoutes.js';
@@ -35,6 +36,89 @@ app.use(express.urlencoded({ extended: true }));
 
 // API路由
 app.use('/api/v1/volunteers', volunteerRoutes);
+
+// IP检测端点
+app.get('/api/ip-info', async (req, res) => {
+  try {
+    // 获取公网IP
+    const ipServices = [
+      'https://api.ipify.org?format=json',
+      'https://icanhazip.com',
+      'https://checkip.amazonaws.com'
+    ];
+    
+    let publicIp = '未知';
+    
+    for (const service of ipServices) {
+      try {
+        const response = await fetch(service, { timeout: 3000 });
+        let ip;
+        
+        if (service.includes('ipify')) {
+          const data = await response.json();
+          ip = data.ip;
+        } else {
+          ip = (await response.text()).trim();
+        }
+        
+        if (ip && ip !== '') {
+          publicIp = ip;
+          break;
+        }
+      } catch (e) {
+        console.log(`服务 ${service} 失败: ${e.message}`);
+      }
+    }
+    
+    // 返回详细信息
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      
+      // IP信息
+      ipInfo: {
+        publicIp: publicIp,
+        requestIp: req.ip,
+        xForwardedFor: req.headers['x-forwarded-for'],
+        xRealIp: req.headers['x-real-ip'],
+      },
+      
+      // Render信息
+      renderInfo: {
+        isRender: !!process.env.RENDER,
+        externalUrl: process.env.RENDER_EXTERNAL_URL,
+        serviceId: process.env.RENDER_SERVICE_ID,
+        serviceName: process.env.RENDER_SERVICE_NAME,
+      },
+      
+      // MongoDB信息（安全显示）
+      mongodbInfo: {
+        configured: !!process.env.MONGODB_URI,
+        uriStartsWithMongo: process.env.MONGODB_URI ? 
+          (process.env.MONGODB_URI.startsWith('mongodb://') || 
+           process.env.MONGODB_URI.startsWith('mongodb+srv://')) : false,
+        uriLength: process.env.MONGODB_URI?.length || 0,
+        // 不显示完整的URI
+      },
+      
+      // 下一步操作
+      nextSteps: [
+        `1. 将此IP添加到MongoDB Atlas白名单: ${publicIp}/32`,
+        '2. 如果IP是"未知"，请检查网络连接',
+        '3. 添加后等待2分钟生效',
+        '4. 重新访问健康检查端点'
+      ]
+    });
+    
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      advice: '请手动访问 https://api.ipify.org 查看IP'
+    });
+  }
+});
 
 // 健康检查 - 修复这里
 app.get('/api/health', (req, res) => {
