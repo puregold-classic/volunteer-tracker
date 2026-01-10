@@ -1,0 +1,35 @@
+# 开发环境Dockerfile
+FROM node:18-alpine AS development
+
+# 安装必要的系统依赖
+RUN apk add --no-cache \
+    bash \
+    curl \
+    git \
+    python3 \
+    make \
+    g++ \
+    mongodb-tools
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制包管理文件
+COPY package*.json ./
+
+# 安装开发依赖（包括devDependencies）
+RUN npm ci --include=dev
+
+# 复制源代码
+COPY . .
+
+# 创建非root用户（安全最佳实践）
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+USER nodejs
+
+# 暴露端口
+EXPOSE 5000 9229
+
+# 开发模式启动命令
+CMD ["npm", "run", "dev"]

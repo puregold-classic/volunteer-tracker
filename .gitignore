@@ -6,9 +6,9 @@ build/
 # 环境变量
 .env
 .env.local
-.env.development.local
+.env.development
 .env.test.local
-.env.production.local
+.env.production
 
 # 日志
 logs/
@@ -45,3 +45,4 @@ Thumbs.db
 
 # Docker
 docker-data/
+docker-compose.override.yml

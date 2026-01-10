@@ -4243,3 +4243,17 @@ npm run dev
 - [ ] 加载和错误状态处理
 - [ ] 前后端联调成功
 - [ ] 卡片点击交互实现
+
+## AI对话参考
+
+**如何调试跑通前端:**
+
+```text
+https://chat.deepseek.com/share/7k40htrzxncwk4fy16
+```
+
+**消除css警告，适配SASS的更新:**
+
+```text
+https://chat.deepseek.com/share/h8po4ejxc788tb6mrp
+```
