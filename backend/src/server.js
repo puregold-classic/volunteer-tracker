@@ -9,6 +9,9 @@ import database from './utils/database.js';
 import volunteerRoutes from './routes/volunteerRoutes.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
+// new added
+import nonProjectRoutes from './routes/nonProjectServicesRoutes.js';
+
 // 加载环境变量
 dotenv.config();
 
@@ -44,6 +47,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // API路由
 app.use('/api/v1/volunteers', volunteerRoutes);
+// new added
+app.use('/api/v1/non-project-services', nonProjectRoutes);
 
 // 健康检查 - 修复这里
 app.get('/api/health', (req, res) => {
@@ -87,6 +92,21 @@ app.get('/', (req, res) => {
       <div class="endpoint">
         <strong>GET /api/v1/volunteers/:id</strong> - 获取单个志愿者
       </div>
+      
+      <h3 class="section-title">非项目服务 (Non-Project Services)</h3>
+      <div class="endpoint">
+        <strong>GET /api/non-project-services</strong> - 获取所有服务记录
+        <br><small>支持筛选: ?volunteerId=VM-xxxx&category=翻译</small>
+      </div>
+      <div class="endpoint">
+        <strong>POST /api/non-project-services</strong> - 创建新的服务时长记录
+      </div>
+      <div class="endpoint">
+        <strong>GET /api/non-project-services/stats/:volunteerId</strong> - 获取指定志愿者的时长汇总统计
+      </div>
+      <div class="endpoint">
+        <strong>DELETE /api/non-project-services/:id</strong> - 删除指定的时长记录
+      </div>
     </body>
     </html>
   `);
@@ -103,5 +123,7 @@ app.listen(PORT, () => {
   console.log(`🚀 服务器运行在端口 ${PORT}`);
   console.log(`📡 健康检查: http://localhost:${PORT}/api/health`);
   console.log(`📊 志愿者API: http://localhost:${PORT}/api/v1/volunteers`);
+  // new added
+  console.log(`🛠  非项目服务API: http://localhost:${PORT}/api/v1/non-project-services`);
   console.log(`🌐 Web界面: http://localhost:${PORT}/`);
 });

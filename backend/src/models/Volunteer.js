@@ -59,19 +59,19 @@ const volunteerSchema = new mongoose.Schema({
     enum: ['翻译', '校对', '管理', '技术', '培训', '社区服务', '活动组织', '其他']
   },
   
-  // 非项目服务统计
-  nonProjectHours: {
-    type: Number,
-    required: [true, '非项目服务时长是必需的'],
-    min: [0, '时长不能为负数'],
-    default: 0
-  },
-  nonProjectCount: {
-    type: Number,
-    required: [true, '非项目服务次数是必需的'],
-    min: [0, '次数不能为负数'],
-    default: 0
-  },
+  // 非项目服务统计 （之后要去掉，汇总到非项目管理库）
+  // nonProjectHours: {
+  //   type: Number,
+  //   required: [true, '非项目服务时长是必需的'],
+  //   min: [0, '时长不能为负数'],
+  //   default: 0
+  // },
+  // nonProjectCount: {
+  //   type: Number,
+  //   required: [true, '非项目服务次数是必需的'],
+  //   min: [0, '次数不能为负数'],
+  //   default: 0
+  // },
   
   // 扩展信息（可选）
   email: {
@@ -116,7 +116,7 @@ volunteerSchema.index({ status: 1 });
 volunteerSchema.index({ region: 1 });
 volunteerSchema.index({ services: 1 });
 volunteerSchema.index({ createdAt: -1 });
-volunteerSchema.index({ nonProjectHours: -1 });
+// volunteerSchema.index({ nonProjectHours: -1 });
 
 // 更新updatedAt时间戳的中间件
 volunteerSchema.pre('save', function(next) {
@@ -141,7 +141,7 @@ volunteerSchema.methods.getSummary = function() {
     status: this.status,
     region: this.region,
     services: this.services,
-    hours: this.nonProjectHours
+    // hours: this.nonProjectHours
   };
 };
 
