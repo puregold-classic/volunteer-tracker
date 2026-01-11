@@ -1,0 +1,67 @@
+version: '3.8'
+
+# 定义网络，确保服务间通信
+networks:
+  volunteer-network:
+    driver: bridge
+
+# 定义卷，用于数据持久化
+volumes:
+  mongo-data:
+    driver: local
+  mongo-config:
+    driver: local
+
+# 定义所有服务
+services:
+  # MongoDB 数据库服务
+  mongodb:
+    image: mongo:7-jammy
+    container_name: volunteer-mongodb
+    restart: unless-stopped
+    networks:
+      - volunteer-network
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: volunteer_tracker
+    volumes:
+      - mongo-data:/data/db
+      - mongo-config:/data/configdb
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 后端 API 服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev  # 开发用Dockerfile
+    container_name: volunteer-backend
+    restart: unless-stopped
+    networks:
+      - volunteer-network
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://mongodb:27017/volunteer_tracker
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app  # 代码挂载，支持热重载
+      - /app/node_modules  # 排除node_modules
+    working_dir: /app
+    stdin_open: true
+    tty: true
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', (r) => {if(r.statusCode===200)process.exit(0);process.exit(1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

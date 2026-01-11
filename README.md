@@ -1,279 +1,273 @@
-Volunteer Tracker 🌍
-https://img.shields.io/badge/License-MIT-blue.svg
-https://img.shields.io/badge/PRs-welcome-brightgreen.svg
-https://img.shields.io/github/issues/your-username/volunteer-tracker
+# Volunteer Tracker - Demo 分支
 
-一个交互式的全球志愿者管理系统，提供直观的地图可视化和志愿者数据管理功能。
+这是一个志愿者管理系统的演示版本，专注于志愿者卡片的展示和管理。
 
-✨ 特性亮点
-🗺️ 交互式世界地图 - 支持点击国家和省份查看志愿者信息
+## 🌟 功能特性
 
-📊 实时统计数据 - 全局和区域志愿者统计一目了然
+### 当前版本功能
 
-🔍 智能筛选系统 - 多维度筛选志愿者信息
+- 志愿者卡片展示：美观的卡片式布局展示志愿者信息
 
-📱 响应式设计 - 完美适配桌面、平板和移动设备
+- 基础信息展示：
 
-📈 数据可视化 - 图表展示志愿者分布和服务情况
+  - 志愿者头像
 
-🔄 实时同步 - 支持多人协作数据管理
+  - 中英文姓名
 
-🖼️ 界面预览
+  - 唯一ID (VM-xxxx格式)
 
-┌─────────────────────────────────────────────┐
-│ 顶部：总统计数据 + 快速聚焦栏              │
-│                                             │
-│ [总志愿者: 250] [在职: 180] [非在职: 70]   │
-│ [总服务时长: 5,200小时]                    │
-│                                             │
-│ [中国大陆] [中国台湾] [东南亚] [美国] [欧洲]│
-│ [重置世界视图]                             │
-├─────────────────────────────────────────────┤
-│ 中部：交互式世界地图（主视图）             │
-│                                             │
-│ 🌍                                         │
-│ 完整世界地图                               │
-│ 点击国家/省份查看志愿者                    │
-│                                             │
-├─────────────────────────────────────────────┤
-│ 底部：筛选器 + 地区志愿者面板              │
-│                                             │
-│ ┌─────────────────────────────────────────┐ │
-│ │ 筛选器工具栏                           │ │
-│ │ [状态] [服务方向] [地区] [清空筛选]     │ │
-│ └─────────────────────────────────────────┘ │
-│                                             │
-│ ┌─────────────────────────────────────────┐ │
-│ │ 筛选志愿者面板                         │ │
-│ │ （点击地图后在此显示）                 │ │
-│ └─────────────────────────────────────────┘ │
-└─────────────────────────────────────────────┘
-🚀 快速开始
-环境要求
-Node.js 18.x 或更高版本
+  - 服务方向标签
 
-npm 8.x 或更高版本
+  - 非项目服务统计
 
-Git
+  - 在职状态指示
 
-安装步骤
-克隆仓库
+- 响应式设计：适配桌面和移动设备
 
-bash
-git clone https://github.com/your-username/volunteer-tracker.git
+- 实时数据：从后端API获取最新志愿者数据
+
+### 卡片设计示例
+
+```text
+┌─────────────────────────────────┐
+│  [小头像] 王明 (Wang Ming)       │
+│  ID: VM-0456                    │
+│  ▶ 服务方向：翻译、管理          │
+│  ▶ 非项目服务：85小时 (32次)     │
+│  ▶ 状态：● 在职 | ○ 不在职       │
+└─────────────────────────────────┘
+```
+
+## 🏗️ 项目结构
+
+```text
+volunteer-tracker-demo/
+├── frontend/                 # React前端应用
+│   ├── src/
+│   │   ├── components/
+│   │   │   └── VolunteerCard/  # 志愿者卡片组件
+│   │   ├── services/          # API服务
+│   │   └── App.jsx           # 主应用组件
+│   └── package.json
+├── backend/                  # Node.js后端服务
+│   ├── src/
+│   │   ├── models/          # 数据模型
+│   │   ├── routes/          # API路由
+│   │   └── server.js        # 服务器入口
+│   └── package.json
+├── data/                     # 初始数据
+│   └── volunteers.json      # 志愿者种子数据
+├── docker-compose.yml       # Docker编排配置
+└── README.md               # 本文档
+```
+
+## 🚀 快速开始
+
+## 前提条件
+
+- Node.js 18+
+
+- MongoDB 8.3+
+
+- Docker & Docker Compose (可选)
+
+### 方法一：使用 Docker（推荐）
+
+#### 克隆仓库并切换到demo分支
+
+```bash
+git clone <https://github.com/your-username/volunteer-tracker.git>
 cd volunteer-tracker
-切换到开发分支
+git checkout demo
+```
 
-bash
-git checkout develop
-安装前端依赖
+#### 一键启动所有服务
 
-bash
+```bash
+docker-compose up -d
+```
+
+#### 访问应用
+
+##### 前端应用：<http://localhost:3000>
+
+##### 后端API：<http://localhost:5000/api/volunteers>
+
+##### MongoDB: localhost:27017
+
+### 方法二：手动启动
+
+#### 后端服务
+
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+#### 前端应用
+
+```bash
 cd frontend
 npm install
-启动开发服务器
-
-bash
 npm run dev
-在浏览器中打开
+```
 
-text
-http://localhost:5173
-📖 开发命令
-bash
-# 启动开发服务器
-npm run dev
+#### 数据库
 
-# 构建生产版本
-npm run build
+确保MongoDB服务运行：
 
-# 预览生产构建
-npm run preview
+```bash
+mongod --dbpath=/path/to/data
+```
 
-# 代码检查
-npm run lint
+## 📡 API接口
 
-# 自动修复代码风格
-npm run lint:fix
+### 获取所有志愿者
 
-# 运行测试
-npm run test
+```http
+GET <http://localhost:5000/api/volunteers>
+```
 
-# 运行测试（带UI）
-npm run test:ui
+### 获取单个志愿者
 
-# 生成测试覆盖率报告
-npm run test:coverage
-📁 项目结构
-text
-volunteer-tracker/
-├── frontend/                    # React + Vite 前端项目
-│   ├── src/
-│   │   ├── components/         # 可复用组件
-│   │   │   ├── MapViewer/     # 地图可视化组件
-│   │   │   ├── VolunteerCard/ # 志愿者卡片组件
-│   │   │   ├── RegionPanel/   # 地区面板组件
-│   │   │   ├── FilterBar/     # 筛选器组件
-│   │   │   └── StatsHeader/   # 统计头部组件
-│   │   ├── pages/             # 页面组件
-│   │   ├── services/          # API 服务层
-│   │   └── utils/             # 工具函数
-│   └── package.json           # 前端依赖配置
-│
-├── backend/                    # Node.js 后端（可选）
-│   └── src/                   # 后端源代码
-│
-├── shared/                     # 共享资源
-│   ├── data-schemas/          # 数据格式定义
-│   ├── geo-data/              # 地理边界数据
-│   └── seed-data/             # 示例数据
-│
-├── docs/                       # 项目文档
-├── scripts/                    # 开发工具脚本
-└── tests/                      # 测试文件
-🔧 技术栈
-前端
-框架: React 18 + Vite
+```http
+GET <http://localhost:5000/api/volunteers/:id>
+```
 
-地图: Leaflet + React-Leaflet
+### 响应格式
 
-图表: Recharts
-
-样式: SCSS + Tailwind CSS（可选）
-
-路由: React Router 6
-
-HTTP: Axios
-
-工具: ESLint + Prettier + Vitest
-
-后端（可选）
-运行时: Node.js + Express
-
-数据库: MongoDB / PostgreSQL
-
-认证: JWT
-
-验证: Joi / Zod
-
-🗺️ 核心功能模块
-1. 地图可视化模块
-完整世界地图显示
-
-快速聚焦到特定区域
-
-点击国家/省份查看志愿者
-
-鼠标悬停显示信息
-
-2. 志愿者管理系统
-志愿者卡片展示
-
-个人详情面板
-
-服务记录管理
-
-状态筛选和搜索
-
-3. 数据统计模块
-实时全局统计
-
-地区详细统计
-
-服务时长统计
-
-趋势分析图表
-
-4. 筛选和搜索
-多维度筛选（状态、服务方向、地区）
-
-智能搜索框
-
-筛选条件保存
-
-📊 数据格式
-志愿者数据示例：
-
-json
+```json
 {
-  "id": "VM-0456",
-  "chineseName": "王明",
-  "englishName": "Wang Ming",
-  "status": "active",
-  "region": "mainland-china",
-  "services": ["translation", "management"],
-  "totalHours": 85.0,
-  "serviceCount": 32
+  "success": true,
+  "data": [
+    {
+      "id": "VM-0456",
+      "chineseName": "王明",
+      "englishName": "Wang Ming",
+      "avatar": "avatar_url",
+      "services": ["翻译", "管理"],
+      "nonProjectHours": 85,
+      "nonProjectCount": 32,
+      "status": "在职",
+      "region": "中国大陆"
+    }
+  ]
 }
-👥 协作开发
-分支策略
-text
-main           - 生产就绪代码
-├── develop    - 主开发分支
-│   ├── feature/*  - 新功能开发
-│   ├── fix/*      - Bug修复
-│   └── docs/*     - 文档更新
-└── archive/*  - 历史存档
-提交规范
-使用 Conventional Commits：
+```
 
-feat: 新功能
+## 📊 初始数据
 
-fix: 修复 bug
+系统预置了10条志愿者数据，包含：
 
-docs: 文档更新
+- 不同地区分布（中国大陆、台湾、东南亚、美国、欧洲）
 
-style: 代码格式
+- 多种服务方向（翻译、校对、管理、技术、其他）
 
-refactor: 重构
+- 混合的在职状态
 
-test: 测试相关
+- 随机的服务时长和次数
 
-chore: 构建/工具
+## 🧪 测试数据
 
-📝 文档
-详细文档请查看 docs/ 目录：
+系统启动时会自动创建以下测试数据：
 
-开发环境设置
+- 志愿者数量：20条记录
 
-API 参考文档
+- 状态分布：70%在职，30%不在职
 
-数据格式说明
+- 地区分布：均匀分布到各个预设地区
 
-部署指南
+- 服务方向：每个志愿者1-3个服务方向
 
-贡献指南
+- 服务时长：10-200小时随机
 
-🤝 贡献指南
-欢迎贡献代码！请阅读 CONTRIBUTING.md 了解如何开始。
+## 📁 数据模型
 
-Fork 本仓库
+```javascript
+{
+  id: String,          // 格式: "VM-xxxx"
+  chineseName: String,  // 中文姓名
+  englishName: String,  // 英文姓名
+  avatar: String,      // 头像URL
+  status: String,      // "在职" 或 "不在职"
+  region: String,      // 所属地区
+  services: [String],  // 服务方向数组
+  nonProjectHours: Number,  // 非项目服务时长
+  nonProjectCount: Number,  // 非项目服务次数
+  createdAt: Date,
+  updatedAt: Date
+}
+```
 
-创建功能分支 (git checkout -b feature/AmazingFeature)
+## 🔧 技术栈
 
-提交更改 (git commit -m 'Add some AmazingFeature')
+### 前端
 
-推送到分支 (git push origin feature/AmazingFeature)
+- React 18 - UI框架
 
-开启一个 Pull Request
+- Vite - 构建工具
 
-🐛 问题反馈
-如果您发现了bug或有功能建议，请：
+- TypeScript - 类型安全
 
-查看 现有 Issues
+- SCSS - 样式预处理
 
-如果没有相关问题，请 创建新 Issue
+- Axios - HTTP客户端
 
-📄 许可证
-本项目基于 MIT 许可证开源 - 查看 LICENSE 文件了解详情。
+### 后端
 
-🙏 致谢
-感谢所有贡献者和志愿者
+- Node.js - 运行环境
 
-使用 Leaflet 提供地图功能
+- Express - Web框架
 
-使用 Vite 提供快速的开发体验
+- MongoDB + Mongoose - 数据库
 
-Happy Coding! 👨‍💻👩‍💻
+- CORS - 跨域支持
 
-全球志愿者，连接世界 🌍
+### 开发工具
+
+- ESLint - 代码检查
+
+- Prettier - 代码格式化
+
+- Nodemon - 开发热重载
+
+## 🎨 自定义配置
+
+### 环境变量
+
+创建 .env 文件：
+
+```bash
+# 后端
+MONGODB_URI=mongodb://localhost:27017/volunteer_demo
+PORT=5000
+
+# 前端
+VITE_API_BASE_URL=<http://localhost:5000/api>
+```
+
+### 修改志愿者数据
+
+编辑 data/volunteers.json 文件来调整初始数据。
+
+## 🔄 开发脚本
+
+```bash
+# 后端
+npm run dev      # 开发模式
+npm start        # 生产模式
+npm run seed     # 重置数据库数据
+# 前端
+npm run dev      # 开发服务器
+npm build        # 构建生产版本
+npm preview      # 预览构建结果
+```
+
+## 📱 响应式设计
+
+- 桌面端：网格布局，每行显示3-4张卡片
+
+- 平板端：每行显示2-3张卡片
+
+- 移动端：每行显示1张卡片，垂直滚动

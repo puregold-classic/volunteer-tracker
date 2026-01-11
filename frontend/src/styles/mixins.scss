@@ -1,0 +1,312 @@
+@use "sass:color";
+@use "sass:math";
+@use "@styles/variables" as var;
+
+// ============================================
+// 响应式 Mixins
+// ============================================
+
+/// 移动端优先 - 从最小屏幕开始
+/// @param {String} $breakpoint - 断点名称
+@mixin respond-to($breakpoint) {
+  @if $breakpoint == 'sm' {
+    @media (min-width: var.$breakpoint-sm) { @content; }
+  } @else if $breakpoint == 'md' {
+    @media (min-width: var.$breakpoint-md) { @content; }
+  } @else if $breakpoint == 'lg' {
+    @media (min-width: var.$breakpoint-lg) { @content; }
+  } @else if $breakpoint == 'xl' {
+    @media (min-width: var.$breakpoint-xl) { @content; }
+  } @else if $breakpoint == '2xl' {
+    @media (min-width: var.$breakpoint-2xl) { @content; }
+  } @else {
+    @warn "未定义的断点: #{$breakpoint}";
+  }
+}
+
+/// 特定屏幕范围
+@mixin only-for($breakpoint) {
+  @if $breakpoint == 'sm' {
+    @media (max-width: var.$breakpoint-sm - 1) { @content; }
+  } @else if $breakpoint == 'md-only' {
+    @media (min-width: var.$breakpoint-md) and (max-width: var.$breakpoint-lg - 1) { @content; }
+  } @else if $breakpoint == 'lg-only' {
+    @media (min-width: var.$breakpoint-lg) and (max-width: var.$breakpoint-xl - 1) { @content; }
+  }
+}
+
+/// 高对比度模式支持
+@mixin high-contrast-mode {
+  @media (forced-colors: active) {
+    @content;
+  }
+}
+
+// ============================================
+// 布局 Mixins
+// ============================================
+
+/// 弹性布局居中
+@mixin flex-center($direction: row) {
+  display: flex;
+  flex-direction: $direction;
+  justify-content: center;
+  align-items: center;
+}
+
+/// 弹性布局两端对齐
+@mixin flex-between($align: center) {
+  display: flex;
+  justify-content: space-between;
+  align-items: $align;
+}
+
+/// 网格布局自动适应
+@mixin grid-auto-fit($min-width, $gap: var.$spacing-4) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax($min-width, 1fr));
+  gap: $gap;
+}
+
+/// 容器布局
+@mixin container {
+  width: 100%;
+  max-width: var.$container-max-width;
+  margin: 0 auto;
+  padding: 0 var.$spacing-4;
+
+  @include respond-to('lg') {
+    padding: 0 var.$spacing-6;
+  }
+}
+
+// ============================================
+// 视觉效果 Mixins
+// ============================================
+
+/// 卡片效果
+/// @param {Number} $elevation - 阴影级别 (1-3)
+@mixin card($elevation: 1) {
+  background-color: var.$card-bg;
+  border-radius: var.$card-border-radius;
+  border: 1px solid var.$card-border-color;
+  
+  @if $elevation == 1 {
+    box-shadow: var.$shadow-sm;
+  } @else if $elevation == 2 {
+    box-shadow: var.$shadow;
+  } @else if $elevation == 3 {
+    box-shadow: var.$shadow-md;
+  }
+  
+  transition: transform var.$duration-normal var.$timing-ease,
+              box-shadow var.$duration-normal var.$timing-ease;
+  
+  &:hover {
+    @if $elevation == 1 {
+      box-shadow: var.$shadow;
+    } @else if $elevation == 2 {
+      box-shadow: var.$shadow-md;
+    } @else if $elevation == 3 {
+      box-shadow: var.$shadow-lg;
+    }
+    
+    transform: translateY(-2px);
+  }
+}
+
+/// 按钮样式
+/// @param {String} $variant - 变体类型 (primary, secondary, danger)
+@mixin button($variant: 'primary') {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var.$spacing-2;
+  padding: var.$spacing-2 var.$spacing-4;
+  border-radius: var.$border-radius;
+  font-weight: var.$font-weight-medium;
+  font-size: var.$font-size-sm;
+  line-height: var.$line-height-normal;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var.$duration-fast var.$timing-ease;
+  user-select: none;
+  text-decoration: none;
+  
+  @if $variant == 'primary' {
+    background-color: var.$color-primary-600;
+    color: var.$color-white;
+    
+    &:hover:not(:disabled) {
+      background-color: var.$color-primary-700;
+    }
+    
+    &:active:not(:disabled) {
+      background-color: var.$color-primary-800;
+    }
+  } @else if $variant == 'secondary' {
+    background-color: var.$color-gray-100;
+    color: var.$color-gray-700;
+    border-color: var.$color-gray-200;
+    
+    &:hover:not(:disabled) {
+      background-color: var.$color-gray-200;
+    }
+  } @else if $variant == 'danger' {
+    background-color: var.$color-danger;
+    color: var.$color-white;
+    
+    &:hover:not(:disabled) {
+      background-color: color.adjust(var.$color-danger, $lightness: -10%);
+    }
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  &:focus-visible {
+    outline: 2px solid var.$color-primary-500;
+    outline-offset: 2px;
+  }
+}
+
+/// 标签/徽章样式
+@mixin badge($color: var.$color-primary-500) {
+  display: inline-flex;
+  align-items: center;
+  padding: var.$spacing-1 var.$spacing-2;
+  border-radius: var.$border-radius-full;
+  background-color: color.adjust($color, $alpha: -0.9);
+  color: $color;
+  font-size: var.$font-size-xs;
+  font-weight: var.$font-weight-medium;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/// 骨架屏效果
+@mixin skeleton {
+  background: linear-gradient(
+    90deg,
+    var.$color-gray-100 25%,
+    var.$color-gray-200 50%,
+    var.$color-gray-100 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s ease-in-out infinite;
+  border-radius: var.$border-radius;
+  
+  @content;
+}
+
+// ============================================
+// 工具类 Mixins
+// ============================================
+
+/// 文本截断
+/// @param {Number} $lines - 行数 (1为单行省略，>1为多行省略)
+@mixin text-truncate($lines: 1) {
+  @if $lines == 1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  } @else {
+    display: -webkit-box;
+    -webkit-line-clamp: $lines;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/// 隐藏滚动条但保持滚动功能
+@mixin hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/// 自定义滚动条
+@mixin custom-scrollbar(
+  $width: 8px,
+  $track-color: var.$color-gray-100,
+  $thumb-color: var.$color-gray-400
+) {
+  &::-webkit-scrollbar {
+    width: $width;
+    height: $width;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: $track-color;
+    border-radius: math.div($width, 2);
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: $thumb-color;
+    border-radius: math.div($width, 2);
+    
+    &:hover {
+      background: color.adjust($thumb-color, $lightness: -10%);
+    }
+  }
+}
+
+/// 绝对居中
+@mixin absolute-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/// 视差效果
+@mixin parallax($speed: 0.5) {
+  transform-style: preserve-3d;
+  transform: translateZ(#{$speed}px) scale(#{1 + $speed / 10});
+}
+
+// ============================================
+// 表单元素 Mixins
+// ============================================
+
+/// 输入框样式
+@mixin input {
+  width: 100%;
+  padding: var.$spacing-2 var.$spacing-3;
+  font-size: var.$font-size-sm;
+  line-height: var.$line-height-normal;
+  color: var.$color-gray-900;
+  background-color: var.$color-white;
+  border: 1px solid var.$color-gray-300;
+  border-radius: var.$border-radius;
+  transition: border-color var.$duration-fast var.$timing-ease;
+  
+  &:focus {
+    outline: 2px solid var.$color-primary-500;
+    outline-offset: 2px;
+    border-color: var.$color-primary-500;
+  }
+  
+  &:disabled {
+    background-color: var.$color-gray-100;
+    cursor: not-allowed;
+  }
+  
+  &::placeholder {
+    color: var.$color-gray-500;
+  }
+}
+
+/// 表单标签样式
+@mixin form-label {
+  display: block;
+  margin-bottom: var.$spacing-2;
+  font-size: var.$font-size-sm;
+  font-weight: var.$font-weight-medium;
+  color: var.$color-gray-700;
+}

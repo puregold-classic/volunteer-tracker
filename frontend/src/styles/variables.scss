@@ -1,0 +1,180 @@
+// ============================================
+// 设计令牌系统 (Design Tokens)
+// ============================================
+
+// === 基础单位 ===
+$base-unit: 4px;
+$base-spacing: 8px;
+
+// === 颜色系统 (Color System) ===
+// 主色系
+$color-primary-50: #f0f4f8;
+$color-primary-100: #d9e2ec;
+$color-primary-200: #bcccdc;
+$color-primary-300: #9fb3c8;
+$color-primary-400: #829ab1;
+$color-primary-500: #627d98;
+$color-primary-600: #486581;
+$color-primary-700: #334e68;
+$color-primary-800: #243b53;
+$color-primary-900: #102a43;
+
+// 辅助色系
+$color-secondary-50: #f8fafc;
+$color-secondary-100: #f1f5f9;
+$color-secondary-200: #e2e8f0;
+$color-secondary-300: #cbd5e1;
+$color-secondary-400: #94a3b8;
+$color-secondary-500: #64748b;
+$color-secondary-600: #475569;
+$color-secondary-700: #334155;
+$color-secondary-800: #1e293b;
+$color-secondary-900: #0f172a;
+
+// 语义色 (Semantic Colors)
+$color-success: #10b981;
+$color-warning: #f59e0b;
+$color-danger: #ef4444;
+$color-info: #3b82f6;
+
+// 中性色
+$color-white: #ffffff;
+$color-gray-50: #f9fafb;
+$color-gray-100: #f3f4f6;
+$color-gray-200: #e5e7eb;
+$color-gray-300: #d1d5db;
+$color-gray-400: #9ca3af;
+$color-gray-500: #6b7280;
+$color-gray-600: #4b5563;
+$color-gray-700: #374151;
+$color-gray-800: #1f2937;
+$color-gray-900: #111827;
+$color-black: #000000;
+
+// 背景色
+$bg-primary: $color-white;
+$bg-secondary: $color-gray-50;
+$bg-tertiary: $color-gray-100;
+
+// === 间距系统 (Spacing System) ===
+$spacing-0: 0;
+$spacing-1: $base-unit * 1;   // 4px
+$spacing-2: $base-unit * 2;   // 8px
+$spacing-3: $base-unit * 3;   // 12px
+$spacing-4: $base-unit * 4;   // 16px
+$spacing-5: $base-unit * 5;   // 20px
+$spacing-6: $base-unit * 6;   // 24px
+$spacing-8: $base-unit * 8;   // 32px
+$spacing-10: $base-unit * 10; // 40px
+$spacing-12: $base-unit * 12; // 48px
+$spacing-16: $base-unit * 16; // 64px
+
+// === 字体系统 (Typography System) ===
+$font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 
+                   'Helvetica Neue', Arial, sans-serif;
+$font-family-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', 
+                   Menlo, 'Courier New', monospace;
+
+// 字体大小 - 使用rem作为单位（1rem = 16px）
+$font-size-xs: 0.75rem;   // 12px
+$font-size-sm: 0.875rem;  // 14px
+$font-size-base: 1rem;    // 16px
+$font-size-lg: 1.125rem;  // 18px
+$font-size-xl: 1.25rem;   // 20px
+$font-size-2xl: 1.5rem;   // 24px
+$font-size-3xl: 1.875rem; // 30px
+$font-size-4xl: 2.25rem;  // 36px
+
+// 字体粗细
+$font-weight-light: 300;
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+
+// 行高
+$line-height-tight: 1.25;
+$line-height-normal: 1.5;
+$line-height-relaxed: 1.75;
+
+// === 边框系统 (Border System) ===
+$border-width-1: 1px;
+$border-width-2: 2px;
+$border-width-4: 4px;
+
+$border-color-light: $color-gray-200;
+$border-color: $color-gray-300;
+$border-color-dark: $color-gray-400;
+
+$border-radius-sm: 0.25rem;   // 4px
+$border-radius: 0.5rem;       // 8px
+$border-radius-lg: 0.75rem;   // 12px
+$border-radius-xl: 1rem;      // 16px
+$border-radius-2xl: 1.5rem;   // 24px
+$border-radius-full: 9999px;  // 圆形
+
+// === 阴影系统 (Shadow System) ===
+$shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+$shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+$shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+$shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+$shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+// === 动画系统 (Animation System) ===
+$duration-fast: 150ms;
+$duration-normal: 250ms;
+$duration-slow: 350ms;
+$duration-very-slow: 500ms;
+
+$timing-ease: cubic-bezier(0.4, 0, 0.2, 1);
+$timing-ease-in: cubic-bezier(0.4, 0, 1, 1);
+$timing-ease-out: cubic-bezier(0, 0, 0.2, 1);
+$timing-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+// === 响应式断点 (Responsive Breakpoints) ===
+$breakpoint-sm: 640px;   // 小屏幕
+$breakpoint-md: 768px;   // 中等屏幕
+$breakpoint-lg: 1024px;  // 大屏幕
+$breakpoint-xl: 1280px;  // 超大屏幕
+$breakpoint-2xl: 1536px; // 特大屏幕
+
+// === 层级系统 (Z-Index System) ===
+$z-index-dropdown: 1000;
+$z-index-sticky: 1020;
+$z-index-fixed: 1030;
+$z-index-modal: 1040;
+$z-index-popover: 1050;
+$z-index-tooltip: 1060;
+$z-index-toast: 1070;
+
+// === 组件特定变量 ===
+// 卡片设计
+$card-bg: $color-white;
+$card-border-color: $border-color-light;
+$card-border-radius: $border-radius-lg;
+$card-padding: $spacing-6;
+$card-shadow: $shadow;
+$card-shadow-hover: $shadow-md;
+
+// 头像尺寸
+$avatar-size-sm: 3rem;    // 48px
+$avatar-size-md: 4rem;    // 64px
+$avatar-size-lg: 6rem;    // 96px
+
+// 状态指示器
+$status-indicator-size: 0.5rem;
+$status-indicator-active: $color-success;
+$status-indicator-inactive: $color-danger;
+
+// 布局变量
+$container-max-width: 80rem; // 1280px
+$navbar-height: 4rem;        // 64px
+$sidebar-width: 16rem;       // 256px
+$footer-height: 12rem;       // 192px
+
+// 导出为CSS变量（可选）
+:root {
+  --color-primary-500: #{$color-primary-500};
+  --color-secondary-500: #{$color-secondary-500};
+  // ... 其他需要暴露给JS的变量
+}

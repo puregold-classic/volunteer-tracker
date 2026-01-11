@@ -1,117 +1,107 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const compression = require('compression');
-const morgan = require('morgan');
-const dotenv = require('dotenv');
-const path = require('path');
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import mongoose from 'mongoose';  // 导入 mongoose
+
+import database from './utils/database.js';
+import volunteerRoutes from './routes/volunteerRoutes.js';
+import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 // 加载环境变量
-dotenv.config({ 
-  path: path.resolve(process.cwd(), `.env.${process.env.NODE_ENV || 'development'}.local`)
-});
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const API_PREFIX = process.env.API_PREFIX || '/api/v1';
+const PORT = process.env.PORT || 5000;
+const HOST = '0.0.0.0';  // 必须监听所有接口
 
-// 导入数据库
-const database = require('./utils/database');
+// 连接数据库
+database;
 
-// 中间件配置
+// 安全中间件
 app.use(helmet());
-app.use(compression());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:5173'],
+  origin: function (origin, callback) {
+    // 允许所有Netlify域名 + 本地开发
+    if (!origin || 
+        origin.endsWith('.netlify.app') || 
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1')) {
+      return callback(null, origin);
+    }
+    callback(new Error('CORS not allowed'));
+  },
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// 日志中间件
 app.use(morgan('dev'));
 
-// 健康检查端点
-app.get('/health', async (req, res) => {
-  try {
-    const dbHealth = await database.healthCheck();
-    
-    res.status(200).json({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV,
-      database: dbHealth,
-      version: '0.1.0'
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: 'unhealthy',
-      error: error.message
-    });
-  }
-});
+// 解析请求体
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// API 路由
-app.use(`${API_PREFIX}/volunteers`, require('./routes/volunteers'));
-app.use(`${API_PREFIX}/regions`, require('./routes/regions'));
-app.use(`${API_PREFIX}/stats`, require('./routes/stats'));
+// API路由
+app.use('/api/v1/volunteers', volunteerRoutes);
 
-// 404 处理
-app.use('*', (req, res) => {
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Route ${req.originalUrl} not found`,
-    timestamp: new Date().toISOString()
+// 健康检查 - 修复这里
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: '志愿者管理系统API正常运行',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   });
 });
 
-// 错误处理中间件
-app.use((err, req, res, next) => {
-  console.error('Server Error:', err);
-  
-  const statusCode = err.statusCode || 500;
-  const message = process.env.NODE_ENV === 'production' 
-    ? 'Internal server error' 
-    : err.message;
-  
-  res.status(statusCode).json({
-    error: err.name || 'ServerError',
-    message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-  });
+// 根路由
+app.get('/', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Volunteer Tracker API</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+        .status { color: green; font-weight: bold; }
+        .endpoint { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+      </style>
+    </head>
+    <body>
+      <h1>🚀 Volunteer Tracker Backend API</h1>
+      <p class="status">✅ Server running on port ${PORT}</p>
+      <p>MongoDB状态: ${mongoose.connection.readyState === 1 ? '已连接' : '未连接'}</p>
+      <h2>📡 可用接口</h2>
+      <div class="endpoint">
+        <strong>GET /api/health</strong> - 健康检查
+      </div>
+      <div class="endpoint">
+        <strong>GET /api/v1/volunteers</strong> - 获取所有志愿者
+        <br><small>参数: ?status=在职&region=中国大陆&page=1&limit=20</small>
+      </div>
+      <div class="endpoint">
+        <strong>GET /api/v1/volunteers/stats</strong> - 获取统计信息
+      </div>
+      <div class="endpoint">
+        <strong>GET /api/v1/volunteers/:id</strong> - 获取单个志愿者
+      </div>
+    </body>
+    </html>
+  `);
 });
+
+// 404处理
+app.use(notFound);
+
+// 错误处理
+app.use(errorHandler);
 
 // 启动服务器
-async function startServer() {
-  try {
-    // 连接数据库
-    await database.connect();
-    
-    const server = app.listen(PORT, () => {
-      console.log(`
-🚀 志愿者管理系统后端已启动（使用 MongoDB）
-├─ 环境: ${process.env.NODE_ENV || 'development'}
-├─ 地址: http://localhost:${PORT}
-├─ API前缀: ${API_PREFIX}
-├─ 数据库: ${process.env.MONGODB_URI}
-├─ 健康检查: http://localhost:${PORT}/health
-└─ 时间: ${new Date().toLocaleString()}
-      `);
-    });
-    
-    return server;
-  } catch (error) {
-    console.error('❌ 服务器启动失败:', error.message);
-    console.log('\n💡 故障排除:');
-    console.log('1. 确保 MongoDB 服务正在运行');
-    console.log('2. 检查环境变量 MONGODB_URI 是否正确');
-    console.log('3. 尝试重启 MongoDB 服务');
-    process.exit(1);
-  }
-}
-
-// 如果是直接运行此文件
-if (require.main === module) {
-  startServer();
-}
-
-module.exports = app;
+app.listen(PORT, () => {
+  console.log(`🚀 服务器运行在端口 ${PORT}`);
+  console.log(`📡 健康检查: http://localhost:${PORT}/api/health`);
+  console.log(`📊 志愿者API: http://localhost:${PORT}/api/v1/volunteers`);
+  console.log(`🌐 Web界面: http://localhost:${PORT}/`);
+});

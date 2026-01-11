@@ -1,0 +1,72 @@
+[
+  {
+    "id": "VM-0001",
+    "chineseName": "张明",
+    "englishName": "Zhang Ming",
+    "avatar": "https://i.pravatar.cc/150?img=1",
+    "status": "在职",
+    "region": "中国大陆",
+    "services": ["翻译", "管理"],
+    "nonProjectHours": 85,
+    "nonProjectCount": 32,
+    "email": "zhang.ming@example.com",
+    "phone": "+86 13800138001",
+    "joinDate": "2023-06-15T00:00:00.000Z"
+  },
+  {
+    "id": "VM-0002",
+    "chineseName": "李娜",
+    "englishName": "Li Na",
+    "avatar": "https://i.pravatar.cc/150?img=2",
+    "status": "在职",
+    "region": "中国台湾",
+    "services": ["校对", "技术"],
+    "nonProjectHours": 120,
+    "nonProjectCount": 45,
+    "email": "li.na@example.com",
+    "phone": "+886 912345678",
+    "joinDate": "2023-05-20T00:00:00.000Z"
+  },
+  {
+    "id": "VM-0003",
+    "chineseName": "王伟",
+    "englishName": "Wang Wei",
+    "avatar": "https://i.pravatar.cc/150?img=3",
+    "status": "不在职",
+    "region": "东南亚",
+    "services": ["社区服务", "活动组织"],
+    "nonProjectHours": 65,
+    "nonProjectCount": 25,
+    "email": "wang.wei@example.com",
+    "phone": "+65 81234567",
+    "joinDate": "2023-03-10T00:00:00.000Z"
+  },
+  {
+    "id": "VM-0004",
+    "chineseName": "刘芳",
+    "englishName": "Liu Fang",
+    "avatar": "https://i.pravatar.cc/150?img=4",
+    "status": "在职",
+    "region": "美国",
+    "services": ["培训", "翻译"],
+    "nonProjectHours": 150,
+    "nonProjectCount": 55,
+    "email": "liu.fang@example.com",
+    "phone": "+1 2125550123",
+    "joinDate": "2023-08-05T00:00:00.000Z"
+  },
+  {
+    "id": "VM-0005",
+    "chineseName": "陈强",
+    "englishName": "Chen Qiang",
+    "avatar": "https://i.pravatar.cc/150?img=5",
+    "status": "在职",
+    "region": "欧洲",
+    "services": ["技术", "管理"],
+    "nonProjectHours": 95,
+    "nonProjectCount": 38,
+    "email": "chen.qiang@example.com",
+    "phone": "+44 7911123456",
+    "joinDate": "2023-09-12T00:00:00.000Z"
+  }
+]

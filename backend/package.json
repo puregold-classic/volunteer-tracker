@@ -1,44 +1,35 @@
 {
   "name": "volunteer-tracker-backend",
   "version": "0.1.0",
-  "description": "志愿者管理系统后端API",
+  "description": "Backend API for Volunteer Tracker",
   "main": "src/server.js",
+  "type": "module",
   "scripts": {
-    "dev": "nodemon src/server.js",
     "start": "node src/server.js",
-    "debug": "node --inspect src/server.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "lint": "eslint src/",
-    "migrate": "node src/utils/migrate.js",
-    "seed": "node src/utils/seed.js"
+    "dev": "nodemon src/server.js",
+    "docker:dev": "docker-compose up backend",
+    "docker:build": "docker build -t volunteer-backend .",
+    "docker:build-dev": "docker build -f Dockerfile.dev -t volunteer-backend-dev .",
+    "seed": "node src/utils/seedSimple.js",
+    "seed:docker": "docker-compose exec backend npm run seed",
+    "test": "node scripts/test-simple.js",
+    "test:docker": "docker-compose exec backend npm test",
+    "reset": "npm run seed",
+    "lint": "eslint src/**/*.js",
+    "format": "prettier --write \"src/**/*.js\""
   },
   "dependencies": {
-    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "mongoose": "^7.5.0",
-    "express-validator": "^7.0.1",
-    "helmet": "^7.0.0",
-    "compression": "^1.7.4",
-    "morgan": "^1.10.0",
-    "winston": "^3.10.0",
-    "jsonwebtoken": "^9.0.2",
-    "bcryptjs": "^2.4.3",
-    "multer": "^1.4.5-lts.1",
-    "express-rate-limit": "^6.10.0"
+    "dotenv": "^16.3.0",
+    "express": "^4.18.2",
+    "helmet": "^8.1.0",
+    "mongoose": "^8.0.0",
+    "morgan": "^1.10.1",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1",
-    "jest": "^29.7.0",
-    "supertest": "^6.3.3",
-    "@types/jest": "^29.5.5",
-    "eslint": "^8.50.0",
-    "@types/express": "^4.17.20",
-    "@types/cors": "^2.8.15",
-    "@types/node": "^20.6.0"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "eslint": "^8.45.0",
+    "nodemon": "^3.0.0",
+    "prettier": "^3.0.0"
   }
 }

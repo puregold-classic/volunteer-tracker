@@ -1,0 +1,324 @@
+@use "@styles/variables" as var;
+
+// ============================================
+// 列表容器
+// ============================================
+
+.volunteer-list {
+  padding: var.$spacing-4;
+}
+
+// ============================================
+// 统计栏
+// ============================================
+
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var.$spacing-3;
+  margin-bottom: var.$spacing-6;
+  
+  .stat-card {
+    background: white;
+    padding: var.$spacing-4;
+    border-radius: var.$border-radius;
+    box-shadow: var.$shadow;
+    text-align: center;
+    
+    .stat-value {
+      font-size: 28px;
+      font-weight: var.$font-weight-bold;
+      color: var.$color-primary-700;
+      margin-bottom: 4px;
+    }
+    
+    .stat-label {
+      font-size: 14px;
+      color: var.$color-gray-600;
+    }
+  }
+}
+
+// ============================================
+// 网格布局
+// ============================================
+
+.volunteers-grid {
+  &.compact {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var.$spacing-4;
+    
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+      gap: var.$spacing-3;
+    }
+  }
+  
+  &.full {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var.$spacing-6;
+    
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+      gap: var.$spacing-4;
+    }
+  }
+}
+
+// ============================================
+// 分页信息
+// ============================================
+
+.pagination-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var.$spacing-6;
+  padding-top: var.$spacing-4;
+  border-top: 1px solid var.$color-gray-200;
+  color: var.$color-gray-600;
+  font-size: 14px;
+  
+  .pagination-controls {
+    display: flex;
+    gap: var.$spacing-2;
+    
+    button {
+      padding: 6px 12px;
+      border: 1px solid var.$color-gray-300;
+      border-radius: 4px;
+      background: white;
+      cursor: pointer;
+      
+      &:hover:not(:disabled) {
+        background: var.$color-gray-100;
+      }
+      
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      
+      &.active {
+        background: var.$color-primary-500;
+        color: white;
+        border-color: var.$color-primary-500;
+      }
+    }
+  }
+}
+
+// ============================================
+// 加载状态
+// ============================================
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var.$color-gray-200;
+    border-top: 3px solid var.$color-primary-500;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: var.$spacing-3;
+  }
+}
+
+// ============================================
+// 错误状态
+// ============================================
+
+.error-container {
+  text-align: center;
+  padding: var.$spacing-8;
+  background: rgba(var.$color-danger, 0.05);
+  border-radius: var.$border-radius;
+  margin: var.$spacing-4;
+  
+  .error-icon {
+    font-size: 32px;
+    margin-bottom: var.$spacing-3;
+  }
+  
+  h3 {
+    color: var.$color-danger;
+    margin-bottom: var.$spacing-2;
+  }
+  
+  p {
+    color: var.$color-gray-700;
+    margin-bottom: var.$spacing-4;
+  }
+  
+  .retry-button {
+    background: var.$color-primary-500;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    
+    &:hover {
+      background: var.$color-primary-600;
+    }
+  }
+}
+
+// ============================================
+// 空状态
+// ============================================
+
+.empty-container {
+  text-align: center;
+  padding: var.$spacing-8;
+  
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: var.$spacing-3;
+  }
+  
+  h3 {
+    color: var.$color-gray-700;
+    margin-bottom: var.$spacing-2;
+  }
+  
+  p {
+    color: var.$color-gray-500;
+  }
+}
+
+// ============================================
+// 筛选工具栏
+// ============================================
+
+.filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var.$spacing-3;
+  margin-bottom: var.$spacing-4;
+  padding: var.$spacing-3;
+  background: white;
+  border-radius: var.$border-radius;
+  box-shadow: var.$shadow-sm;
+  
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: var.$spacing-2;
+    
+    label {
+      font-size: 14px;
+      color: var.$color-gray-600;
+      font-weight: 500;
+    }
+    
+    select,
+    input {
+      padding: 6px 12px;
+      border: 1px solid var.$color-gray-300;
+      border-radius: 4px;
+      font-size: 14px;
+      
+      &:focus {
+        outline: 2px solid var.$color-primary-500;
+        outline-offset: 2px;
+      }
+    }
+  }
+  
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+    
+    input {
+      width: 100%;
+    }
+  }
+}
+
+// ============================================
+// 视图切换
+// ============================================
+
+.view-toggle {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var.$spacing-4;
+  
+  .view-buttons {
+    display: flex;
+    border: 1px solid var.$color-gray-300;
+    border-radius: 6px;
+    overflow: hidden;
+    
+    button {
+      padding: 8px 16px;
+      border: none;
+      background: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      
+      &:hover:not(.active) {
+        background: var.$color-gray-100;
+      }
+      
+      &.active {
+        background: var.$color-primary-500;
+        color: white;
+      }
+      
+      &:first-child {
+        border-right: 1px solid var.$color-gray-300;
+      }
+    }
+  }
+}
+
+// ============================================
+// 动画定义
+// ============================================
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+// ============================================
+// 响应式调整
+// ============================================
+
+@media (max-width: 768px) {
+  .stats-bar {
+    grid-template-columns: 1fr;
+  }
+  
+  .filter-toolbar {
+    flex-direction: column;
+    
+    .search-box {
+      min-width: 100%;
+    }
+  }
+  
+  .view-toggle {
+    justify-content: center;
+  }
+  
+  .pagination-info {
+    flex-direction: column;
+    gap: var.$spacing-3;
+    text-align: center;
+  }
+}
