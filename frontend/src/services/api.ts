@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 // 环境配置
-const ENV = import.meta.env.VITE_APP_ENV || process.env.REACT_APP_API_URL || 'development';
+const ENV = import.meta.env.VITE_APP_ENV || 'development';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // API版本

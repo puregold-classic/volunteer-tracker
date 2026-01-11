@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "analyze": "node scripts/analyze-project.js",
+    "analyze:quick": "node scripts/analyze-project.js --quick",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{js,jsx,css,scss}\""
   },
