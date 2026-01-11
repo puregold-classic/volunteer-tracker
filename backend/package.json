@@ -15,6 +15,9 @@
     "test": "node scripts/test-simple.js",
     "test:docker": "docker-compose exec backend npm test",
     "reset": "npm run seed",
+    "analyze": "node scripts/analyze-project.js",
+    "analyze:quick": "node scripts/analyze-project.js --quick",
+    "docs": "node scripts/analyze-project.js && echo '📄 文档已生成！'",
     "lint": "eslint src/**/*.js",
     "format": "prettier --write \"src/**/*.js\""
   },
