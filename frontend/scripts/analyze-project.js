@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-//cd frontend
-//npm run analyze
+
+// cd frontend
+// npm run analyze
+// npm run analyze:quick
 
 import fs from 'fs/promises';
 import fsSync from 'fs';
