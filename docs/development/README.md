@@ -1,5 +1,11 @@
 # 开发环境设置指南
 
+## 文档介绍
+
+- Design: 开发目标，面板与功能实现
+- Git_workflow: git工具及其工作流程
+- Technique: 技术应用、接口规定、仓库格式
+
 ## 🚀 快速开始
 
 ### 前提条件
@@ -25,10 +31,13 @@ cd frontend && npm install && cd ..
 
 ## 需要先启动docker
 # 4. 启动开发环境
+# 需要安装make命令
+# 若无make命令，请打开makefile文件对照指定命令
+# 或使用更简单的scripts操作流程
 make start
 ```
 
-**scripts操作流程：**
+**scripts操作流程（推荐）：**
 
 ```bash
 # 1. 克隆仓库
@@ -46,6 +55,28 @@ chmod +x ./scripts/dev/database.sh
 ./scripts/dev/database.sh
 ```
 
+## ai辅助编程指南
+
+首先要让ai理解项目背景。
+这是一个什么项目？当前进行到哪里？要实现什么效果？告知AI这三个问题，有助于回复收敛。
+什么项目？进行到哪里？
+
+```bash
+# 前端任务：
+cd frontend
+npm run analyze
+npm run analyze:quick
+
+# 后端任务：
+cd backend
+npm run analyze
+npm run analyze:quick
+```
+
+然后直接复制./frontend或者./frontend下生成的总结文档，发送给ai
+
+要实现什么效果？
+
 ## 🐳 容器化开发环境
 
 ### 架构概述
@@ -60,7 +91,7 @@ chmod +x ./scripts/dev/database.sh
 - 前端应用: http://localhost:3000
 - 后端API: http://localhost:5000
 - 健康检查: http://localhost:5000/api/health
-- 数据库管理: http://localhost:8081 (默认: admin/password123)
+- 数据库管理: http://localhost:27017
 
 ## 📝 常用开发命令
 
