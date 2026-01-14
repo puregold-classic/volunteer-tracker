@@ -156,7 +156,7 @@ volunteer-tracker/
 
 ## 📚 开发与协作文档
 ### 🛠️ 开发环境设置指南
-文档地址：[./docs/development_environment.md](./docs/development_environment.md)
+文档地址：[./docs/development_environment.md](./docs/project/development_environment.md)
 提供完整的开发环境配置指南，核心内容：
 - 快速启动步骤（支持脚本和Make命令）
 - Docker容器化开发环境架构
@@ -167,7 +167,7 @@ volunteer-tracker/
 适用于所有开发者快速搭建本地开发环境。
 
 ### 🎨 功能设计文档
-文档地址：[./docs/general_design.md](./docs/general_design.md)
+文档地址：[./docs/general_design.md](./docs/project/general_design.md)
 详细描述系统核心功能模块与交互流程，核心内容：
 - 地图可视化模块设计与交互逻辑
 - 页面布局与响应式设计
@@ -178,7 +178,7 @@ volunteer-tracker/
 是理解系统功能和界面设计的核心文档。
 
 ### 🔄 Git协作流程规范
-文档地址：[./docs/git_workflow.md](./docs/git_workflow.md)
+文档地址：[./docs/git_workflow.md](./docs/project/git_workflow.md)
 制定团队Git协作的标准流程与规范，核心内容：
 - Git分支模型与命名规范
 - 完整功能开发流程（从分支创建到PR合并）
@@ -189,7 +189,7 @@ volunteer-tracker/
 适用于所有团队成员遵循统一的代码协作流程。
 
 ### 🏗️ 技术架构与构建蓝图
-文档地址：[./docs/technique_standard.md](./docs/technique_standard.md)
+文档地址：[./docs/technique_standard.md](./docs/project/technique_standard.md)
 定义系统技术栈选型与项目结构规范，核心内容：
 - 前后端技术栈说明（React + Node.js + MongoDB）
 - 模块化架构与数据流设计

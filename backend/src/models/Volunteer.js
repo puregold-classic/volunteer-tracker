@@ -1,14 +1,17 @@
+// src/models/Volunteer.js (更新版)
 import mongoose from 'mongoose';
 
 const volunteerSchema = new mongoose.Schema({
-  // 基本信息
+  // 核心标识
   id: {
     type: String,
     required: [true, '志愿者ID是必需的'],
     unique: true,
     trim: true,
-    match: [/^VM-\d{4}$/, 'ID格式必须是 VM-xxxx']
+    match: [/^[A-Z]+-\d{4}$/, 'ID格式必须是 前缀-4位数字']
   },
+  
+  // 姓名信息
   chineseName: {
     type: String,
     required: [true, '中文姓名是必需的'],
@@ -16,6 +19,7 @@ const volunteerSchema = new mongoose.Schema({
     minlength: [2, '中文姓名至少2个字符'],
     maxlength: [50, '中文姓名最多50个字符']
   },
+  
   englishName: {
     type: String,
     required: [true, '英文姓名是必需的'],
@@ -23,6 +27,7 @@ const volunteerSchema = new mongoose.Schema({
     minlength: [2, '英文姓名至少2个字符'],
     maxlength: [100, '英文姓名最多100个字符']
   },
+  
   avatar: {
     type: String,
     default: 'https://ui-avatars.com/api/?name=Unknown&background=random',
@@ -39,6 +44,7 @@ const volunteerSchema = new mongoose.Schema({
     },
     default: '在职'
   },
+  
   region: {
     type: String,
     required: [true, '地区是必需的'],
@@ -46,105 +52,142 @@ const volunteerSchema = new mongoose.Schema({
     enum: ['中国大陆', '中国台湾', '东南亚', '美国', '欧洲', '其他']
   },
   
-  // 服务信息
-  services: {
-    type: [String],
-    required: [true, '至少选择一个服务方向'],
-    validate: {
-      validator: function(v) {
-        return v.length > 0 && v.length <= 5;
-      },
-      message: '服务方向至少1个，最多5个'
-    },
-    enum: ['翻译', '校对', '管理', '技术', '培训', '社区服务', '活动组织', '其他']
+  province: {
+    type: String,
+    trim: true
   },
   
-  // 非项目服务统计
+  subRegion: {
+    type: String,
+    trim: true
+  },
+  
+  // 服务信息
+  services: [{
+    type: String,
+    enum: ['翻译', '校对', '项目培训', '非项目培训', '受训', '管理', '技术', '社区服务']
+  }],
+  
+  // 非项目服务统计（缓存字段，可通过实时计算更新）
   nonProjectHours: {
     type: Number,
-    required: [true, '非项目服务时长是必需的'],
-    min: [0, '时长不能为负数'],
-    default: 0
-  },
-  nonProjectCount: {
-    type: Number,
-    required: [true, '非项目服务次数是必需的'],
-    min: [0, '次数不能为负数'],
-    default: 0
+    default: 0,
+    min: 0
   },
   
-  // 扩展信息（可选）
+  nonProjectCount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  
+  // 活跃度评估
+  activityLevel: {
+    type: String,
+    enum: ['高', '中', '低'],
+    default: '中'
+  },
+  
+  // 联系信息
   email: {
     type: String,
     trim: true,
     lowercase: true,
     match: [/^\S+@\S+\.\S+$/, '请输入有效的邮箱地址']
   },
+  
   phone: {
     type: String,
-    trim: true,
-    match: [/^[+]?[\d\s\-()]{10,20}$/, '请输入有效的电话号码']
+    trim: true
   },
+  
+  // 角色权限
+  role: {
+    type: String,
+    enum: ['user', 'admin', 'c_admin'],
+    default: 'user'
+  },
+  
+  // 时间信息
   joinDate: {
     type: Date,
     default: Date.now
   },
   
-  // 元数据
-  isActive: {
-    type: Boolean,
-    default: true
+  // 索引字段
+  indexedStatus: {
+    type: String,
+    enum: ['在职', '不在职'],
+    default: '在职'
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
+  
+  indexedRegion: {
+    type: String,
+    required: true
   },
-  updatedAt: {
-    type: Date,
-    default: Date.now
+  
+  indexedActivityLevel: {
+    type: String,
+    enum: ['高', '中', '低'],
+    default: '中'
   }
+  
 }, {
-  timestamps: { 
-    createdAt: 'createdAt',
-    updatedAt: 'updatedAt' 
-  }
+  timestamps: true
 });
 
-// 添加索引
-volunteerSchema.index({ id: 1 }); // 唯一索引（自动创建）
-volunteerSchema.index({ status: 1 });
-volunteerSchema.index({ region: 1 });
-volunteerSchema.index({ services: 1 });
-volunteerSchema.index({ createdAt: -1 });
-volunteerSchema.index({ nonProjectHours: -1 });
+// 创建索引
+volunteerSchema.index({ id: 1 }, { unique: true });
+volunteerSchema.index({ indexedStatus: 1 }); // 按状态筛选
+volunteerSchema.index({ indexedRegion: 1 }); // 按地区筛选
+volunteerSchema.index({ indexedActivityLevel: 1 }); // 按活跃度筛选
+volunteerSchema.index({ nonProjectHours: -1 }); // 按服务时长排序
+volunteerSchema.index({ chineseName: 'text', englishName: 'text' }); // 文本搜索
 
-// 更新updatedAt时间戳的中间件
+// 预保存钩子：同步索引字段
 volunteerSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
+  this.indexedStatus = this.status;
+  this.indexedRegion = this.region;
+  this.indexedActivityLevel = this.activityLevel;
   next();
 });
 
-// 静态方法
-volunteerSchema.statics.findByRegion = function(region) {
-  return this.find({ region });
+// 实例方法：更新统计信息（从NonProjectService实时计算）
+volunteerSchema.methods.updateStatistics = async function() {
+  const stats = await mongoose.model('NonProjectService').aggregate([
+    {
+      $match: {
+        volunteerId: this.id,
+        isActive: true
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        totalHours: { $sum: '$duration' },
+        totalCount: { $sum: 1 }
+      }
+    }
+  ]);
+  
+  if (stats.length > 0) {
+    this.nonProjectHours = stats[0].totalHours;
+    this.nonProjectCount = stats[0].totalCount;
+  } else {
+    this.nonProjectHours = 0;
+    this.nonProjectCount = 0;
+  }
+  
+  // 根据时长更新活跃度
+  if (this.nonProjectHours >= 100) {
+    this.activityLevel = '高';
+  } else if (this.nonProjectHours >= 30) {
+    this.activityLevel = '中';
+  } else {
+    this.activityLevel = '低';
+  }
+  
+  return this.save();
 };
 
-volunteerSchema.statics.findActive = function() {
-  return this.find({ status: '在职', isActive: true });
-};
-
-// 实例方法
-volunteerSchema.methods.getSummary = function() {
-  return {
-    id: this.id,
-    name: this.chineseName,
-    status: this.status,
-    region: this.region,
-    services: this.services,
-    hours: this.nonProjectHours
-  };
-};
-
-const Volunteer = mongoose.model('Volunteer', volunteerSchema);
-
-export default Volunteer;
+export default mongoose.model('Volunteer', volunteerSchema);
