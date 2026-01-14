@@ -289,3 +289,9 @@ VITE_API_URL=https://your-backend.onrender.com/api
 - [Vite 环境变量](https://vitejs.dev/guide/env-and-mode.html)
 
 ---
+
+## AI对话参考
+
+```text
+https://chat.deepseek.com/share/4a4lrmyaidfmq96oz0
+```

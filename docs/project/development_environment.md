@@ -1,11 +1,5 @@
 # 开发环境设置指南
 
-## 文档介绍
-
-- Design: 开发目标，面板与功能实现
-- Git_workflow: git工具及其工作流程
-- Technique: 技术应用、接口规定、仓库格式
-
 ## 🚀 快速开始
 
 ### 前提条件
@@ -54,28 +48,6 @@ chmod +x ./scripts/dev/start.sh
 chmod +x ./scripts/dev/database.sh
 ./scripts/dev/database.sh
 ```
-
-## ai辅助编程指南
-
-首先要让ai理解项目背景。
-这是一个什么项目？当前进行到哪里？要实现什么效果？告知AI这三个问题，有助于回复收敛。
-什么项目？进行到哪里？
-
-```bash
-# 前端任务：
-cd frontend
-npm run analyze
-npm run analyze:quick
-
-# 后端任务：
-cd backend
-npm run analyze
-npm run analyze:quick
-```
-
-然后直接复制./frontend或者./frontend下生成的总结文档，发送给ai
-
-要实现什么效果？
 
 ## 🐳 容器化开发环境
 

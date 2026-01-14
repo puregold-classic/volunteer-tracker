@@ -1,273 +1,200 @@
-# Volunteer Tracker - Demo 分支
+# 志愿者管理系统
 
-这是一个志愿者管理系统的演示版本，专注于志愿者卡片的展示和管理。
+- [志愿者管理系统](#志愿者管理系统)
+  - [📋 项目简介](#-项目简介)
+  - [🌐 部署地址](#-部署地址)
+    - [生产环境](#生产环境)
+    - [开发环境](#开发环境)
+  - [🔐 权限管理系统](#-权限管理系统)
+    - [权限等级设计](#权限等级设计)
+  - [📁 项目结构](#-项目结构)
+  - [📚 项目开发框架文档](#-项目开发框架文档)
+    - [🚀 第一阶段：项目初始化与环境搭建](#-第一阶段项目初始化与环境搭建)
+    - [🛠️ 第二阶段：后端开发（数据层 + API）](#️-第二阶段后端开发数据层--api)
+    - [🎨 第三阶段：前端开发](#-第三阶段前端开发)
+    - [📡 第四阶段：前后端联动思路](#-第四阶段前后端联动思路)
+    - [🐳 第五阶段：混合容器化方案](#-第五阶段混合容器化方案)
+    - [🌐 第六阶段：全栈Web应用部署](#-第六阶段全栈web应用部署)
+  - [📂 功能说明（Function）](#-功能说明function)
+    - [📋 任务一：录入审核功能（申请 → 审核 → 正式记录 → 审计）](#-任务一录入审核功能申请--审核--正式记录--审计)
+      - [📄 API 接口设计文档](#-api-接口设计文档)
+      - [📄 数据库设计文档](#-数据库设计文档)
+  - [📚 开发与协作文档](#-开发与协作文档)
+    - [🛠️ 开发环境设置指南](#️-开发环境设置指南)
+    - [🎨 功能设计文档](#-功能设计文档)
+    - [🔄 Git协作流程规范](#-git协作流程规范)
+    - [🏗️ 技术架构与构建蓝图](#️-技术架构与构建蓝图)
 
-## 🌟 功能特性
 
-### 当前版本功能
+## 📋 项目简介
+志愿者管理系统是一个全球志愿者可视化平台，采用现代Web技术栈构建，提供直观的地图界面和强大的志愿者管理功能。本项目采用前后端分离架构，支持容器化部署，具备完整的开发、测试和生产流程。
 
-- 志愿者卡片展示：美观的卡片式布局展示志愿者信息
+## 🌐 部署地址
+### 生产环境
+- 前端网站 (Netlify): https://pgc-volunteer.netlify.app/
+- 后端API (Render): https://volunteer-tracker.onrender.com/
 
-- 基础信息展示：
+### 开发环境
+- 本地开发: http://localhost:3000 (前端) / http://localhost:5000 (后端)
+- API文档: http://localhost:5000/
 
-  - 志愿者头像
+## 🔐 权限管理系统
+### 权限等级设计
+| 权限等级       | 权限范围                                                                 |
+|----------------|--------------------------------------------------------------------------|
+| public         | 浏览（非私密信息）                                                       |
+| user           | 浏览（联系方式）+ 其他人非项目服务add（需审核）+ 自身非项目服务增删改（需审核） |
+| c级管理员      | 包含user权限 + 审核权限                                                  |
+| b级管理员（部长）| 包含c级管理员权限 + 修改部分人员权限（服务方向、在职与否）                |
+| a级管理员（3-5人）| 包含b级管理员权限 + 审核人员修改权限 + 最高人员权限 + 任命/取消权限      |
+| admin（开发者）| 最高级开发者权限                                                         |
 
-  - 中英文姓名
-
-  - 唯一ID (VM-xxxx格式)
-
-  - 服务方向标签
-
-  - 非项目服务统计
-
-  - 在职状态指示
-
-- 响应式设计：适配桌面和移动设备
-
-- 实时数据：从后端API获取最新志愿者数据
-
-### 卡片设计示例
-
+## 📁 项目结构
 ```text
-┌─────────────────────────────────┐
-│  [小头像] 王明 (Wang Ming)       │
-│  ID: VM-0456                    │
-│  ▶ 服务方向：翻译、管理          │
-│  ▶ 非项目服务：85小时 (32次)     │
-│  ▶ 状态：● 在职 | ○ 不在职       │
-└─────────────────────────────────┘
+volunteer-tracker/
+├── frontend/                    # 前端应用
+│   ├── src/components/         # React组件
+│   ├── src/services/           # API服务层
+│   ├── src/styles/             # 样式文件
+│   ├── src/hooks/              # 自定义Hooks
+│   └── src/utils/              # 工具函数
+├── backend/                    # 后端API
+│   ├── src/controllers/        # 业务控制器
+│   ├── src/models/             # 数据模型
+│   ├── src/routes/             # API路由
+│   ├── src/middleware/         # 中间件（含权限验证）
+│   └── src/utils/              # 工具函数
 ```
 
-## 🏗️ 项目结构
-
-```text
-volunteer-tracker-demo/
-├── frontend/                 # React前端应用
-│   ├── src/
-│   │   ├── components/
-│   │   │   └── VolunteerCard/  # 志愿者卡片组件
-│   │   ├── services/          # API服务
-│   │   └── App.jsx           # 主应用组件
-│   └── package.json
-├── backend/                  # Node.js后端服务
-│   ├── src/
-│   │   ├── models/          # 数据模型
-│   │   ├── routes/          # API路由
-│   │   └── server.js        # 服务器入口
-│   └── package.json
-├── data/                     # 初始数据
-│   └── volunteers.json      # 志愿者种子数据
-├── docker-compose.yml       # Docker编排配置
-└── README.md               # 本文档
-```
-
-## 🚀 快速开始
-
-## 前提条件
-
-- Node.js 18+
-
-- MongoDB 8.3+
-
-- Docker & Docker Compose (可选)
-
-### 方法一：使用 Docker（推荐）
-
-#### 克隆仓库并切换到demo分支
-
-```bash
-git clone <https://github.com/your-username/volunteer-tracker.git>
-cd volunteer-tracker
-git checkout demo
-```
-
-#### 一键启动所有服务
-
-```bash
-docker-compose up -d
-```
-
-#### 访问应用
-
-##### 前端应用：<http://localhost:3000>
-
-##### 后端API：<http://localhost:5000/api/volunteers>
-
-##### MongoDB: localhost:27017
-
-### 方法二：手动启动
-
-#### 后端服务
-
-```bash
-cd backend
-npm install
-npm run dev
-```
-
-#### 前端应用
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-#### 数据库
-
-确保MongoDB服务运行：
-
-```bash
-mongod --dbpath=/path/to/data
-```
-
-## 📡 API接口
-
-### 获取所有志愿者
-
-```http
-GET <http://localhost:5000/api/volunteers>
-```
-
-### 获取单个志愿者
-
-```http
-GET <http://localhost:5000/api/volunteers/:id>
-```
-
-### 响应格式
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "VM-0456",
-      "chineseName": "王明",
-      "englishName": "Wang Ming",
-      "avatar": "avatar_url",
-      "services": ["翻译", "管理"],
-      "nonProjectHours": 85,
-      "nonProjectCount": 32,
-      "status": "在职",
-      "region": "中国大陆"
-    }
-  ]
-}
-```
-
-## 📊 初始数据
-
-系统预置了10条志愿者数据，包含：
-
-- 不同地区分布（中国大陆、台湾、东南亚、美国、欧洲）
-
-- 多种服务方向（翻译、校对、管理、技术、其他）
-
-- 混合的在职状态
-
-- 随机的服务时长和次数
-
-## 🧪 测试数据
-
-系统启动时会自动创建以下测试数据：
-
-- 志愿者数量：20条记录
-
-- 状态分布：70%在职，30%不在职
-
-- 地区分布：均匀分布到各个预设地区
-
-- 服务方向：每个志愿者1-3个服务方向
-
-- 服务时长：10-200小时随机
-
-## 📁 数据模型
-
-```javascript
-{
-  id: String,          // 格式: "VM-xxxx"
-  chineseName: String,  // 中文姓名
-  englishName: String,  // 英文姓名
-  avatar: String,      // 头像URL
-  status: String,      // "在职" 或 "不在职"
-  region: String,      // 所属地区
-  services: [String],  // 服务方向数组
-  nonProjectHours: Number,  // 非项目服务时长
-  nonProjectCount: Number,  // 非项目服务次数
-  createdAt: Date,
-  updatedAt: Date
-}
-```
-
-## 🔧 技术栈
-
-### 前端
-
-- React 18 - UI框架
-
-- Vite - 构建工具
-
-- TypeScript - 类型安全
-
-- SCSS - 样式预处理
-
-- Axios - HTTP客户端
-
-### 后端
-
-- Node.js - 运行环境
-
-- Express - Web框架
-
-- MongoDB + Mongoose - 数据库
-
-- CORS - 跨域支持
-
-### 开发工具
-
-- ESLint - 代码检查
-
-- Prettier - 代码格式化
-
-- Nodemon - 开发热重载
-
-## 🎨 自定义配置
-
-### 环境变量
-
-创建 .env 文件：
-
-```bash
-# 后端
-MONGODB_URI=mongodb://localhost:27017/volunteer_demo
-PORT=5000
-
-# 前端
-VITE_API_BASE_URL=<http://localhost:5000/api>
-```
-
-### 修改志愿者数据
-
-编辑 data/volunteers.json 文件来调整初始数据。
-
-## 🔄 开发脚本
-
-```bash
-# 后端
-npm run dev      # 开发模式
-npm start        # 生产模式
-npm run seed     # 重置数据库数据
-# 前端
-npm run dev      # 开发服务器
-npm build        # 构建生产版本
-npm preview      # 预览构建结果
-```
-
-## 📱 响应式设计
-
-- 桌面端：网格布局，每行显示3-4张卡片
-
-- 平板端：每行显示2-3张卡片
-
-- 移动端：每行显示1张卡片，垂直滚动
+## 📚 项目开发框架文档
+本项目的完整开发过程被系统性地划分为六个阶段，每个阶段均有详细文档记录：
+
+### 🚀 第一阶段：项目初始化与环境搭建
+- **文档位置**：`docs/framework/stage1_structure.md`
+- **核心内容**：
+  - ✅ Git分支管理与清理策略
+  - ✅ 前后端项目结构标准化创建
+  - ✅ 开发环境配置文件初始化（Vite、TypeScript、ESLint）
+  - ✅ 依赖包管理统一配置
+  - ✅ 基础验证文件与健康检查端点
+- **详细内容**：[查看完整文档](./docs/framework/stage1_structure.md)
+
+### 🛠️ 第二阶段：后端开发（数据层 + API）
+- **文档位置**：`docs/framework/stage2_backend.md`
+- **核心内容**：
+  - ✅ MongoDB Schema设计与数据验证
+  - ✅ 数据库连接池与健康监控
+  - ✅ 完整的CRUD RESTful API实现
+  - ✅ 错误处理中间件与统一响应格式
+  - ✅ 种子数据生成与API测试脚本
+- **详细内容**：[查看完整文档](./docs/framework/stage2_backend.md)
+
+### 🎨 第三阶段：前端开发
+- **文档位置**：`docs/framework/stage3_frontend.md`
+- **核心内容**：
+  - ✅ Vite + React + TypeScript项目初始化
+  - ✅ 现代化设计系统（设计令牌、变量体系）
+  - ✅ 核心组件开发（VolunteerCard、VolunteerList）
+  - ✅ API服务层封装与类型安全
+  - ✅ 响应式布局与交互动画实现
+- **详细内容**：[查看完整文档](./docs/framework/stage3_frontend.md)
+
+### 📡 第四阶段：前后端联动思路
+- **文档位置**：`docs/framework/stage4_coordinate.md`
+- **核心内容**：
+  - ✅ 分层架构设计（组件→服务→API客户端）
+  - ✅ 开发环境代理配置与跨域解决方案
+  - ✅ 统一的请求/响应拦截器机制
+  - ✅ 错误处理与类型安全最佳实践
+  - ✅ 环境隔离与部署策略
+- **详细内容**：[查看完整文档](./docs/framework/stage4_coordinate.md)
+
+### 🐳 第五阶段：混合容器化方案
+- **文档位置**：`docs/framework/stage5_docker.md`
+- **核心内容**：
+  - ✅ 多环境Docker Compose配置（开发/生产）
+  - ✅ 前后端Dockerfile优化（多阶段构建）
+  - ✅ 数据库持久化与健康检查
+  - ✅ 自动化开发脚本与Makefile
+  - ✅ 数据备份与恢复管理工具
+- **详细内容**：[查看完整文档](./docs/framework/stage5_docker.md)
+
+### 🌐 第六阶段：全栈Web应用部署
+- **文档位置**：`docs/framework/stage6_deploy.md`
+- **核心内容**：
+  - ✅ MongoDB Atlas云数据库配置
+  - ✅ Render后端服务托管与部署
+  - ✅ Netlify前端静态站点部署
+  - ✅ 跨域（CORS）配置与安全策略
+  - ✅ 故障排查与监控维护指南
+- **详细内容**：[查看完整文档](./docs/framework/stage6_deploy.md)
+
+## 📂 功能说明（Function）
+### 📋 任务一：录入审核功能（申请 → 审核 → 正式记录 → 审计）
+#### 📄 API 接口设计文档
+文档地址：[./docs/function/T1_api.md](./docs/function/T1_api.md)
+该文档详细设计了录入审核功能的 RESTful API 接口，覆盖模块：
+- 申请管理（提交、查询、维护）
+- 审核管理（查询、操作、重审）
+- 正式数据模块（服务记录查询、统计、导出）
+- 审计日志模块（查询、分析、导出）
+- 志愿者模块（查询、统计、关联）
+- 系统管理模块（健康检查、配置、数据维护）
+- 关联查询与前端辅助接口
+
+支持按**开发优先级**分阶段实现，包含核心业务流程的 API 链示例。
+
+#### 📄 数据库设计文档
+文档地址：[./docs/function/T1_database.md](./docs/function/T1_database.md)
+该文档定义了录入审核功能的数据库结构与业务流程，核心内容：
+- **ServiceApplication**：服务申请缓冲区（存储待审核申请）
+- **NonProjectService**：正式服务记录库（审核通过后写入）
+- **AuditLog**：审计日志（记录所有审核操作）
+- **Volunteer**：志愿者基本信息表
+- **变更模型统一格式**：支持创建、更新、删除三种变更类型
+- **审计链路示例**：展示从申请到正式记录再到审计的完整流程
+
+## 📚 开发与协作文档
+### 🛠️ 开发环境设置指南
+文档地址：[./docs/development_environment.md](./docs/development_environment.md)
+提供完整的开发环境配置指南，核心内容：
+- 快速启动步骤（支持脚本和Make命令）
+- Docker容器化开发环境架构
+- 前后端开发工作流与常用命令
+- 数据库初始化与管理脚本
+- 常见故障排除与清理资源方法
+
+适用于所有开发者快速搭建本地开发环境。
+
+### 🎨 功能设计文档
+文档地址：[./docs/general_design.md](./docs/general_design.md)
+详细描述系统核心功能模块与交互流程，核心内容：
+- 地图可视化模块设计与交互逻辑
+- 页面布局与响应式设计
+- 志愿者卡片、筛选器、个人详情面板等UI组件设计
+- 非项目服务记录管理流程
+- 完整的用户交互流程示例
+
+是理解系统功能和界面设计的核心文档。
+
+### 🔄 Git协作流程规范
+文档地址：[./docs/git_workflow.md](./docs/git_workflow.md)
+制定团队Git协作的标准流程与规范，核心内容：
+- Git分支模型与命名规范
+- 完整功能开发流程（从分支创建到PR合并）
+- 提交信息格式与PR模板要求
+- 分支保护、冲突解决与紧急修复流程
+- 常用Git命令速查与常见问题解决方案
+
+适用于所有团队成员遵循统一的代码协作流程。
+
+### 🏗️ 技术架构与构建蓝图
+文档地址：[./docs/technique_standard.md](./docs/technique_standard.md)
+定义系统技术栈选型与项目结构规范，核心内容：
+- 前后端技术栈说明（React + Node.js + MongoDB）
+- 模块化架构与数据流设计
+- 前端、后端、共享资源目录结构规范
+- 核心功能模块技术实现方案
+- 地图可视化、志愿者数据管理、统计展示等模块设计
+
+是项目架构与代码组织的参考标准。

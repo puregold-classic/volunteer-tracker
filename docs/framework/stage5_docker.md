@@ -522,3 +522,9 @@ status:
 	@echo "🌐 服务状态:"
 	@curl -s http://localhost:5000/api/health | python3 -m json.tool || echo "后端服务未运行"
 ```
+
+## AI对话
+
+```text
+https://chat.deepseek.com/share/w59lgzad1biqmfekfi
+```
