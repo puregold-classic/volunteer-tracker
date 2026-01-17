@@ -7,6 +7,10 @@ import mongoose from 'mongoose';  // 导入 mongoose
 
 import database from './utils/database.js';
 import volunteerRoutes from './routes/volunteerRoutes.js';
+import applicationRoutes from './routes/applicationRoutes.js'; // 新增
+import reviewRoutes from './routes/reviewRoutes.js'; // 新增
+import serviceRoutes from './routes/serviceRoutes.js'; // 新增
+import auditRoutes from './routes/auditRoutes.js'; // 新增
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 // 加载环境变量
@@ -44,6 +48,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // API路由
 app.use('/api/v1/volunteers', volunteerRoutes);
+app.use('/api/v1/applications', applicationRoutes); // 新增申请路由
+app.use('/api/v1/reviews', reviewRoutes); // 新增审核路由
+app.use('/api/v1/services', serviceRoutes); // 新增服务记录路由
+app.use('/api/v1/audit', auditRoutes); // 新增审计日志路由
 
 // 健康检查 - 修复这里
 app.get('/api/health', (req, res) => {
@@ -102,6 +110,11 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`🚀 服务器运行在端口 ${PORT}`);
   console.log(`📡 健康检查: http://localhost:${PORT}/api/health`);
-  console.log(`📊 志愿者API: http://localhost:${PORT}/api/v1/volunteers`);
-  console.log(`🌐 Web界面: http://localhost:${PORT}/`);
+  console.log(`👤 志愿者API: http://localhost:${PORT}/api/v1/volunteers`);
+  console.log(`📝 申请API: http://localhost:${PORT}/api/v1/applications`);
+  console.log(`👮 审核API: http://localhost:${PORT}/api/v1/reviews`);
+  console.log(`📊 服务记录API: http://localhost:${PORT}/api/v1/services`);
+  console.log(`📜 审计日志API: http://localhost:${PORT}/api/v1/audit`);
+  console.log(`📈 审计统计: http://localhost:${PORT}/api/v1/audit/stats/summary`);
+  console.log(`💾 审计导出: http://localhost:${PORT}/api/v1/audit/export`);
 });

@@ -26,7 +26,11 @@
     "helmet": "^8.1.0",
     "mongoose": "^8.0.0",
     "morgan": "^1.10.1",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "csv-writer": "^1.6.0",
+    "exceljs": "^4.4.0",
+    "jszip": "^3.10.1",
+    "express-validator": "^7.0.1"
   },
   "devDependencies": {
     "eslint": "^8.45.0",

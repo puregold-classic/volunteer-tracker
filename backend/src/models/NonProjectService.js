@@ -8,7 +8,7 @@ const nonProjectServiceSchema = new mongoose.Schema({
     required: [true, '服务记录ID是必需的'],
     unique: true,
     trim: true,
-    match: [/^NPS-[A-Z]+-\d{3,}$/, '服务ID格式: NPS-{volunteerId}-{seq}']
+    match: [/^NPS-[A-Z]+-\d+-\d{3}$/, '服务ID格式: NPS-{volunteerId}-{seq}']
   },
   
   // 志愿者信息
@@ -136,7 +136,6 @@ const nonProjectServiceSchema = new mongoose.Schema({
 });
 
 // 创建索引
-nonProjectServiceSchema.index({ serviceId: 1 }, { unique: true });
 nonProjectServiceSchema.index({ indexedVolunteerId: 1, indexedServiceDate: -1 }); // 按志愿者和时间查询
 nonProjectServiceSchema.index({ indexedServiceType: 1 }); // 按服务类型查询
 nonProjectServiceSchema.index({ indexedIsActive: 1 }); // 软删除过滤

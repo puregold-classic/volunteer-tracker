@@ -22,7 +22,7 @@ services:
     networks:
       - volunteer-network
     ports:
-      - "27017:27017"
+      - "27018:27017"
     environment:
       MONGO_INITDB_DATABASE: volunteer_tracker
     volumes:

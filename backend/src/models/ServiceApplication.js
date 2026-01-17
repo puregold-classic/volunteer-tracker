@@ -8,7 +8,7 @@ const serviceApplicationSchema = new mongoose.Schema({
     required: [true, '申请ID是必需的'],
     unique: true,
     trim: true,
-    match: [/^APP-[A-Z]+-\d{3,}$/, '申请ID格式: APP-{submitterId}-{seq}']
+    match: [/^APP-[A-Z]+-\d+-\d{3}$/, '申请ID格式: APP-{submitterId}-{seq}']
   },
   
   // 申请类型
@@ -149,7 +149,6 @@ const serviceApplicationSchema = new mongoose.Schema({
 });
 
 // 创建索引（提高查询性能）
-serviceApplicationSchema.index({ applicationId: 1 }, { unique: true });
 serviceApplicationSchema.index({ indexedStatus: 1, createdAt: -1 }); // 待审核列表查询
 serviceApplicationSchema.index({ indexedVolunteerId: 1, createdAt: -1 }); // 按志愿者查询
 serviceApplicationSchema.index({ indexedDate: 1 }); // 按日期范围查询

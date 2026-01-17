@@ -137,7 +137,6 @@ const volunteerSchema = new mongoose.Schema({
 });
 
 // 创建索引
-volunteerSchema.index({ id: 1 }, { unique: true });
 volunteerSchema.index({ indexedStatus: 1 }); // 按状态筛选
 volunteerSchema.index({ indexedRegion: 1 }); // 按地区筛选
 volunteerSchema.index({ indexedActivityLevel: 1 }); // 按活跃度筛选
@@ -147,7 +146,7 @@ volunteerSchema.index({ chineseName: 'text', englishName: 'text' }); // 文本�
 // 预保存钩子：同步索引字段
 volunteerSchema.pre('save', function(next) {
   this.indexedStatus = this.status;
-  this.indexedRegion = this.region;
+  this.indexedRegion = this.region || '其他';  // 添加默认值
   this.indexedActivityLevel = this.activityLevel;
   next();
 });

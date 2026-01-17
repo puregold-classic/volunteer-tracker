@@ -8,7 +8,7 @@ const auditLogSchema = new mongoose.Schema({
     required: [true, '审计ID是必需的'],
     unique: true,
     trim: true,
-    match: [/^AUDIT-[A-Z]+-\d{3,}$/, '审计ID格式: AUDIT-{reviewerId}-{seq}']
+    match: [/^AUDIT-[A-Z]+-\d+-\d{3}$/, '审计ID格式: AUDIT-{reviewerId}-{seq}']
   },
   
   // 审计目标
@@ -133,7 +133,6 @@ const auditLogSchema = new mongoose.Schema({
 });
 
 // 创建索引
-auditLogSchema.index({ auditId: 1 }, { unique: true });
 auditLogSchema.index({ indexedDate: -1 }); // 按时间倒序查询
 auditLogSchema.index({ indexedOperatorId: 1, indexedDate: -1 }); // 按操作人查询
 auditLogSchema.index({ indexedTargetId: 1 }); // 按目标ID查询
