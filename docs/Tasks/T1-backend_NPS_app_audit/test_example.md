@@ -1,6 +1,6 @@
-好的！我来帮你整理成一个**清晰的一步一步测试流程**。以下是完整的测试步骤：
+## 📋 **test_example: 创建"create"，并得到管理员"approved"**
 
-## 📋 **志愿者管理系统 - 端到端测试流程**
+**返回主文档：** [Task1-README](./README.md)
 
 ### **前置条件**
 ✅ 服务器运行在 `http://localhost:5000`  
@@ -9,127 +9,69 @@
 ## 👥 志愿者数据创建脚本
 
 ```javascript
-// 创建三个测试志愿者的脚本
-const createTestVolunteers = async () => {
-  console.log('👥 创建测试志愿者数据...\n');
-  
+// 一次性创建三个志愿者
+const createVolunteers = async () => {
   const volunteers = [
     {
-      "volunteerId": "PG-0001",
-      "name": "张三",
-      "chineseName": "张三",
-      "englishName": "Zhang San",
-      "avatar": "https://i.pravatar.cc/150?img=1",
-      "status": "在职",
-      "region": "中国大陆",
-      "province": "北京市",
-      "subRegion": "朝阳区",
-      "activityLevel": "中",
-      "services": ["翻译", "管理"],
-      "nonProjectHours": 0,
-      "nonProjectCount": 0,
-      "role": "user",
-      "email": "zhang.san@example.com",
-      "phone": "+86 13800138001",
-      "joinDate": "2024-01-15",
-      "isActive": true
+      id: "PG-0001",
+      chineseName: "张三",
+      englishName: "Zhang San",
+      avatar: "https://i.pravatar.cc/150?img=1",
+      status: "在职",
+      region: "中国大陆",
+      indexedRegion: "中国大陆",
+      indexedStatus: "在职",
+      indexedActivityLevel: "中",
+      services: ["翻译"],
+      role: "user",
+      email: "zhang.san@example.com",
+      phone: "+86 13800138001"
     },
     {
-      "volunteerId": "PG-0002",
-      "name": "李四",
-      "chineseName": "李四",
-      "englishName": "Li Si",
-      "avatar": "https://i.pravatar.cc/150?img=2",
-      "status": "在职",
-      "region": "中国大陆",
-      "province": "上海市",
-      "subRegion": "浦东新区",
-      "activityLevel": "中",
-      "services": ["校对", "培训"],
-      "nonProjectHours": 0,
-      "nonProjectCount": 0,
-      "role": "user",
-      "email": "li.si@example.com",
-      "phone": "+86 13700137001",
-      "joinDate": "2024-02-20",
-      "isActive": true
+      id: "PG-0002",
+      chineseName: "李四", 
+      englishName: "Li Si",
+      avatar: "https://i.pravatar.cc/150?img=2",
+      status: "在职",
+      region: "中国大陆",
+      indexedRegion: "中国大陆",
+      indexedStatus: "在职",
+      indexedActivityLevel: "中",
+      services: ["校对"],
+      role: "user",
+      email: "li.si@example.com",
+      phone: "+86 13700137001"
     },
     {
-      "volunteerId": "PG-0003",
-      "name": "王五",
-      "chineseName": "王五",
-      "englishName": "Wang Wu",
-      "avatar": "https://i.pravatar.cc/150?img=3",
-      "status": "在职",
-      "region": "中国大陆",
-      "province": "广东省",
-      "subRegion": "深圳市",
-      "activityLevel": "中",
-      "services": ["审核", "管理"],
-      "nonProjectHours": 0,
-      "nonProjectCount": 0,
-      "role": "c_admin",  // 重要：这是审核人角色
-      "email": "wang.wu@example.com",
-      "phone": "+86 13900139001",
-      "joinDate": "2024-03-10",
-      "isActive": true
+      id: "PG-0003",
+      chineseName: "王五",
+      englishName: "Wang Wu", 
+      avatar: "https://i.pravatar.cc/150?img=3",
+      status: "在职",
+      region: "中国大陆",
+      indexedRegion: "中国大陆",
+      indexedStatus: "在职",
+      indexedActivityLevel: "中",
+      services: ["管理"],
+      role: "c_admin",
+      email: "wang.wu@example.com",
+      phone: "+86 13900139001"
     }
   ];
-  
-  const results = [];
-  
-  for (const volunteerData of volunteers) {
-    console.log(`创建志愿者: ${volunteerData.chineseName} (${volunteerData.volunteerId})`);
-    
-    try {
-      const response = await fetch('http://localhost:5000/api/v1/volunteers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(volunteerData)
-      });
-      
-      const result = await response.json();
-      console.log(`  状态: ${response.status}`);
-      console.log(`  结果: ${result.success ? '✅ 成功' : '❌ 失败'}`);
-      
-      if (!response.ok) {
-        console.log(`  错误: ${result.error}`);
-      }
-      
-      results.push({
-        volunteerId: volunteerData.volunteerId,
-        success: response.ok,
-        data: result
-      });
-      
-    } catch (error) {
-      console.log(`  异常: ${error.message}`);
-      results.push({
-        volunteerId: volunteerData.volunteerId,
-        success: false,
-        error: error.message
-      });
-    }
-    
-    console.log('');
+
+  for (const volunteer of volunteers) {
+    const response = await fetch('http://localhost:5000/api/v1/volunteers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(volunteer)
+    });
+    const result = await response.json();
+    console.log(`创建 ${volunteer.id} ${volunteer.chineseName}:`, result.success ? '成功' : '失败');
   }
-  
-  // 总结
-  console.log('📊 创建结果总结:');
-  const successCount = results.filter(r => r.success).length;
-  console.log(`成功: ${successCount}/${volunteers.length}`);
-  
-  if (successCount === volunteers.length) {
-    console.log('🎉 所有志愿者创建成功！');
-  } else {
-    console.log('⚠️ 有志愿者创建失败，请检查');
-  }
-  
-  return results;
 };
 
 // 运行创建
-createTestVolunteers();
+createVolunteers();
 ```
 
 ---
@@ -557,11 +499,4 @@ finalVerification();
 - [ ] **步骤10**: 审计日志记录
 - [ ] **步骤11**: 志愿者统计更新
 
-## 💡 **如果测试失败**
-
-哪个步骤失败了，就查看对应步骤的：
-1. **API响应状态码**
-2. **错误信息**
-3. **数据库中的数据**
-
-然后我们可以针对那个具体步骤进行调试。
+**返回主文档：** [Task1-README](./README.md)

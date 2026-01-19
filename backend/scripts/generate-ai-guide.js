@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// cd backend/
+// npm docs
 
 import fs from 'fs/promises';
 import fsSync from 'fs';

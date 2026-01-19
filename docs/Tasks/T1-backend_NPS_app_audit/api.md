@@ -1,5 +1,7 @@
 # 📋 录入审核功能API接口设计
 
+**返回主文档：** [Task1-README](./README.md)
+
 以下按功能模块组织：
 
 ## 📝 **1. 申请管理模块（ServiceApplication）**
@@ -216,12 +218,4 @@ POST   /api/v1/validations/check             # 实时验证数据
 🔧 数据导出：/services/export, /audit/export
 ```
 
-### **第三期：优化与扩展**
-```
-📦 系统管理：/system/config, /system/cleanup
-📦 关联查询：/relations/*
-📦 报表功能：/system/reports/*
-📦 实时通知：WebSocket接口
-```
-
-这个API设计覆盖了从申请提交到数据查询的完整业务流程。您觉得这个颗粒度合适吗？哪些接口需要调整或补充？
+**返回主文档：** [Task1-README](./README.md)
