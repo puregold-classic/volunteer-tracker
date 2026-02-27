@@ -370,14 +370,15 @@ const verifyServiceRecord = async () => {
   
   const response = await fetch('http://localhost:5000/api/v1/services');
   const result = await response.json();
+  const services = result.data?.services || [];
   
-  console.log('服务记录总数:', result.data?.length || 0);
+  console.log('服务记录总数:', services.length);
   
-  if (!result.data || result.data.length === 0) {
+  if (services.length === 0) {
     throw new Error('没有找到服务记录');
   }
   
-  const serviceRecord = result.data[0];
+  const serviceRecord = services[0];
   console.log('✅ 服务记录已创建');
   console.log('服务记录ID:', serviceRecord.serviceId);
   console.log('服务类型:', serviceRecord.serviceType);
@@ -398,14 +399,15 @@ const verifyAuditLog = async () => {
   
   const response = await fetch('http://localhost:5000/api/v1/audit/logs');
   const result = await response.json();
+  const auditLogs = result.data?.auditLogs || [];
   
-  console.log('审计日志总数:', result.data?.length || 0);
+  console.log('审计日志总数:', auditLogs.length);
   
-  if (!result.data || result.data.length === 0) {
+  if (auditLogs.length === 0) {
     throw new Error('没有找到审计日志');
   }
   
-  const auditLog = result.data[0];
+  const auditLog = auditLogs[0];
   console.log('✅ 审计日志已创建');
   console.log('审计ID:', auditLog.auditId);
   console.log('操作类型:', auditLog.action);

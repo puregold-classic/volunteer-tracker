@@ -11,9 +11,6 @@ const router = express.Router();
 // 获取服务记录列表
 router.get('/', ServiceController.getServiceRecords);
 
-// 获取服务记录详情
-router.get('/:serviceId', ServiceController.getServiceRecordById);
-
 // 获取志愿者的服务记录
 router.get('/volunteer/:volunteerId', ServiceController.getServicesByVolunteer);
 
@@ -47,5 +44,8 @@ router.get('/export/stats', validateExportRequest, ExportController.exportStatis
 
 // 下载导入模板
 router.get('/export/template', ExportController.downloadTemplate);
+
+// 获取服务记录详情（放在最后，避免拦截其他静态路径）
+router.get('/:serviceId', ServiceController.getServiceRecordById);
 
 export default router;

@@ -6,7 +6,7 @@ export const notFound = (req, res, next) => {
 };
 
 // 全局错误处理中间件
-export const errorHandler = (err, req, res, next) => {
+export const errorHandler = (err, req, res, _next) => {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   let message = err.message;
 

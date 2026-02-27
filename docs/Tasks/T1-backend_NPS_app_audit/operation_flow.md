@@ -34,7 +34,7 @@ API需求：数据写入、统计更新、清理操作
 
 **场景**：用户 PG-0001 想更新自己之前的服务记录 `NPS-PG-0001-001` 的时长。
 
-### 3.1 用户提交更新申请 (`POST /applications`)
+### 3.1 用户提交更新申请 (`POST /api/v1/applications`)
 
 ```json
 {
@@ -59,12 +59,12 @@ API需求：数据写入、统计更新、清理操作
 - 生成 `applicationId`: `APP-PG-0001-002`
 - 状态: `pending`
 
-### 3.4 管理员审核 (`POST /reviews/update/APP-PG-0001-002`)
+### 3.4 管理员审核 (`POST /api/v1/reviews/APP-PG-0001-002`)
 
 ```json
 {
-  "reviewResult": "approved",  // 或 "rejected"
-  "reviewNotes": "同意延长服务时长"
+  "result": "approved",  // 或 "rejected"
+  "notes": "同意延长服务时长"
 }
 ```
 

@@ -104,7 +104,7 @@ class ExcelExporter {
    * 添加服务记录详细数据Sheet
    * @private
    */
-  static async addServicesSheet(workbook, services, options) {
+  static async addServicesSheet(workbook, services, _options) {
     const worksheet = workbook.addWorksheet('服务记录');
     
     // 定义列
@@ -183,7 +183,7 @@ class ExcelExporter {
    * 添加统计Sheet
    * @private
    */
-  static async addStatisticsSheet(workbook, services, options) {
+  static async addStatisticsSheet(workbook, services, _options) {
     const worksheet = workbook.addWorksheet('统计');
     
     // 按服务类型统计

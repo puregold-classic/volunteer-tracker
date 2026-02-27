@@ -87,9 +87,10 @@ class ServiceController {
       });
       
     } catch (error) {
-      console.error('获取服务记录详情失败:', error);
-      
       const statusCode = error.message.includes('不存在') ? 404 : 500;
+      if (statusCode >= 500) {
+        console.error('获取服务记录详情失败:', error);
+      }
       
       return res.status(statusCode).json({
         success: false,
@@ -145,9 +146,10 @@ class ServiceController {
       });
       
     } catch (error) {
-      console.error('获取志愿者服务记录失败:', error);
-      
       const statusCode = error.message.includes('不存在') ? 404 : 500;
+      if (statusCode >= 500) {
+        console.error('获取志愿者服务记录失败:', error);
+      }
       
       return res.status(statusCode).json({
         success: false,
@@ -277,9 +279,10 @@ class ServiceController {
       });
       
     } catch (error) {
-      console.error('获取志愿者服务统计失败:', error);
-      
       const statusCode = error.message.includes('不存在') ? 404 : 500;
+      if (statusCode >= 500) {
+        console.error('获取志愿者服务统计失败:', error);
+      }
       
       return res.status(statusCode).json({
         success: false,
@@ -334,12 +337,13 @@ class ServiceController {
   static async getServiceTrendStatistics(req, res) {
     try {
       // 筛选条件
+      const defaultDateRange = ServiceController.getDefaultDateRange();
       const filters = {
         volunteerId: req.query.volunteerId,
         serviceType: req.query.serviceType,
         region: req.query.region,
-        serviceDateFrom: req.query.serviceDateFrom || this.getDefaultDateRange().from,
-        serviceDateTo: req.query.serviceDateTo || this.getDefaultDateRange().to
+        serviceDateFrom: req.query.serviceDateFrom || defaultDateRange.from,
+        serviceDateTo: req.query.serviceDateTo || defaultDateRange.to
       };
       
       console.log('获取服务趋势统计:', { filters });

@@ -1,5 +1,11 @@
 // src/controllers/exportController.js
 import ExportService from '../services/ExportService.js';
+import NonProjectService from '../models/NonProjectService.js';
+
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
 
 /**
  * 导出控制器
@@ -30,8 +36,8 @@ class ExportController {
         format: req.query.format || 'csv',
         includeSummary: req.query.includeSummary !== 'false',
         includeStatistics: req.query.includeStatistics !== 'false',
-        maxRecords: parseInt(req.query.maxRecords) || 10000,
-        chunkSize: parseInt(req.query.chunkSize) || 1000
+        maxRecords: parsePositiveInt(req.query.maxRecords, 10000),
+        chunkSize: parsePositiveInt(req.query.chunkSize, 1000)
       };
       
       console.log('导出服务记录请求:', {

@@ -91,9 +91,10 @@ class AuditController {
       });
       
     } catch (error) {
-      console.error('获取审计日志详情失败:', error);
-      
       const statusCode = error.message.includes('不存在') ? 404 : 500;
+      if (statusCode >= 500) {
+        console.error('获取审计日志详情失败:', error);
+      }
       
       return res.status(statusCode).json({
         success: false,
@@ -127,9 +128,10 @@ class AuditController {
       });
       
     } catch (error) {
-      console.error('获取目标审计历史失败:', error);
-      
       const statusCode = error.message.includes('无效') ? 400 : 500;
+      if (statusCode >= 500) {
+        console.error('获取目标审计历史失败:', error);
+      }
       
       return res.status(statusCode).json({
         success: false,
@@ -195,9 +197,10 @@ class AuditController {
       });
       
     } catch (error) {
-      console.error('获取操作人审计统计失败:', error);
-      
       const statusCode = error.message.includes('不存在') ? 404 : 500;
+      if (statusCode >= 500) {
+        console.error('获取操作人审计统计失败:', error);
+      }
       
       return res.status(statusCode).json({
         success: false,
@@ -215,11 +218,12 @@ class AuditController {
   static async getAuditTimelineAnalysis(req, res) {
     try {
       // 筛选条件
+      const defaultDateRange = AuditController.getDefaultDateRange();
       const filters = {
         action: req.query.action,
         operatorId: req.query.operatorId,
-        dateFrom: req.query.dateFrom || this.getDefaultDateRange().from,
-        dateTo: req.query.dateTo || this.getDefaultDateRange().to
+        dateFrom: req.query.dateFrom || defaultDateRange.from,
+        dateTo: req.query.dateTo || defaultDateRange.to
       };
       
       console.log('获取审计时间线分析:', { filters });

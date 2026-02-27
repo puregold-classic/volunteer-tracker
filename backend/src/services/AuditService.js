@@ -1,7 +1,5 @@
 // src/services/AuditService.js
 import AuditLog from '../models/AuditLog.js';
-import ServiceApplication from '../models/ServiceApplication.js';
-import NonProjectService from '../models/NonProjectService.js';
 import Volunteer from '../models/Volunteer.js';
 import QueryUtils from '../utils/queryUtils.js';
 

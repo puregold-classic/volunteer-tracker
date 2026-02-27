@@ -113,8 +113,8 @@ class QueryUtils {
    * @returns {Object} - 分页选项
    */
   static buildPaginationOptions(page = 1, limit = 20) {
-    const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 20)); // 限制最大100条
+    const pageNum = Math.max(1, Number.parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(100, Number.parseInt(limit, 10) || 20)); // 限制最大100条
     
     return {
       skip: (pageNum - 1) * limitNum,

@@ -20,9 +20,6 @@ class ServiceService {
       const { page = 1, limit = 20 } = pagination;
       const { sortBy = 'serviceDate', order = 'desc' } = sortOptions;
       
-      // 构建查询条件
-      const query = QueryUtils.buildServiceRecordsQuery(filters);
-      
       // 构建聚合管道
       const pipeline = QueryUtils.buildServiceAggregationPipeline(filters);
       

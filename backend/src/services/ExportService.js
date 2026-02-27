@@ -1,6 +1,5 @@
 // src/services/ExportService.js
 import NonProjectService from '../models/NonProjectService.js';
-import Volunteer from '../models/Volunteer.js';
 import ServiceService from './ServiceService.js';
 import CsvExporter from '../utils/csvExporter.js';
 import ExcelExporter from '../utils/excelExporter.js';
@@ -21,8 +20,6 @@ class ExportService {
     try {
       const {
         format = 'csv',
-        includeSummary = true,
-        includeStatistics = true,
         chunkSize = 1000,
         maxRecords = 10000
       } = options;
@@ -219,7 +216,7 @@ class ExportService {
       
       // 根据格式导出
       switch (format.toLowerCase()) {
-        case 'csv':
+        case 'csv': {
           const csvContent = CsvExporter.exportStatisticsToCSV(volunteerStats, {
             ...options,
             filters
@@ -231,8 +228,8 @@ class ExportService {
             data: csvContent,
             fileSize: Buffer.from(csvContent).length
           };
-          
-        case 'excel':
+        }
+        case 'excel': {
           const excelBuffer = await ExcelExporter.exportMultiSheetExcel({
             summary: [statistics.summary],
             '按服务类型': Object.entries(statistics.byServiceType).map(([type, data]) => ({
@@ -255,8 +252,8 @@ class ExportService {
             data: excelBuffer,
             fileSize: excelBuffer.length
           };
-          
-        case 'json':
+        }
+        case 'json': {
           const jsonData = {
             metadata: {
               generatedAt: new Date().toISOString(),
@@ -275,7 +272,7 @@ class ExportService {
             data: jsonContent,
             fileSize: Buffer.from(jsonContent).length
           };
-          
+        }
         default:
           throw new Error(`不支持的导出格式: ${format}`);
       }
@@ -320,7 +317,7 @@ class ExportService {
       ];
       
       switch (format.toLowerCase()) {
-        case 'csv':
+        case 'csv': {
           const csvContent = CsvExporter.exportGenericToCSV(templateData, {
             sheetName: '导入模板',
             includeInstructions: true
@@ -337,8 +334,8 @@ class ExportService {
             data: `${instructionsCSV}\n\n${csvContent}`,
             fileSize: 'template'
           };
-          
-        case 'excel':
+        }
+        case 'excel': {
           const excelBuffer = await ExcelExporter.exportMultiSheetExcel({
             字段说明: instructions,
             导入模板: templateData,
@@ -351,7 +348,7 @@ class ExportService {
             data: excelBuffer,
             fileSize: excelBuffer.length
           };
-          
+        }
         default:
           throw new Error(`不支持的模板格式: ${format}`);
       }

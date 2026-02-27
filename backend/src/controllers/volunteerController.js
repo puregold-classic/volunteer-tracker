@@ -1,4 +1,5 @@
 import Volunteer from '../models/Volunteer.js';
+import QueryUtils from '../utils/queryUtils.js';
 
 // 获取所有志愿者
 export const getAllVolunteers = async (req, res) => {
@@ -15,7 +16,7 @@ export const getAllVolunteers = async (req, res) => {
     } = req.query;
 
     // 构建查询条件
-    let query = {};
+    const query = {};
 
     // 状态筛选
     if (status && ['在职', '不在职'].includes(status)) {
@@ -47,20 +48,20 @@ export const getAllVolunteers = async (req, res) => {
     sortOptions[sortBy] = order === 'desc' ? -1 : 1;
 
     // 分页
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const pagination = QueryUtils.buildPaginationOptions(page, limit);
     const total = await Volunteer.countDocuments(query);
     const volunteers = await Volunteer.find(query)
       .sort(sortOptions)
-      .skip(skip)
-      .limit(parseInt(limit))
+      .skip(pagination.skip)
+      .limit(pagination.limit)
       .select('-__v -isActive'); // 排除不必要字段
 
     res.status(200).json({
       success: true,
       count: volunteers.length,
       total,
-      totalPages: Math.ceil(total / parseInt(limit)),
-      currentPage: parseInt(page),
+      totalPages: Math.ceil(total / pagination.limit),
+      currentPage: pagination.page,
       data: volunteers
     });
   } catch (error) {

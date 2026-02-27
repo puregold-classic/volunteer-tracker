@@ -16,8 +16,7 @@ class CsvExporter {
     try {
       const {
         includeHeaders = true,
-        delimiter = ',',
-        encoding = 'utf-8'
+        delimiter = ','
       } = options;
       
       // 定义CSV列映射

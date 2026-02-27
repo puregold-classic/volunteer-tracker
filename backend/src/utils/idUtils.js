@@ -1,4 +1,5 @@
 // src/utils/idUtils.js
+import IDGenerator from './IDGenerator.js';
 
 /**
  * ID解析工具函数
@@ -106,4 +107,4 @@ export function batchValidateIds(ids, expectedType = null) {
 }
 
 // 导出IDGenerator以供使用
-export { default as IDGenerator } from './IDGenerator.js';
+export { IDGenerator };

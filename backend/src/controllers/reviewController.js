@@ -349,8 +349,8 @@ class ReviewController {
       // 格式化统计结果
       const formattedStats = {
         summary: stats[0].summary[0] || {},
-        byStatus: this.formatStatsArray(stats[0].byStatus),
-        byTypePending: this.formatStatsArray(stats[0].byTypePending),
+        byStatus: ReviewController.formatStatsArray(stats[0].byStatus),
+        byTypePending: ReviewController.formatStatsArray(stats[0].byTypePending),
         byVolunteer: stats[0].byVolunteer,
         byDate: stats[0].byDate,
         meta: {
@@ -490,10 +490,11 @@ class ReviewController {
         });
         
     } catch (error) {
-        console.error('处理审核请求失败:', error);
-        
         const statusCode = error.message.includes('不存在') ? 404 : 
                         error.message.includes('已处理') ? 409 : 500;
+        if (statusCode >= 500) {
+          console.error('处理审核请求失败:', error);
+        }
         
         return res.status(statusCode).json({
         success: false,
@@ -584,10 +585,11 @@ class ReviewController {
         });
         
     } catch (error) {
-        console.error('重新开启审核失败:', error);
-        
         const statusCode = error.message.includes('不存在') ? 404 : 
                         error.message.includes('只能') ? 400 : 500;
+        if (statusCode >= 500) {
+          console.error('重新开启审核失败:', error);
+        }
         
         return res.status(statusCode).json({
         success: false,
@@ -622,10 +624,11 @@ class ReviewController {
         });
         
     } catch (error) {
-        console.error('撤回审核结果失败:', error);
-        
         const statusCode = error.message.includes('不存在') ? 404 : 
                         error.message.includes('只能') ? 403 : 500;
+        if (statusCode >= 500) {
+          console.error('撤回审核结果失败:', error);
+        }
         
         return res.status(statusCode).json({
         success: false,

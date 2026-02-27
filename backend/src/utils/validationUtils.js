@@ -1,5 +1,4 @@
 // src/utils/validationUtils.js
-import mongoose from 'mongoose';
 import Volunteer from '../models/Volunteer.js';
 import NonProjectService from '../models/NonProjectService.js';
 

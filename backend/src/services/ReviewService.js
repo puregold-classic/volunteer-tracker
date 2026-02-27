@@ -1,5 +1,4 @@
 // src/services/ReviewService.js
-import mongoose from 'mongoose';
 import ServiceApplication from '../models/ServiceApplication.js';
 import NonProjectService from '../models/NonProjectService.js';
 import AuditLog from '../models/AuditLog.js';
@@ -842,20 +841,20 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
    * @private
    */
   static async revertServiceRecordChanges(auditLog, session) {
-    const { applicationType, reviewResult } = auditLog.actionDetails;
+    const { applicationType } = auditLog.actionDetails;
     const { modifiedId, changes } = auditLog;
     
     if (!modifiedId) return;
     
     switch (applicationType) {
-      case 'create':
+      case 'create': {
         // 创建被撤回：删除创建的记录
         await NonProjectService.deleteOne({ 
           serviceId: modifiedId 
         }).session(session);
         break;
-        
-      case 'update':
+      }
+      case 'update': {
         // 更新被撤回：恢复原始值
         const serviceRecord = await NonProjectService.findOne({
           serviceId: modifiedId
@@ -874,8 +873,8 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
           await serviceRecord.save({ session });
         }
         break;
-        
-      case 'delete':
+      }
+      case 'delete': {
         // 删除被撤回：恢复记录
         await NonProjectService.updateOne(
           { serviceId: modifiedId },
@@ -887,6 +886,7 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
           }
         ).session(session);
         break;
+      }
     }
     
     // 更新志愿者统计

@@ -9,9 +9,6 @@ const router = express.Router();
 // 获取审计日志列表
 router.get('/logs', AuditController.getAuditLogs);
 
-// 获取审计日志详情
-router.get('/:auditId', AuditController.getAuditLogById);
-
 // 获取目标审计历史
 router.get('/target/:targetType/:targetId', AuditController.getTargetAuditHistory);
 
@@ -30,5 +27,8 @@ router.get('/stats/timeline', AuditController.getAuditTimelineAnalysis);
 
 // 导出审计日志
 router.get('/export', AuditController.exportAuditLogs);
+
+// 获取审计日志详情（放在最后，避免拦截/export等静态路径）
+router.get('/:auditId', AuditController.getAuditLogById);
 
 export default router;

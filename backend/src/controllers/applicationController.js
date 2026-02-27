@@ -2,6 +2,7 @@
 import ServiceApplication from '../models/ServiceApplication.js';
 import ValidationUtils from '../utils/validationUtils.js';
 import { IDGenerator } from '../utils/idUtils.js';
+import QueryUtils from '../utils/queryUtils.js';
 
 /**
  * 申请控制器
@@ -87,8 +88,6 @@ class ApplicationController {
       });
       
     } catch (error) {
-      console.error('申请提交失败:', error);
-      
       // 处理重复ID错误
       if (error.code === 11000) {
         return res.status(409).json({
@@ -109,6 +108,7 @@ class ApplicationController {
       }
       
       // 其他服务器错误
+      console.error('申请提交失败:', error);
       return res.status(500).json({
         success: false,
         error: '服务器内部错误',
@@ -185,7 +185,7 @@ class ApplicationController {
       }
       
       const { page = 1, limit = 20, status } = req.query;
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const pagination = QueryUtils.buildPaginationOptions(page, limit);
       
       // 构建查询条件
       const query = {
@@ -200,8 +200,8 @@ class ApplicationController {
       // 执行查询
       const applications = await ServiceApplication.find(query)
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit))
+        .skip(pagination.skip)
+        .limit(pagination.limit)
         .select('-__v -indexedStatus -indexedVolunteerId -indexedDate')
         .lean();
       
@@ -213,10 +213,10 @@ class ApplicationController {
         data: {
           applications,
           pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: pagination.page,
+            limit: pagination.limit,
             total,
-            pages: Math.ceil(total / parseInt(limit))
+            pages: Math.ceil(total / pagination.limit)
           }
         },
         timestamp: new Date().toISOString()
