@@ -6,6 +6,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // API版本
 const API_VERSION = 'v1';
+export const UNAUTHORIZED_EVENT = 'app:unauthorized';
 
 // 请求配置
 const DEFAULT_CONFIG: AxiosRequestConfig = {
@@ -86,7 +87,14 @@ const createApiInstance = (config: AxiosRequestConfig = {}): AxiosInstance => {
         switch (error.response.status) {
           case 401:
             errorResponse.message = '未授权，请重新登录';
-            // 可以在这里触发登出逻辑
+            if (typeof window !== 'undefined') {
+              const hasToken = Boolean(localStorage.getItem('auth_token'));
+              const requestUrl = error.config?.url || '';
+              const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+              if (hasToken && !isAuthEndpoint) {
+                window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: errorResponse }));
+              }
+            }
             break;
           case 403:
             errorResponse.message = '拒绝访问';
@@ -159,6 +167,7 @@ export interface PaginationParams {
 export interface FilterParams {
   status?: string;
   region?: string;
+  province?: string;
   services?: string[];
   search?: string;
 }

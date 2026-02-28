@@ -1,15 +1,17 @@
 # Volunteer Tracker 开发命令
 
-.PHONY: help start stop restart logs seed test clean
+.PHONY: help dev start stop restart logs seed test clean recover
 
 help:
 	@echo "📋 志愿者管理系统开发命令"
 	@echo ""
 	@echo "开发环境:"
+	@echo "  make dev         稳定启动（后端健康检查 + 前端）"
 	@echo "  make start       启动开发环境"
 	@echo "  make stop        停止开发环境"
 	@echo "  make restart     重启开发环境"
 	@echo "  make logs        查看容器日志"
+	@echo "  make recover     快速恢复后端依赖并重启"
 	@echo ""
 	@echo "数据库:"
 	@echo "  make seed        初始化数据库"
@@ -24,8 +26,11 @@ help:
 	@echo "  make clean       清理临时文件"
 	@echo "  make status      查看服务状态"
 
+dev:
+	@./scripts/dev/up.sh
+
 start:
-	@./scripts/dev/start.sh
+	@./scripts/dev/up.sh
 
 stop:
 	@docker-compose down
@@ -63,3 +68,8 @@ status:
 	@echo ""
 	@echo "🌐 服务状态:"
 	@curl -s http://localhost:5000/api/health | python3 -m json.tool || echo "后端服务未运行"
+
+recover:
+	@docker-compose exec -u root backend npm install
+	@docker-compose restart backend
+	@docker-compose logs --tail=80 backend

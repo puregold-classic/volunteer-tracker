@@ -84,7 +84,7 @@ const auditLogSchema = new mongoose.Schema({
     role: {
       type: String,
       required: [true, '操作人角色是必需的'],
-      enum: ['user', 'admin', 'c_admin']
+      enum: ['user', 'b_admin', 'a_admin', 'admin']
     },
     _id: false
   },
@@ -102,7 +102,7 @@ const auditLogSchema = new mongoose.Schema({
     role: {
       type: String,
       required: [true, '提交人角色是必需的'],
-      enum: ['user', 'admin', 'c_admin']
+      enum: ['user', 'b_admin', 'a_admin', 'admin']
     },
     _id: false
   },

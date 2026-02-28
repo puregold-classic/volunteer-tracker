@@ -1,30 +1,46 @@
 import React from 'react';
 import './Header.scss';
 
+interface HeaderNavItem {
+  label: string;
+  active?: boolean;
+  onClick: () => void;
+}
+
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  navItems?: HeaderNavItem[];
+  actions?: React.ReactNode;
 }
 
-const Header: React.FC<HeaderProps> = ({ title, subtitle }) => {
+const Header: React.FC<HeaderProps> = ({ title, subtitle, navItems = [], actions }) => {
   return (
     <header className="header">
-      <div className="header-content">
+      <div className="container">
         <div className="logo">
           <span className="logo-icon">🤝</span>
-          <h1 className="title">{title}</h1>
+          <div>
+            <h1 className="title">{title}</h1>
+            {subtitle && <p className="subtitle">{subtitle}</p>}
+          </div>
         </div>
-        
-        {subtitle && (
-          <p className="subtitle">{subtitle}</p>
-        )}
-        
-        <nav className="nav">
-          <a href="#home" className="nav-link active">首页</a>
-          <a href="#volunteers" className="nav-link">志愿者</a>
-          <a href="#stats" className="nav-link">统计</a>
-          <a href="#about" className="nav-link">关于</a>
-        </nav>
+
+        <div className="header-right">
+          <nav className="nav">
+            {navItems.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                className={`nav-link ${item.active ? 'active' : ''}`}
+                onClick={item.onClick}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          {actions && <div className="actions">{actions}</div>}
+        </div>
       </div>
     </header>
   );

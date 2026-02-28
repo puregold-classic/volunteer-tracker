@@ -11,6 +11,7 @@ import applicationRoutes from './routes/applicationRoutes.js'; // 新增
 import reviewRoutes from './routes/reviewRoutes.js'; // 新增
 import serviceRoutes from './routes/serviceRoutes.js'; // 新增
 import auditRoutes from './routes/auditRoutes.js'; // 新增
+import authRoutes from './routes/authRoutes.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 // 加载环境变量
@@ -48,6 +49,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // API路由
 app.use('/api/v1/volunteers', volunteerRoutes);
+app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/applications', applicationRoutes); // 新增申请路由
 app.use('/api/v1/reviews', reviewRoutes); // 新增审核路由
 app.use('/api/v1/services', serviceRoutes); // 新增服务记录路由

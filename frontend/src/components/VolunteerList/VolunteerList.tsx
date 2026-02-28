@@ -3,15 +3,24 @@ import './VolunteerList.scss';
 import VolunteerCard from '@components/VolunteerCard';
 import { Volunteer } from '@services/types';
 import { volunteerService } from '@services/volunteerService';
+import { VolunteersParams } from '@services/api';
 
 export interface VolunteerListProps {
   compact?: boolean;
   onVolunteerClick?: (id: string) => void;
+  showStats?: boolean;
+  showPagination?: boolean;
+  filterParams?: VolunteersParams;
+  emptyMessage?: string;
 }
 
 const VolunteerList: React.FC<VolunteerListProps> = ({
   compact = false,
-  onVolunteerClick
+  onVolunteerClick,
+  showStats = true,
+  showPagination = true,
+  filterParams,
+  emptyMessage
 }) => {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,16 +32,18 @@ const VolunteerList: React.FC<VolunteerListProps> = ({
   });
 
   useEffect(() => {
-    fetchVolunteers();
-    fetchStats();
-  }, []);
+    fetchVolunteers(filterParams);
+    if (showStats || showPagination) {
+      fetchStats();
+    }
+  }, [JSON.stringify(filterParams), showStats, showPagination]);
 
-  const fetchVolunteers = async () => {
+  const fetchVolunteers = async (params?: VolunteersParams) => {
     try {
       setLoading(true);
-      const response = await volunteerService.getAllVolunteers();
+      const response = await volunteerService.getAllVolunteers(params);
       if (response.success && response.data) {
-        setVolunteers(response.data);
+        setVolunteers(response.data || []);
       }
     } catch (err: any) {
       setError(err.message || '获取志愿者数据失败');
@@ -63,7 +74,7 @@ const VolunteerList: React.FC<VolunteerListProps> = ({
       onVolunteerClick(id);
     } else {
       // 默认行为：显示详情
-      window.open(`/volunteer/${id}`, '_blank');
+      window.open(`/volunteers/${id}`, '_blank');
     }
   };
 
@@ -93,29 +104,30 @@ const VolunteerList: React.FC<VolunteerListProps> = ({
     return (
       <div className="empty-container">
         <div className="empty-icon">📋</div>
-        <h3>暂无志愿者数据</h3>
-        <p>目前还没有志愿者记录</p>
+        <h3>暂无匹配结果</h3>
+        <p>{emptyMessage || '当前筛选条件下没有志愿者数据'}</p>
       </div>
     );
   }
 
   return (
     <div className="volunteer-list">
-      {/* 统计信息 */}
-      <div className="stats-bar">
-        <div className="stat-card">
-          <div className="stat-value">{stats.total}</div>
-          <div className="stat-label">总志愿者</div>
+      {showStats && (
+        <div className="stats-bar">
+          <div className="stat-card">
+            <div className="stat-value">{stats.total}</div>
+            <div className="stat-label">总志愿者</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">{stats.active}</div>
+            <div className="stat-label">在职志愿者</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-value">{stats.totalHours}</div>
+            <div className="stat-label">总服务小时</div>
+          </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.active}</div>
-          <div className="stat-label">在职志愿者</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats.totalHours}</div>
-          <div className="stat-label">总服务小时</div>
-        </div>
-      </div>
+      )}
 
       {/* 志愿者网格 */}
       <div className={`volunteers-grid ${compact ? 'compact' : 'full'}`}>
@@ -129,11 +141,12 @@ const VolunteerList: React.FC<VolunteerListProps> = ({
         ))}
       </div>
 
-      {/* 分页信息 */}
-      <div className="pagination-info">
-        <span>显示 {volunteers.length} 位志愿者</span>
-        <span>共 {stats.total} 位志愿者</span>
-      </div>
+      {showPagination && (
+        <div className="pagination-info">
+          <span>显示 {volunteers.length} 位志愿者</span>
+          <span>共 {stats.total} 位志愿者</span>
+        </div>
+      )}
     </div>
   );
 };

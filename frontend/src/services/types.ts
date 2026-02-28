@@ -37,6 +37,7 @@ export interface PaginationInfo {
 export interface FilterParams {
   status?: string;
   region?: string;
+  province?: string;
   services?: string[];
   search?: string;
 }

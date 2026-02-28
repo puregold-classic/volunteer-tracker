@@ -1,12 +1,53 @@
 import Volunteer from '../models/Volunteer.js';
 import QueryUtils from '../utils/queryUtils.js';
 
+const buildVolunteerQuery = (queryParams = {}) => {
+  const query = {};
+  const { status, region, province, services, search } = queryParams;
+
+  if (status && ['在职', '不在职'].includes(status)) {
+    query.status = status;
+  }
+
+  if (region) {
+    query.region = region;
+  }
+
+  if (province) {
+    query.province = province;
+  }
+
+  if (services) {
+    const serviceValue = Array.isArray(services) ? services.join(',') : services;
+    const servicesArray = String(serviceValue)
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (servicesArray.length > 0) {
+      query.services = { $in: servicesArray };
+    }
+  }
+
+  if (search) {
+    query.$or = [
+      { chineseName: { $regex: search, $options: 'i' } },
+      { englishName: { $regex: search, $options: 'i' } },
+      { id: { $regex: search, $options: 'i' } },
+      { province: { $regex: search, $options: 'i' } },
+      { subRegion: { $regex: search, $options: 'i' } }
+    ];
+  }
+
+  return query;
+};
+
 // 获取所有志愿者
 export const getAllVolunteers = async (req, res) => {
   try {
     const {
       status,
       region,
+      province,
       services,
       search,
       page = 1,
@@ -15,33 +56,7 @@ export const getAllVolunteers = async (req, res) => {
       order = 'desc'
     } = req.query;
 
-    // 构建查询条件
-    const query = {};
-
-    // 状态筛选
-    if (status && ['在职', '不在职'].includes(status)) {
-      query.status = status;
-    }
-
-    // 地区筛选
-    if (region) {
-      query.region = region;
-    }
-
-    // 服务方向筛选
-    if (services) {
-      const servicesArray = services.split(',');
-      query.services = { $in: servicesArray };
-    }
-
-    // 搜索（姓名或ID）
-    if (search) {
-      query.$or = [
-        { chineseName: { $regex: search, $options: 'i' } },
-        { englishName: { $regex: search, $options: 'i' } },
-        { id: { $regex: search, $options: 'i' } }
-      ];
-    }
+    const query = buildVolunteerQuery({ status, region, province, services, search });
 
     // 排序
     const sortOptions = {};
@@ -187,7 +202,11 @@ export const deleteVolunteer = async (req, res) => {
 // 获取统计信息
 export const getVolunteerStats = async (req, res) => {
   try {
+    const query = buildVolunteerQuery(req.query);
+    const matchStage = Object.keys(query).length > 0 ? [{ $match: query }] : [];
+
     const stats = await Volunteer.aggregate([
+      ...matchStage,
       {
         $group: {
           _id: null,
@@ -216,6 +235,7 @@ export const getVolunteerStats = async (req, res) => {
 
     // 地区分布
     const regionStats = await Volunteer.aggregate([
+      ...matchStage,
       {
         $group: {
           _id: '$region',
@@ -236,11 +256,19 @@ export const getVolunteerStats = async (req, res) => {
 
     // 服务方向分布
     const serviceStats = await Volunteer.aggregate([
+      ...matchStage,
       { $unwind: '$services' },
       {
         $group: {
           _id: '$services',
           count: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          service: '$_id',
+          count: 1
         }
       },
       { $sort: { count: -1 } }

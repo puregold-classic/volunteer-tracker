@@ -94,7 +94,7 @@ const serviceApplicationSchema = new mongoose.Schema({
     role: {
       type: String,
       required: [true, '提交人角色是必需的'],
-      enum: ['user', 'admin', 'c_admin']
+      enum: ['user', 'b_admin', 'a_admin', 'admin']
     },
     timestamp: {
       type: Date,

@@ -104,7 +104,7 @@ const volunteerSchema = new mongoose.Schema({
   // 角色权限
   role: {
     type: String,
-    enum: ['user', 'admin', 'c_admin'],
+    enum: ['user', 'b_admin', 'a_admin', 'admin'],
     default: 'user'
   },
   

@@ -57,7 +57,7 @@ export const validateApplicationSubmission = [
   
   body('submittedBy.role')
     .notEmpty().withMessage('提交人角色不能为空')
-    .isIn(['user', 'admin', 'c_admin']).withMessage('无效的角色类型'),
+    .isIn(['user', 'b_admin', 'a_admin', 'admin']).withMessage('无效的角色类型'),
   
   // 验证结果处理
   (req, res, next) => {

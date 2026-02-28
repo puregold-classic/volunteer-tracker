@@ -11,6 +11,23 @@ import TransactionUtils from '../utils/transactionUtils.js';
  * 处理申请审核的核心业务逻辑
  */
 class ReviewService {
+  /**
+   * 解析审核标识：支持 auditId 或 applicationId
+   * @private
+   */
+  static async resolveReviewAuditLog(reviewIdOrApplicationId) {
+    // 先按审计ID查找
+    let auditLog = await AuditLog.findOne({ auditId: reviewIdOrApplicationId });
+    if (auditLog) return auditLog;
+
+    // 兼容按申请ID传入：取最近一次 application_review 记录
+    auditLog = await AuditLog.findOne({
+      targetId: reviewIdOrApplicationId,
+      action: 'application_review'
+    }).sort({ timestamp: -1 });
+
+    return auditLog;
+  }
   
   /**
    * 审核申请（通用方法）
@@ -655,7 +672,7 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
   static async reopenReview(reviewId, reviewer) {
     try {
       // 查找审计记录
-      const auditLog = await AuditLog.findOne({ auditId: reviewId });
+      const auditLog = await this.resolveReviewAuditLog(reviewId);
       
       if (!auditLog) {
         throw new Error(`审计记录不存在: ${reviewId}`);
@@ -743,7 +760,7 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
   static async withdrawReview(reviewId, reviewer) {
     try {
       // 查找审计记录
-      const auditLog = await AuditLog.findOne({ auditId: reviewId });
+      const auditLog = await this.resolveReviewAuditLog(reviewId);
       
       if (!auditLog) {
         throw new Error(`审计记录不存在: ${reviewId}`);

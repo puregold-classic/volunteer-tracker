@@ -7,6 +7,36 @@ import Volunteer from '../models/Volunteer.js';
  */
 export const authorizeReviewer = async (req, res, next) => {
   try {
+    // 新流程: 优先使用认证中间件注入的req.user
+    if (req.user) {
+      const allowedRoles = ['admin', 'a_admin', 'b_admin'];
+      if (!allowedRoles.includes(req.user.role)) {
+        return res.status(403).json({
+          success: false,
+          error: '没有审核权限',
+          code: 'INSUFFICIENT_PERMISSIONS',
+          requiredRoles: allowedRoles,
+          currentRole: req.user.role
+        });
+      }
+
+      if (!req.user.volunteerId) {
+        return res.status(400).json({
+          success: false,
+          error: '审核账号必须绑定volunteerId',
+          code: 'MISSING_VOLUNTEER_ID'
+        });
+      }
+
+      req.reviewer = {
+        id: req.user.volunteerId,
+        name: req.user.name || req.user.email,
+        role: req.user.role
+      };
+      return next();
+    }
+
+    // 兼容旧流程: 从请求头或查询参数获取审核人信息
     // 从请求头或查询参数获取审核人信息
     const reviewerId = req.headers['x-reviewer-id'] || req.query.reviewerId;
     
@@ -31,8 +61,8 @@ export const authorizeReviewer = async (req, res, next) => {
       });
     }
     
-    // 检查审核权限（admin或c_admin角色）
-    const allowedRoles = ['admin', 'c_admin'];
+    // 检查审核权限（admin/a_admin/b_admin角色）
+    const allowedRoles = ['admin', 'a_admin', 'b_admin'];
     if (!allowedRoles.includes(reviewer.role)) {
       return res.status(403).json({
         success: false,
@@ -67,6 +97,15 @@ export const authorizeReviewer = async (req, res, next) => {
  */
 export const optionalReviewer = async (req, res, next) => {
   try {
+    if (req.user && ['admin', 'a_admin', 'b_admin'].includes(req.user.role)) {
+      req.reviewer = {
+        id: req.user.volunteerId || req.user.accountId,
+        name: req.user.name || req.user.email,
+        role: req.user.role
+      };
+      return next();
+    }
+
     const reviewerId = req.headers['x-reviewer-id'] || req.query.reviewerId;
     
     if (reviewerId) {
@@ -74,7 +113,7 @@ export const optionalReviewer = async (req, res, next) => {
         id: reviewerId,
       });
       
-      if (reviewer && ['admin', 'c_admin'].includes(reviewer.role)) {
+      if (reviewer && ['admin', 'a_admin', 'b_admin'].includes(reviewer.role)) {
         req.reviewer = {
           id: reviewer.id,
           name: reviewer.chineseName,

@@ -2,10 +2,12 @@
 import express from 'express';
 import ReviewController from '../controllers/reviewController.js';
 import { authorizeReviewer } from '../middleware/authorizeReviewer.js';
+import { authenticate } from '../middleware/authenticate.js';
 
 const router = express.Router();
 
-// 所有审核路由都需要验证审核权限
+// 所有审核路由都需要先认证，再验证审核权限
+router.use(authenticate);
 router.use(authorizeReviewer);
 
 // ========== 审核查询 ==========

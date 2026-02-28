@@ -21,26 +21,31 @@ export interface VolunteerStats {
   }>;
 }
 
-export const volunteerService = {
-  // 获取志愿者列表
-  getAllVolunteers: async (params?: VolunteersParams): Promise<ApiResponse> => {
-    const queryParams = new URLSearchParams();
-    
-    // 添加筛选参数
-    if (params?.status) queryParams.append('status', params.status);
-    if (params?.region) queryParams.append('region', params.region);
-    if (params?.search) queryParams.append('search', params.search);
-    if (params?.services?.length) {
-      queryParams.append('services', params.services.join(','));
-    }
-    
-    // 添加分页参数
+const buildVolunteerQueryString = (params?: VolunteersParams, includePagination = true): string => {
+  const queryParams = new URLSearchParams();
+
+  if (params?.status) queryParams.append('status', params.status);
+  if (params?.region) queryParams.append('region', params.region);
+  if (params?.province) queryParams.append('province', params.province);
+  if (params?.search) queryParams.append('search', params.search);
+  if (params?.services?.length) {
+    queryParams.append('services', params.services.join(','));
+  }
+
+  if (includePagination) {
     if (params?.page) queryParams.append('page', params.page.toString());
     if (params?.limit) queryParams.append('limit', params.limit.toString());
     if (params?.sortBy) queryParams.append('sortBy', params.sortBy);
     if (params?.order) queryParams.append('order', params.order);
-    
-    const queryString = queryParams.toString();
+  }
+
+  return queryParams.toString();
+};
+
+export const volunteerService = {
+  // 获取志愿者列表
+  getAllVolunteers: async (params?: VolunteersParams): Promise<ApiResponse> => {
+    const queryString = buildVolunteerQueryString(params, true);
     const url = `/volunteers${queryString ? `?${queryString}` : ''}`;
     
     return api.get(url);
@@ -52,8 +57,10 @@ export const volunteerService = {
   },
 
   // 获取统计信息
-  getStats: async (): Promise<ApiResponse<VolunteerStats>> => {
-    return api.get('/volunteers/stats');
+  getStats: async (params?: VolunteersParams): Promise<ApiResponse<VolunteerStats>> => {
+    const queryString = buildVolunteerQueryString(params, false);
+    const url = `/volunteers/stats${queryString ? `?${queryString}` : ''}`;
+    return api.get(url);
   },
 
   // 创建志愿者

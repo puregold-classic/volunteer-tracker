@@ -47,11 +47,14 @@
     gap: var.$spacing-4;
     
     .nav-link {
+      border: 0;
+      cursor: pointer;
       color: rgba(255, 255, 255, 0.8);
-      text-decoration: none;
+      background: transparent;
       padding: 8px 12px;
       border-radius: 4px;
       transition: all 0.2s ease;
+      font-size: var.$font-size-sm;
       
       &:hover {
         color: white;
@@ -64,6 +67,35 @@
       }
     }
   }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: var.$spacing-3;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: var.$spacing-2;
+  }
+
+  .action-btn {
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: var.$font-size-sm;
+  }
+
+  .account-chip {
+    color: white;
+    font-size: var.$font-size-sm;
+    background: rgba(255, 255, 255, 0.18);
+    padding: 6px 10px;
+    border-radius: 999px;
+  }
 }
 
 // 响应式
@@ -73,6 +105,11 @@
       flex-direction: column;
       gap: var.$spacing-3;
       text-align: center;
+    }
+
+    .header-right {
+      flex-direction: column;
+      width: 100%;
     }
     
     .nav {
@@ -85,6 +122,11 @@
         padding: 6px 10px;
         font-size: var.$font-size-sm;
       }
+    }
+
+    .actions {
+      justify-content: center;
+      flex-wrap: wrap;
     }
   }
 }

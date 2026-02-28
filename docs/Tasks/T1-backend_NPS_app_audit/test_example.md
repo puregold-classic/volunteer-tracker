@@ -53,7 +53,7 @@ const createVolunteers = async () => {
       indexedStatus: "在职",
       indexedActivityLevel: "中",
       services: ["管理"],
-      role: "c_admin",
+      role: "b_admin",
       email: "wang.wu@example.com",
       phone: "+86 13900139001"
     }
@@ -214,7 +214,7 @@ const checkReviewer = async () => {
   console.log('审核人:', result.data.chineseName);
   console.log('角色:', result.data.role);
   
-  if (result.data.role !== 'c_admin') {
+  if (result.data.role !== 'b_admin') {
     throw new Error('审核人没有权限');
   }
   
