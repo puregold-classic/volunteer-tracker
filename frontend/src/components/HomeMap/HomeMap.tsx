@@ -6,14 +6,21 @@ import 'leaflet/dist/leaflet.css';
 import './HomeMap.scss';
 
 interface HomeMapProps {
-  activeProvince: string;
+  activeProvince: string[];
   focusRegion: string;
   onProvinceSelect: (province: string) => void;
   onReset: () => void;
 }
 
-type ProvinceFeature = Feature<Geometry, { name?: string; adcode?: string | number }>;
-type ProvinceCollection = FeatureCollection<Geometry, { name?: string; adcode?: string | number }>;
+type ProvinceProperties = {
+  name?: string;
+  fullname?: string;
+  NAME?: string;
+  NAME_CHN?: string;
+  adcode?: string | number;
+};
+type ProvinceFeature = Feature<Geometry, ProvinceProperties>;
+type ProvinceCollection = FeatureCollection<Geometry, ProvinceProperties>;
 const PROVINCE_PALETTE = ['#dbeafe', '#bfdbfe', '#c7d2fe', '#ddd6fe', '#bae6fd', '#cffafe', '#e0e7ff'];
 
 const CHINA_BOUNDS: LatLngBoundsExpression = [
@@ -147,9 +154,21 @@ const HomeMap: React.FC<HomeMapProps> = ({ activeProvince, focusRegion, onProvin
     return PROVINCE_PALETTE[hash % PROVINCE_PALETTE.length];
   };
 
+  const getFeatureName = (feature?: ProvinceFeature): string => {
+    const props = feature?.properties;
+    if (!props) return '';
+    return String(
+      props.name ||
+      props.fullname ||
+      props.NAME_CHN ||
+      props.NAME ||
+      ''
+    ).trim();
+  };
+
   const style = (feature?: ProvinceFeature) => {
-    const name = feature?.properties?.name || '';
-    const isActive = name === activeProvince;
+    const name = getFeatureName(feature);
+    const isActive = activeProvince.includes(name);
     const isHovered = name === hoveredProvince;
 
     if (isActive) {
@@ -206,23 +225,25 @@ const HomeMap: React.FC<HomeMapProps> = ({ activeProvince, focusRegion, onProvin
               data={geoData}
               style={style}
               onEachFeature={(feature, layer) => {
-                const name = feature.properties?.name || '';
+                const name = getFeatureName(feature as ProvinceFeature);
                 layer.on({
                   mouseover: () => {
-                    setHoveredProvince(name);
+                    if (name) setHoveredProvince(name);
                   },
                   mouseout: () => {
-                    setHoveredProvince((current) => (current === name ? '' : current));
+                    if (name) setHoveredProvince((current) => (current === name ? '' : current));
                   },
                   click: () => {
                     if (name) onProvinceSelect(name);
                   }
                 });
-                layer.bindTooltip(name || '未知省份', {
-                  permanent: true,
-                  direction: 'center',
-                  className: 'home-map__province-label'
-                });
+                if (name) {
+                  layer.bindTooltip(name, {
+                    permanent: true,
+                    direction: 'center',
+                    className: 'home-map__province-label'
+                  });
+                }
               }}
             />
           )}
@@ -230,7 +251,7 @@ const HomeMap: React.FC<HomeMapProps> = ({ activeProvince, focusRegion, onProvin
       )}
 
       <div className="home-map__toolbar">
-        <span>当前省份: {activeProvince || '未选择'}</span>
+        <span>当前省份: {activeProvince.length > 0 ? activeProvince.join(' / ') : '未选择'}</span>
         <button type="button" onClick={onReset}>清除省份</button>
       </div>
     </div>

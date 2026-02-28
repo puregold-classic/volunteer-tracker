@@ -1,92 +1,115 @@
 # Codex Handoff (Next Chat Inherit)
 
-This file is for the next AI session to continue work without losing context.
+This file summarizes the current project state after the latest backend data-model and frontend filter/map upgrades.
 
 ## Current Status
 
-- Backend auth MVP is implemented and working:
-  - `Account` model + JWT auth middleware
-  - `/api/v1/auth/register|login|me|logout`
-  - Admin account seed script
-- Role merge completed:
-  - `c_admin` merged to `b_admin`
-  - DB migration script exists and has been run on local Docker DB
-- Frontend auth flow exists:
-  - `/login`, `/register`, `/me`, `/review`
-  - Header has dynamic nav (`首页 / 我的账号 / 审核台`)
-- Review center:
-  - Pending + processed tabs
-  - approve/reject/reopen/withdraw actions wired
-- Home page:
-  - Docs-style shell implemented (left map area + right panel)
-  - Filters wired (`status/services/region/province`)
-  - Quick focus buttons + shared filter state
-- Map:
-  - Switched to real `react-leaflet` map + China province GeoJSON click
-  - Province click sets `province` filter and region=`中国大陆`
+- Auth/account system is active:
+  - `Account` + JWT middleware in use
+  - `/api/v1/auth/register|login|me|logout|accounts`
+- Review center works in frontend:
+  - Header tabs: `首页 / 个人中心 / 审核中心`
+  - `审核中心` loads pending + processed via `reviewService`
+- Home page map/list flow is active:
+  - Left: `react-leaflet` map + quick focus
+  - Right: summary/search/compact volunteer list
+  - Volunteer card click opens detail modal (DB-backed)
 
-## Important Files
+## Important New Rules (Implemented)
 
-- Frontend main flow:
-  - `frontend/src/App.tsx`
-  - `frontend/src/App.scss`
-  - `frontend/src/context/AuthContext.tsx`
-- Map:
-  - `frontend/src/components/HomeMap/HomeMap.tsx`
-  - `frontend/src/components/HomeMap/HomeMap.scss`
-- Review APIs:
-  - `frontend/src/services/reviewService.ts`
-- Volunteer filtering:
-  - `frontend/src/services/volunteerService.ts`
-  - `frontend/src/services/api.ts`
-  - `backend/src/controllers/volunteerController.js`
-- Auth backend:
-  - `backend/src/models/Account.js`
-  - `backend/src/middleware/authenticate.js`
-  - `backend/src/controllers/authController.js`
-  - `backend/src/routes/authRoutes.js`
-  - `backend/src/server.js`
+### 1) Volunteer-account policy
 
-## Local Run Commands
+- Every volunteer should have an account.
+- Accounts may exist without volunteer binding (system/reviewer/admin accounts).
+- `Account.volunteerId` uses unique partial index for 1:1 binding behavior.
 
-From repo root:
+### 2) Reserved reviewer/admin IDs
+
+- `admin` uses reserved ID: `PG-0000`
+- `a_admin` uses reserved IDs from high range (e.g. `PG-9999` downward)
+- Migration script added to enforce/repair this.
+
+### 3) Audit for seeded NPS data
+
+- Seed now writes `AuditLog` records for imported NPS entries (`action=seed_import`)
+- `AuditLog` model expanded to support these non-review actions
+
+### 4) NPS duplicate prevention
+
+- `NonProjectService` has unique partial index for active duplicate event signature
+- Dedupe migration script added for existing data
+
+## Frontend Filter/Map Behavior (Latest)
+
+- Region/province filtering now supports multi-select.
+- Quick focus buttons toggle multiple regions.
+- Map clicks toggle multiple provinces.
+- Region + province are merged into one display block: `地区/省份`.
+- Taiwan handling fixed:
+  - map click on `台湾省` -> region `中国台湾`, province `台湾省`
+  - no more `未知省份` labels for unnamed shapes
+
+## New Backend Scripts
+
+- `backend/scripts/seed-quality-dataset.js`
+  - high-quality seed dataset (12 volunteers + linked accounts + services + audit logs)
+- `backend/scripts/backfill-volunteer-accounts.js`
+  - creates missing volunteer-linked accounts
+- `backend/scripts/migrate-account-volunteer-unique.js`
+  - enforces unique partial index + resolves duplicates
+- `backend/scripts/migrate-dedupe-service-records.js`
+  - deactivates duplicate active NPS records + enforces dedupe index
+- `backend/scripts/migrate-reviewer-reserved-ids.js`
+  - ensures reserved PG IDs for admin/a_admin
+
+## Make/NPM Commands
+
+### Stable dev startup
 
 ```bash
-docker-compose up -d mongodb backend
-npm --prefix frontend run dev
+make dev
 ```
 
-Backend local scripts:
+### Data operations
 
 ```bash
-npm --prefix backend run seed:admin
-npm --prefix backend run migrate:roles:check
-npm --prefix backend run migrate:roles
+make seed-quality
+make migrate-data
+make backfill-accounts
+make migrate-reviewer-ids
 ```
+
+### Recovery command
+
+```bash
+make recover
+```
+
+## Current Seed Credentials
+
+- Volunteer accounts default password: `Volunteer@123`
+- `admin@example.com` / `Admin@12345` (admin, `PG-0000`)
+- `reviewer@example.com` / `Reviewer@123` (a_admin, `PG-9999`)
+
+## Last Verified Counts
+
+From latest `seed-quality` run:
+
+- volunteers: 12
+- accounts: 14
+- linkedAccounts: 14
+- services: 22
+- audit logs for seed import present
 
 ## Known Caveats
 
-- Docker env changes may require **recreate**, not just restart:
+- If Docker environment drifts, recreate backend:
   - `docker-compose up -d --force-recreate backend`
-- Login fails with `JWT_SECRET is not configured` if backend container started from old env.
-- `react-leaflet/leaflet` deps were added in `frontend/package.json`; if missing locally:
-  - `cd frontend && npm install`
+- If Docker permissions block commands in tool execution contexts, rerun with elevated permissions.
+- `Account` model previously showed duplicate email-index warning; email index declaration was simplified in model.
 
-## Recommended Next Steps
+## Next Suggested Work
 
-1. Improve map UX:
-   - Province hover tooltip polish
-   - Region overlays (outside China) or separate global layer toggle
-2. Replace placeholder stats in home right panel with live metrics.
-3. Add volunteer detail route (`/volunteers/:id`) and open from card click.
-4. Add auth/session UX:
-   - global 401 redirect
-   - post-login redirect back to intended path
-
-## Quick Validation Checklist
-
-1. Login with seeded admin and verify `/me` loads.
-2. Open `/review`, approve/reject one pending item.
-3. Switch to processed tab, test reopen/withdraw.
-4. On home page, click one province in map and verify right list filters.
-5. Click quick-focus buttons and verify map pans/zooms and list updates.
+1. Add chip UI to remove single selected region/province with `x`.
+2. Optionally add route-based volunteer detail page (`/volunteers/:id`) in addition to modal.
+3. Add explicit audit writes for any non-review direct service CRUD path (if introduced later).

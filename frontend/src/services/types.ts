@@ -36,8 +36,8 @@ export interface PaginationInfo {
 // 筛选参数
 export interface FilterParams {
   status?: string;
-  region?: string;
-  province?: string;
+  region?: string | string[];
+  province?: string | string[];
   services?: string[];
   search?: string;
 }

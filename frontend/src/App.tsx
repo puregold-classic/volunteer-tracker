@@ -16,11 +16,9 @@ function App() {
   const [activePage, setActivePage] = useState<HeaderPage>('home');
   const [homeStatus, setHomeStatus] = useState<'all' | '在职' | '不在职'>('all');
   const [homeService, setHomeService] = useState<string>('all');
-  const [homeRegion, setHomeRegion] = useState<string>('');
-  const [homeProvince, setHomeProvince] = useState<string>('');
+  const [homeRegions, setHomeRegions] = useState<string[]>([]);
+  const [homeProvinces, setHomeProvinces] = useState<string[]>([]);
   const [homeSearch, setHomeSearch] = useState<string>('');
-  const [debouncedRegion, setDebouncedRegion] = useState<string>('');
-  const [debouncedProvince, setDebouncedProvince] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [homeStats, setHomeStats] = useState({
     totalVolunteers: 0,
@@ -49,12 +47,10 @@ function App() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setDebouncedRegion(homeRegion.trim());
-      setDebouncedProvince(homeProvince.trim());
       setDebouncedSearch(homeSearch.trim());
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [homeRegion, homeProvince, homeSearch]);
+  }, [homeSearch]);
 
   const homeFilterParams = useMemo<VolunteersParams>(() => {
     const params: VolunteersParams = {
@@ -64,21 +60,21 @@ function App() {
     };
     if (homeStatus !== 'all') params.status = homeStatus;
     if (homeService !== 'all') params.services = [homeService];
-    if (debouncedRegion) params.region = debouncedRegion;
-    if (debouncedProvince) params.province = debouncedProvince;
+    if (homeRegions.length > 0) params.region = homeRegions;
+    if (homeProvinces.length > 0) params.province = homeProvinces;
     if (debouncedSearch) params.search = debouncedSearch;
     return params;
-  }, [homeStatus, homeService, debouncedRegion, debouncedProvince, debouncedSearch]);
+  }, [homeStatus, homeService, homeRegions, homeProvinces, debouncedSearch]);
 
   const homeStatsFilterParams = useMemo<VolunteersParams>(() => {
     const params: VolunteersParams = {};
     if (homeStatus !== 'all') params.status = homeStatus;
     if (homeService !== 'all') params.services = [homeService];
-    if (debouncedRegion) params.region = debouncedRegion;
-    if (debouncedProvince) params.province = debouncedProvince;
+    if (homeRegions.length > 0) params.region = homeRegions;
+    if (homeProvinces.length > 0) params.province = homeProvinces;
     if (debouncedSearch) params.search = debouncedSearch;
     return params;
-  }, [homeStatus, homeService, debouncedRegion, debouncedProvince, debouncedSearch]);
+  }, [homeStatus, homeService, homeRegions, homeProvinces, debouncedSearch]);
 
   useEffect(() => {
     const fetchHomeStats = async () => {
@@ -165,6 +161,42 @@ function App() {
       return;
     }
     setActivePage('review');
+  };
+
+  const primaryFocusRegion = homeRegions.length > 0 ? homeRegions[homeRegions.length - 1] : '';
+  const nonChinaRegions = homeRegions.filter((region) => !['中国大陆', '中国台湾'].includes(region));
+  const regionProvinceSummary = (() => {
+    if (homeProvinces.length > 0 && nonChinaRegions.length > 0) {
+      return `中国省份: ${homeProvinces.join(' / ')}；其他地区: ${nonChinaRegions.join(' / ')}`;
+    }
+    if (homeProvinces.length > 0) {
+      return `中国省份: ${homeProvinces.join(' / ')}`;
+    }
+    if (homeRegions.length > 0) {
+      return `地区: ${homeRegions.join(' / ')}`;
+    }
+    return '未选择';
+  })();
+
+  const toggleRegion = (region: string) => {
+    setHomeRegions((prev) => {
+      const exists = prev.includes(region);
+      const next = exists ? prev.filter((item) => item !== region) : [...prev, region];
+      if (!next.includes('中国大陆') && !next.includes('中国台湾')) {
+        setHomeProvinces([]);
+      }
+      return next;
+    });
+  };
+
+  const toggleProvince = (province: string) => {
+    const normalized = province === '台湾' ? '台湾省' : province;
+    if (normalized === '台湾省') {
+      setHomeRegions((prev) => (prev.includes('中国台湾') ? prev : [...prev, '中国台湾']));
+    } else {
+      setHomeRegions((prev) => (prev.includes('中国大陆') ? prev : [...prev, '中国大陆']));
+    }
+    setHomeProvinces((prev) => (prev.includes(normalized) ? prev.filter((p) => p !== normalized) : [...prev, normalized]));
   };
 
   const handleLoginSubmit = async (event: FormEvent) => {
@@ -266,24 +298,10 @@ function App() {
                       </select>
                     </div>
                     <div className="filter-field">
-                      <span>地区</span>
-                      <input
-                        className="filter-input"
-                        type="text"
-                        placeholder="中国大陆 / 欧洲..."
-                        value={homeRegion}
-                        onChange={(e) => setHomeRegion(e.target.value)}
-                      />
-                    </div>
-                    <div className="filter-field">
-                      <span>省份</span>
-                      <input
-                        className="filter-input"
-                        type="text"
-                        placeholder="上海市"
-                        value={homeProvince}
-                        onChange={(e) => setHomeProvince(e.target.value)}
-                      />
+                      <span>地区/省份</span>
+                      <div className="filter-selected">
+                        {regionProvinceSummary}
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -291,8 +309,8 @@ function App() {
                       onClick={() => {
                         setHomeStatus('all');
                         setHomeService('all');
-                        setHomeRegion('');
-                        setHomeProvince('');
+                        setHomeRegions([]);
+                        setHomeProvinces([]);
                         setHomeSearch('');
                       }}
                     >
@@ -303,13 +321,12 @@ function App() {
 
                 <div className="map-stage">
                   <HomeMap
-                    activeProvince={homeProvince}
-                    focusRegion={homeRegion}
+                    activeProvince={homeProvinces}
+                    focusRegion={primaryFocusRegion}
                     onProvinceSelect={(province) => {
-                      setHomeProvince(province);
-                      setHomeRegion('中国大陆');
+                      toggleProvince(province);
                     }}
-                    onReset={() => setHomeProvince('')}
+                    onReset={() => setHomeProvinces([])}
                   />
                 </div>
 
@@ -317,17 +334,14 @@ function App() {
                   {QUICK_FOCUS_OPTIONS.map((item) => (
                     <button
                       key={item}
-                      className={homeRegion === item ? 'is-active' : ''}
+                      className={homeRegions.includes(item) ? 'is-active' : ''}
                       onClick={() => {
                         if (item === '重置世界视图') {
-                          setHomeRegion('');
-                          setHomeProvince('');
+                          setHomeRegions([]);
+                          setHomeProvinces([]);
                           return;
                         }
-                        setHomeRegion(item);
-                        if (item !== '中国大陆') {
-                          setHomeProvince('');
-                        }
+                        toggleRegion(item);
                       }}
                     >
                       {item}
@@ -363,8 +377,8 @@ function App() {
                   <div className="home-summary__filters">
                     <span className="summary-tag">{homeStatus === 'all' ? '状态: 全部' : `状态: ${homeStatus}`}</span>
                     <span className="summary-tag">{homeService === 'all' ? '方向: 全部' : `方向: ${homeService}`}</span>
-                    {debouncedRegion && <span className="summary-tag">地区: {debouncedRegion}</span>}
-                    {debouncedProvince && <span className="summary-tag">省份: {debouncedProvince}</span>}
+                    {homeRegions.map((region) => <span key={`region-${region}`} className="summary-tag">地区: {region}</span>)}
+                    {homeProvinces.map((province) => <span key={`province-${province}`} className="summary-tag">省份: {province}</span>)}
                     {debouncedSearch && <span className="summary-tag">搜索: {debouncedSearch}</span>}
                   </div>
                 </div>

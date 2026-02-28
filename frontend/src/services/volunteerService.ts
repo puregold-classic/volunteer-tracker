@@ -23,10 +23,20 @@ export interface VolunteerStats {
 
 const buildVolunteerQueryString = (params?: VolunteersParams, includePagination = true): string => {
   const queryParams = new URLSearchParams();
+  const appendMulti = (key: string, value?: string | string[]) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      const list = value.map((v) => String(v).trim()).filter(Boolean);
+      if (list.length > 0) queryParams.append(key, list.join(','));
+      return;
+    }
+    const text = String(value).trim();
+    if (text) queryParams.append(key, text);
+  };
 
   if (params?.status) queryParams.append('status', params.status);
-  if (params?.region) queryParams.append('region', params.region);
-  if (params?.province) queryParams.append('province', params.province);
+  appendMulti('region', params?.region);
+  appendMulti('province', params?.province);
   if (params?.search) queryParams.append('search', params.search);
   if (params?.services?.length) {
     queryParams.append('services', params.services.join(','));

@@ -15,6 +15,10 @@ help:
 	@echo ""
 	@echo "数据库:"
 	@echo "  make seed        初始化数据库"
+	@echo "  make seed-quality 高质量种子数据（志愿者+账号+服务记录）"
+	@echo "  make backfill-accounts 为未绑定志愿者补账号"
+	@echo "  make migrate-data 执行数据质量迁移（账号绑定唯一+服务去重）"
+	@echo "  make migrate-reviewer-ids 给admin/a_admin分配保留PG编号"
 	@echo "  make db-shell    进入数据库Shell"
 	@echo "  make db-reset    重置数据库"
 	@echo ""
@@ -42,6 +46,19 @@ logs:
 
 seed:
 	@docker-compose exec backend npm run seed
+
+seed-quality:
+	@docker-compose exec backend npm run seed:quality
+
+backfill-accounts:
+	@docker-compose exec backend npm run backfill:volunteer-accounts
+
+migrate-data:
+	@docker-compose exec backend npm run migrate:accounts:volunteer-unique
+	@docker-compose exec backend npm run migrate:services:dedupe
+
+migrate-reviewer-ids:
+	@docker-compose exec backend npm run migrate:reviewers:reserved-ids
 
 db-shell:
 	@docker-compose exec mongodb mongosh volunteer_tracker

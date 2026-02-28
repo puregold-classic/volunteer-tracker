@@ -4,17 +4,28 @@ import QueryUtils from '../utils/queryUtils.js';
 const buildVolunteerQuery = (queryParams = {}) => {
   const query = {};
   const { status, region, province, services, search } = queryParams;
+  const parseMulti = (value) => {
+    const raw = Array.isArray(value) ? value.join(',') : value;
+    return String(raw || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+  };
 
   if (status && ['在职', '不在职'].includes(status)) {
     query.status = status;
   }
 
   if (region) {
-    query.region = region;
+    const regions = parseMulti(region);
+    if (regions.length === 1) query.region = regions[0];
+    if (regions.length > 1) query.region = { $in: regions };
   }
 
   if (province) {
-    query.province = province;
+    const provinces = parseMulti(province);
+    if (provinces.length === 1) query.province = provinces[0];
+    if (provinces.length > 1) query.province = { $in: provinces };
   }
 
   if (services) {

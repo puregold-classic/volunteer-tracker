@@ -15,7 +15,7 @@ const auditLogSchema = new mongoose.Schema({
   targetType: {
     type: String,
     required: [true, '目标类型是必需的'],
-    enum: ['ServiceApplication']
+    enum: ['ServiceApplication', 'NonProjectService']
   },
   
   targetId: {
@@ -29,8 +29,8 @@ const auditLogSchema = new mongoose.Schema({
     type: String,
     required: [true, '操作类型是必需的'],
     enum: {
-      values: ['application_review', 'application_withdraw', 'system_cleanup'],
-      message: '操作类型必须是: application_review, application_withdraw, system_cleanup'
+      values: ['application_review', 'application_withdraw', 'application_reopen', 'review_withdraw', 'system_cleanup', 'seed_import'],
+      message: '操作类型必须是: application_review, application_withdraw, application_reopen, review_withdraw, system_cleanup, seed_import'
     }
   },
   
@@ -39,12 +39,12 @@ const auditLogSchema = new mongoose.Schema({
     applicationType: {
       type: String,
       required: true,
-      enum: ['create', 'update', 'delete']
+      enum: ['create', 'update', 'delete', 'system']
     },
     reviewResult: {
       type: String,
       required: true,
-      enum: ['approved', 'rejected']
+      enum: ['approved', 'rejected', 'reopened', 'withdrawn', 'seeded']
     },
     reviewNote: {
       type: String,

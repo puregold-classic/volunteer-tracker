@@ -45,8 +45,15 @@ const accountSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-accountSchema.index({ email: 1 }, { unique: true });
-accountSchema.index({ volunteerId: 1 });
+accountSchema.index(
+  { volunteerId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      volunteerId: { $type: 'string' }
+    }
+  }
+);
 accountSchema.index({ role: 1, isActive: 1 });
 
 accountSchema.statics.hashPassword = async function hashPassword(password) {

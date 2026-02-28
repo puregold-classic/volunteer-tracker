@@ -54,7 +54,16 @@ const volunteerSchema = new mongoose.Schema({
   
   province: {
     type: String,
-    trim: true
+    trim: true,
+    validate: {
+      validator: function validatorProvince(value) {
+        if (!['中国大陆', '中国台湾'].includes(this.region)) {
+          return true;
+        }
+        return Boolean(value && String(value).trim());
+      },
+      message: '当地区为中国大陆或中国台湾时，province是必填字段'
+    }
   },
   
   subRegion: {

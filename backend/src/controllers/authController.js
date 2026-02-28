@@ -34,6 +34,29 @@ const signToken = (account) => {
   );
 };
 
+const getNextReservedReviewerId = async () => {
+  const used = await Account.find({
+    volunteerId: { $regex: /^PG-\d{4}$/i }
+  })
+    .select('volunteerId')
+    .lean();
+  const usedSet = new Set(used.map((item) => String(item.volunteerId).toUpperCase()));
+
+  for (let n = 9999; n >= 9000; n -= 1) {
+    const candidate = `PG-${String(n).padStart(4, '0')}`;
+    if (!usedSet.has(candidate)) return candidate;
+  }
+
+  throw new Error('无可用的保留审核员ID（PG-9999..PG-9000已用尽）');
+};
+
+const resolveReservedVolunteerId = async (role, requestedVolunteerId) => {
+  if (requestedVolunteerId) return requestedVolunteerId;
+  if (role === 'admin') return 'PG-0000';
+  if (role === 'a_admin') return getNextReservedReviewerId();
+  return null;
+};
+
 class AuthController {
   static async register(req, res) {
     try {
@@ -69,6 +92,13 @@ class AuthController {
             error: 'volunteerId不存在'
           });
         }
+        const bound = await Account.findOne({ volunteerId }).select('_id email').lean();
+        if (bound) {
+          return res.status(409).json({
+            success: false,
+            error: `该volunteerId已绑定账号: ${bound.email}`
+          });
+        }
       }
 
       const passwordHash = await Account.hashPassword(password);
@@ -96,7 +126,7 @@ class AuthController {
 
   static async createAccountByAdmin(req, res) {
     try {
-      const { email, password, name, role = 'user', volunteerId = null } = req.body;
+      const { email, password, name, role = 'user', volunteerId: requestedVolunteerId = null } = req.body;
 
       if (!email || !password || !name) {
         return res.status(400).json({
@@ -128,12 +158,21 @@ class AuthController {
         });
       }
 
-      if (volunteerId) {
+      const volunteerId = await resolveReservedVolunteerId(role, requestedVolunteerId);
+
+      if (volunteerId && !['admin', 'a_admin'].includes(role)) {
         const volunteer = await Volunteer.findOne({ id: volunteerId }).select('id').lean();
         if (!volunteer) {
           return res.status(400).json({
             success: false,
             error: 'volunteerId不存在'
+          });
+        }
+        const bound = await Account.findOne({ volunteerId }).select('_id email').lean();
+        if (bound) {
+          return res.status(409).json({
+            success: false,
+            error: `该volunteerId已绑定账号: ${bound.email}`
           });
         }
       }

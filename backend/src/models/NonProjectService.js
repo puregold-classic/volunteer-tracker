@@ -145,6 +145,13 @@ nonProjectServiceSchema.index({
   isActive: 1, 
   serviceDate: -1 
 }); // 统计查询优化
+nonProjectServiceSchema.index(
+  { volunteerId: 1, serviceDate: 1, serviceType: 1, duration: 1, description: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isActive: true }
+  }
+); // 避免同一志愿者重复提交完全相同的有效服务记录
 
 // 预保存钩子：同步索引字段
 nonProjectServiceSchema.pre('save', function(next) {
