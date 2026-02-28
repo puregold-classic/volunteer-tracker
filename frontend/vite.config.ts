@@ -21,14 +21,6 @@ export default defineConfig(({ mode }) => {
           target: env.VITE_PROXY_TARGET || 'http://localhost:5000',
           changeOrigin: true,
           secure: false,
-          rewrite: (path) => {
-            // 如果前端请求 /api/v1/xxx，保持原样
-            // 如果前端请求 /v1/xxx，加上 /api
-            if (path.startsWith('/v1/')) {
-              return `/api${path}`;
-            }
-            return path;
-          },
           ws: true, // 支持WebSocket
           
           // 代理事件监听，便于调试
@@ -52,8 +44,7 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            vendor: ['react', 'react-dom', 'axios'],
-            ui: ['@components']
+            vendor: ['react', 'react-dom', 'axios']
           }
         }
       }

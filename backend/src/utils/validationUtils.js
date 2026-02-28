@@ -120,8 +120,8 @@ class ValidationUtils {
       serviceType: {
         type: 'string',
         required: applicationType === 'create',
-        validate: (value) => ['翻译', '校对', '项目培训', '非项目培训', '受训'].includes(value),
-        error: '服务类型必须是: 翻译, 校对, 项目培训, 非项目培训, 受训'
+        validate: (value) => ['翻译', '校对', '管理', '技术'].includes(value),
+        error: '服务类型必须是: 翻译, 校对, 管理, 技术'
       },
       duration: {
         type: 'number',

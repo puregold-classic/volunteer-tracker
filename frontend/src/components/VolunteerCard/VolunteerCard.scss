@@ -16,7 +16,7 @@
 }
 
 .volunteer-card.compact {
-  padding: 12px;
+  padding: 10px;
 
   .card-header {
     display: flex;
@@ -38,7 +38,7 @@
 
     .chinese-name {
       margin: 0;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
       color: #0f172a;
       white-space: nowrap;
@@ -48,7 +48,7 @@
 
     .english-name {
       margin: 2px 0 0;
-      font-size: 12px;
+      font-size: 11px;
       color: #64748b;
       white-space: nowrap;
       overflow: hidden;
@@ -58,7 +58,7 @@
 
   .card-body {
     display: grid;
-    gap: 8px;
+    gap: 6px;
   }
 
   .info-row {
@@ -70,13 +70,13 @@
 
   .label {
     color: #64748b;
-    font-size: 12px;
+    font-size: 11px;
     white-space: nowrap;
   }
 
   .value {
     color: #0f172a;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
     text-align: right;
   }
@@ -92,13 +92,13 @@
     background: #eef2ff;
     color: #3730a3;
     border-radius: 999px;
-    padding: 2px 8px;
-    font-size: 11px;
+    padding: 2px 6px;
+    font-size: 10px;
     font-weight: 600;
   }
 
   .status {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     border-radius: 999px;
     padding: 2px 8px;

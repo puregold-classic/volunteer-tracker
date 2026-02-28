@@ -8,6 +8,30 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 const API_VERSION = 'v1';
 export const UNAUTHORIZED_EVENT = 'app:unauthorized';
 
+const normalizeApiPath = (url: string): string => {
+  if (url.startsWith('http')) {
+    return url;
+  }
+
+  let normalized = url.startsWith('/') ? url : `/${url}`;
+
+  if (normalized === '/api') {
+    normalized = '/';
+  } else if (normalized.startsWith('/api/')) {
+    normalized = normalized.replace('/api', '');
+  }
+
+  if (normalized === '/') {
+    return `/${API_VERSION}`;
+  }
+
+  if (normalized === `/${API_VERSION}` || normalized.startsWith(`/${API_VERSION}/`)) {
+    return normalized;
+  }
+
+  return `/${API_VERSION}${normalized}`;
+};
+
 // 请求配置
 const DEFAULT_CONFIG: AxiosRequestConfig = {
   baseURL: API_BASE_URL,
@@ -29,13 +53,8 @@ const createApiInstance = (config: AxiosRequestConfig = {}): AxiosInstance => {
   // 请求拦截器
   instance.interceptors.request.use(
     (config) => {
-      if (!config.url?.startsWith('/v1') && !config.url?.startsWith('http')) {
-        config.url = `/v1${config.url}`;  // 添加 /v1
-      }
-
-      // 添加API版本前缀
-      if (!config.url?.startsWith(`/${API_VERSION}`) && !config.url?.startsWith('http')) {
-        config.url = `/${API_VERSION}${config.url}`;
+      if (config.url) {
+        config.url = normalizeApiPath(config.url);
       }
 
       // 添加认证token（如果需要）

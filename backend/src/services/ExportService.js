@@ -310,7 +310,7 @@ class ExportService {
         { field: 'volunteerId', description: '志愿者ID (必填)', example: 'PG-0001' },
         { field: 'volunteerName', description: '志愿者姓名 (必填)', example: '张三' },
         { field: 'serviceDate', description: '服务日期 (必填, 格式: YYYY-MM-DD)', example: '2024-01-15' },
-        { field: 'serviceType', description: '服务类型 (必填)', example: '翻译/校对/项目培训/非项目培训/受训' },
+        { field: 'serviceType', description: '服务类型 (必填)', example: '翻译/校对/管理/技术' },
         { field: 'duration', description: '服务时长 (必填, 单位: 小时)', example: 3.5 },
         { field: 'description', description: '服务描述 (必填, 5-1000字符)', example: '服务详细描述' },
         { field: 'note', description: '备注 (可选)', example: '其他需要说明的信息' }

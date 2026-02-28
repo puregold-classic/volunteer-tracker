@@ -42,8 +42,8 @@ const nonProjectServiceSchema = new mongoose.Schema({
     type: String,
     required: [true, '服务类型是必需的'],
     enum: {
-      values: ['翻译', '校对', '项目培训', '非项目培训', '受训'],
-      message: '服务类型必须是: 翻译, 校对, 项目培训, 非项目培训, 受训'
+      values: ['翻译', '校对', '管理', '技术'],
+      message: '服务类型必须是: 翻译, 校对, 管理, 技术'
     }
   },
   

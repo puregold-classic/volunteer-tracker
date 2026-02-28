@@ -7,9 +7,13 @@ import './HomeMap.scss';
 
 interface HomeMapProps {
   activeProvince: string[];
+  activeRegions: string[];
+  quickFocusOptions: string[];
   focusRegion: string;
   onProvinceSelect: (province: string) => void;
   onReset: () => void;
+  onQuickFocusSelect: (region: string) => void;
+  onRefresh: () => void;
 }
 
 type ProvinceProperties = {
@@ -120,7 +124,66 @@ const FocusBorder: React.FC<{ focusRegion: string }> = ({ focusRegion }) => {
   );
 };
 
-const HomeMap: React.FC<HomeMapProps> = ({ activeProvince, focusRegion, onProvinceSelect, onReset }) => {
+const MapActionControls: React.FC<{
+  quickFocusOptions: string[];
+  activeRegions: string[];
+  onQuickFocusSelect: (region: string) => void;
+  onRefresh: () => void;
+}> = ({ quickFocusOptions, activeRegions, onQuickFocusSelect, onRefresh }) => {
+  const map = useMap();
+  const [showQuickFocus, setShowQuickFocus] = React.useState(false);
+
+  return (
+    <div className="home-map__controls">
+      <button type="button" onClick={() => map.zoomIn()} aria-label="放大">+</button>
+      <button type="button" onClick={() => map.zoomOut()} aria-label="缩小">-</button>
+      <button
+        type="button"
+        onClick={() => setShowQuickFocus((v) => !v)}
+        className={showQuickFocus ? 'is-active' : ''}
+        aria-label="快速聚焦"
+      >
+        ◎
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          map.fitBounds(CHINA_BOUNDS, { padding: [6, 6] });
+          onRefresh();
+          setShowQuickFocus(false);
+        }}
+        aria-label="刷新"
+      >
+        ↻
+      </button>
+      {showQuickFocus && (
+        <div className="home-map__focus-panel">
+          {quickFocusOptions.map((item) => (
+            <button
+              key={item}
+              type="button"
+              className={activeRegions.includes(item) ? 'is-active' : ''}
+              onClick={() => onQuickFocusSelect(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const HomeMap: React.FC<HomeMapProps> = ({
+  activeProvince,
+  activeRegions,
+  quickFocusOptions,
+  focusRegion,
+  onProvinceSelect,
+  onReset,
+  onQuickFocusSelect,
+  onRefresh
+}) => {
   const [geoData, setGeoData] = React.useState<ProvinceCollection | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -209,12 +272,18 @@ const HomeMap: React.FC<HomeMapProps> = ({ activeProvince, focusRegion, onProvin
           zoom={4}
           minZoom={2}
           maxZoom={8}
-          zoomControl
+          zoomControl={false}
           scrollWheelZoom
         >
           <FitChinaBounds />
           <FocusRegion focusRegion={focusRegion} />
           <FocusBorder focusRegion={focusRegion} />
+          <MapActionControls
+            quickFocusOptions={quickFocusOptions}
+            activeRegions={activeRegions}
+            onQuickFocusSelect={onQuickFocusSelect}
+            onRefresh={onRefresh}
+          />
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
             subdomains="abcd"
@@ -251,7 +320,7 @@ const HomeMap: React.FC<HomeMapProps> = ({ activeProvince, focusRegion, onProvin
       )}
 
       <div className="home-map__toolbar">
-        <span>当前省份: {activeProvince.length > 0 ? activeProvince.join(' / ') : '未选择'}</span>
+        <span>当前省份: {activeProvince.length > 0 ? activeProvince.join(' / ') : '-'}</span>
         <button type="button" onClick={onReset}>清除省份</button>
       </div>
     </div>

@@ -74,7 +74,7 @@ const volunteerSchema = new mongoose.Schema({
   // 服务信息
   services: [{
     type: String,
-    enum: ['翻译', '校对', '项目培训', '非项目培训', '受训', '管理', '技术', '社区服务']
+    enum: ['翻译', '校对', '管理', '技术']
   }],
   
   // 非项目服务统计（缓存字段，可通过实时计算更新）

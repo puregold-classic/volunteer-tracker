@@ -17,9 +17,9 @@
     padding: var.$spacing-6 0;
     
     .container {
-      max-width: var.$container-max-width;
+      max-width: 92rem;
       margin: 0 auto;
-      padding: 0 var.$spacing-4;
+      padding: 0 var.$spacing-2;
     }
   }
 }
@@ -79,7 +79,7 @@
 
 .home-shell {
   display: grid;
-  grid-template-columns: 1.8fr 1fr;
+  grid-template-columns: 1.45fr 1.15fr;
   gap: var.$spacing-4;
 }
 
@@ -88,6 +88,14 @@
   display: flex;
   flex-direction: column;
   gap: var.$spacing-3;
+}
+
+.home-left {
+  gap: var.$spacing-2;
+
+  .controls-bar {
+    margin-bottom: 0;
+  }
 }
 
 .map-stage,
@@ -157,6 +165,28 @@
     text-overflow: ellipsis;
   }
 
+  .filter-mode-switch {
+    display: inline-flex;
+    border: 1px solid var.$color-gray-300;
+    border-radius: 999px;
+    overflow: hidden;
+    background: white;
+
+    button {
+      border: 0;
+      background: transparent;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: var.$color-gray-600;
+      cursor: pointer;
+    }
+
+    .is-active {
+      background: var.$color-primary-600;
+      color: white;
+    }
+  }
+
   .filter-reset {
     border: 1px solid var.$color-gray-300;
     background: white;
@@ -169,7 +199,7 @@
 }
 
 .map-stage {
-  min-height: 460px;
+  min-height: 580px;
   padding: 10px;
   background: linear-gradient(160deg, #f0f9ff 0%, #eef2ff 100%);
 }

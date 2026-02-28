@@ -18,6 +18,7 @@
     "migrate:roles": "node scripts/migrate-c-admin-to-b-admin.js --apply",
     "migrate:accounts:volunteer-unique": "node scripts/migrate-account-volunteer-unique.js --apply",
     "migrate:services:dedupe": "node scripts/migrate-dedupe-service-records.js --apply",
+    "migrate:services:remove-deprecated": "node scripts/migrate-remove-deprecated-service-types.js --apply",
     "migrate:reviewers:reserved-ids": "node scripts/migrate-reviewer-reserved-ids.js --apply",
     "backfill:volunteer-accounts": "node scripts/backfill-volunteer-accounts.js --apply",
     "seed:quality": "node scripts/seed-quality-dataset.js",

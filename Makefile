@@ -18,6 +18,7 @@ help:
 	@echo "  make seed-quality 高质量种子数据（志愿者+账号+服务记录）"
 	@echo "  make backfill-accounts 为未绑定志愿者补账号"
 	@echo "  make migrate-data 执行数据质量迁移（账号绑定唯一+服务去重）"
+	@echo "  make migrate-remove-deprecated-services 清理已废弃服务方向数据"
 	@echo "  make migrate-reviewer-ids 给admin/a_admin分配保留PG编号"
 	@echo "  make db-shell    进入数据库Shell"
 	@echo "  make db-reset    重置数据库"
@@ -56,6 +57,9 @@ backfill-accounts:
 migrate-data:
 	@docker-compose exec backend npm run migrate:accounts:volunteer-unique
 	@docker-compose exec backend npm run migrate:services:dedupe
+
+migrate-remove-deprecated-services:
+	@docker-compose exec backend npm run migrate:services:remove-deprecated
 
 migrate-reviewer-ids:
 	@docker-compose exec backend npm run migrate:reviewers:reserved-ids

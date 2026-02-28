@@ -2,7 +2,7 @@
 
 .home-map {
   position: relative;
-  min-height: 440px;
+  min-height: 560px;
   border-radius: var.$border-radius-sm;
   background: #f8fafc;
   overflow: hidden;
@@ -11,11 +11,11 @@
 
 .home-map__leaflet {
   width: 100%;
-  height: 440px;
+  height: 560px;
 }
 
 .home-map__state {
-  min-height: 440px;
+  min-height: 560px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -25,6 +25,66 @@
 
 .home-map__state--error {
   color: var.$color-danger;
+}
+
+.home-map__controls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  z-index: 500;
+
+  button {
+    border: 1px solid rgba(148, 163, 184, 0.7);
+    background: rgba(255, 255, 255, 0.9);
+    color: #0f172a;
+    border-radius: 10px;
+    width: 38px;
+    height: 34px;
+    font-size: 12px;
+    font-weight: 600;
+    backdrop-filter: blur(2px);
+  }
+
+  .is-active {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    color: white;
+  }
+}
+
+.home-map__focus-panel {
+  position: absolute;
+  top: 46px;
+  left: 12px;
+  width: 150px;
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var.$color-gray-200;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+  z-index: 500;
+
+  button {
+    width: 100%;
+    border: 1px solid var.$color-gray-300;
+    border-radius: 999px;
+    background: white;
+    color: #0f172a;
+    height: 30px;
+    padding: 0 10px;
+    text-align: left;
+  }
+
+  .is-active {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    color: white;
+  }
 }
 
 .home-map__toolbar {
@@ -83,7 +143,11 @@
   .home-map,
   .home-map__leaflet,
   .home-map__state {
-    min-height: 320px;
-    height: 320px;
+    min-height: 400px;
+    height: 400px;
+  }
+
+  .home-map__focus-panel {
+    width: 130px;
   }
 }

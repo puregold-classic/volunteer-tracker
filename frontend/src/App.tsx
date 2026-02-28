@@ -11,11 +11,21 @@ import type { Volunteer } from '@services/types';
 import { useAuth } from './context/AuthContext';
 
 type HeaderPage = 'home' | 'me' | 'review';
+type HotProvinceFilter = 'all' | '北京' | '上海' | '深圳';
+
+const HOT_PROVINCE_MAP: Record<HotProvinceFilter, string | undefined> = {
+  all: undefined,
+  北京: '北京市',
+  上海: '上海市',
+  深圳: '广东省'
+};
 
 function App() {
   const [activePage, setActivePage] = useState<HeaderPage>('home');
   const [homeStatus, setHomeStatus] = useState<'all' | '在职' | '不在职'>('all');
   const [homeService, setHomeService] = useState<string>('all');
+  const [homeHotProvince, setHomeHotProvince] = useState<HotProvinceFilter>('all');
+  const [homeRegionMode, setHomeRegionMode] = useState<'single' | 'multiple'>('multiple');
   const [homeRegions, setHomeRegions] = useState<string[]>([]);
   const [homeProvinces, setHomeProvinces] = useState<string[]>([]);
   const [homeSearch, setHomeSearch] = useState<string>('');
@@ -43,7 +53,7 @@ function App() {
   const { account, isAuthenticated, isLoading, login, logout } = useAuth();
   const isReviewer = Boolean(account && ['b_admin', 'a_admin', 'admin'].includes(account.role));
 
-  const QUICK_FOCUS_OPTIONS = ['中国大陆', '中国台湾', '东南亚', '美国', '欧洲', '重置世界视图'] as const;
+  const QUICK_FOCUS_OPTIONS = ['中国大陆', '中国台湾', '东南亚', '美国', '欧洲'] as const;
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -58,23 +68,31 @@ function App() {
       order: 'desc',
       sortBy: 'createdAt'
     };
+    const hotProvince = HOT_PROVINCE_MAP[homeHotProvince];
+    const mergedProvinces = hotProvince
+      ? Array.from(new Set([...homeProvinces, hotProvince]))
+      : homeProvinces;
     if (homeStatus !== 'all') params.status = homeStatus;
     if (homeService !== 'all') params.services = [homeService];
     if (homeRegions.length > 0) params.region = homeRegions;
-    if (homeProvinces.length > 0) params.province = homeProvinces;
+    if (mergedProvinces.length > 0) params.province = mergedProvinces;
     if (debouncedSearch) params.search = debouncedSearch;
     return params;
-  }, [homeStatus, homeService, homeRegions, homeProvinces, debouncedSearch]);
+  }, [homeStatus, homeService, homeHotProvince, homeRegions, homeProvinces, debouncedSearch]);
 
   const homeStatsFilterParams = useMemo<VolunteersParams>(() => {
     const params: VolunteersParams = {};
+    const hotProvince = HOT_PROVINCE_MAP[homeHotProvince];
+    const mergedProvinces = hotProvince
+      ? Array.from(new Set([...homeProvinces, hotProvince]))
+      : homeProvinces;
     if (homeStatus !== 'all') params.status = homeStatus;
     if (homeService !== 'all') params.services = [homeService];
     if (homeRegions.length > 0) params.region = homeRegions;
-    if (homeProvinces.length > 0) params.province = homeProvinces;
+    if (mergedProvinces.length > 0) params.province = mergedProvinces;
     if (debouncedSearch) params.search = debouncedSearch;
     return params;
-  }, [homeStatus, homeService, homeRegions, homeProvinces, debouncedSearch]);
+  }, [homeStatus, homeService, homeHotProvince, homeRegions, homeProvinces, debouncedSearch]);
 
   useEffect(() => {
     const fetchHomeStats = async () => {
@@ -164,21 +182,14 @@ function App() {
   };
 
   const primaryFocusRegion = homeRegions.length > 0 ? homeRegions[homeRegions.length - 1] : '';
-  const nonChinaRegions = homeRegions.filter((region) => !['中国大陆', '中国台湾'].includes(region));
-  const regionProvinceSummary = (() => {
-    if (homeProvinces.length > 0 && nonChinaRegions.length > 0) {
-      return `中国省份: ${homeProvinces.join(' / ')}；其他地区: ${nonChinaRegions.join(' / ')}`;
-    }
-    if (homeProvinces.length > 0) {
-      return `中国省份: ${homeProvinces.join(' / ')}`;
-    }
-    if (homeRegions.length > 0) {
-      return `地区: ${homeRegions.join(' / ')}`;
-    }
-    return '未选择';
-  })();
-
   const toggleRegion = (region: string) => {
+    if (homeRegionMode === 'single') {
+      const isSameSingle = homeRegions.length === 1 && homeRegions[0] === region;
+      setHomeRegions(isSameSingle ? [] : [region]);
+      setHomeProvinces([]);
+      return;
+    }
+
     setHomeRegions((prev) => {
       const exists = prev.includes(region);
       const next = exists ? prev.filter((item) => item !== region) : [...prev, region];
@@ -191,12 +202,46 @@ function App() {
 
   const toggleProvince = (province: string) => {
     const normalized = province === '台湾' ? '台湾省' : province;
+    const matchedRegion = normalized === '台湾省' ? '中国台湾' : '中国大陆';
+
+    if (homeRegionMode === 'single') {
+      const isSameSingle = homeProvinces.length === 1 && homeProvinces[0] === normalized;
+      if (isSameSingle) {
+        setHomeProvinces([]);
+        setHomeRegions([]);
+        return;
+      }
+      setHomeRegions([matchedRegion]);
+      setHomeProvinces([normalized]);
+      return;
+    }
+
     if (normalized === '台湾省') {
       setHomeRegions((prev) => (prev.includes('中国台湾') ? prev : [...prev, '中国台湾']));
     } else {
       setHomeRegions((prev) => (prev.includes('中国大陆') ? prev : [...prev, '中国大陆']));
     }
     setHomeProvinces((prev) => (prev.includes(normalized) ? prev.filter((p) => p !== normalized) : [...prev, normalized]));
+  };
+
+  const handleRegionModeChange = (mode: 'single' | 'multiple') => {
+    if (mode === homeRegionMode) return;
+    setHomeRegionMode(mode);
+
+    if (mode !== 'single') return;
+
+    if (homeProvinces.length > 0) {
+      const latestProvince = homeProvinces[homeProvinces.length - 1];
+      const matchedRegion = latestProvince === '台湾省' ? '中国台湾' : '中国大陆';
+      setHomeProvinces([latestProvince]);
+      setHomeRegions([matchedRegion]);
+      return;
+    }
+
+    if (homeRegions.length > 0) {
+      const latestRegion = homeRegions[homeRegions.length - 1];
+      setHomeRegions([latestRegion]);
+    }
   };
 
   const handleLoginSubmit = async (event: FormEvent) => {
@@ -289,18 +334,36 @@ function App() {
                         <option value="all">全部</option>
                         <option value="翻译">翻译</option>
                         <option value="校对">校对</option>
-                        <option value="项目培训">项目培训</option>
-                        <option value="非项目培训">非项目培训</option>
-                        <option value="受训">受训</option>
                         <option value="管理">管理</option>
                         <option value="技术">技术</option>
-                        <option value="社区服务">社区服务</option>
+                      </select>
+                    </div>
+                    <div className="filter-field">
+                      <span>热门省份</span>
+                      <select value={homeHotProvince} onChange={(e) => setHomeHotProvince(e.target.value as HotProvinceFilter)}>
+                        <option value="all">全部</option>
+                        <option value="北京">北京</option>
+                        <option value="上海">上海</option>
+                        <option value="深圳">深圳</option>
                       </select>
                     </div>
                     <div className="filter-field">
                       <span>地区/省份</span>
-                      <div className="filter-selected">
-                        {regionProvinceSummary}
+                      <div className="filter-mode-switch">
+                        <button
+                          type="button"
+                          className={homeRegionMode === 'single' ? 'is-active' : ''}
+                          onClick={() => handleRegionModeChange('single')}
+                        >
+                          单选
+                        </button>
+                        <button
+                          type="button"
+                          className={homeRegionMode === 'multiple' ? 'is-active' : ''}
+                          onClick={() => handleRegionModeChange('multiple')}
+                        >
+                          多选
+                        </button>
                       </div>
                     </div>
                     <button
@@ -309,6 +372,8 @@ function App() {
                       onClick={() => {
                         setHomeStatus('all');
                         setHomeService('all');
+                        setHomeHotProvince('all');
+                        setHomeRegionMode('multiple');
                         setHomeRegions([]);
                         setHomeProvinces([]);
                         setHomeSearch('');
@@ -322,31 +387,19 @@ function App() {
                 <div className="map-stage">
                   <HomeMap
                     activeProvince={homeProvinces}
+                    activeRegions={homeRegions}
+                    quickFocusOptions={[...QUICK_FOCUS_OPTIONS]}
                     focusRegion={primaryFocusRegion}
                     onProvinceSelect={(province) => {
                       toggleProvince(province);
                     }}
                     onReset={() => setHomeProvinces([])}
+                    onQuickFocusSelect={(item) => toggleRegion(item)}
+                    onRefresh={() => {
+                      setHomeRegions([]);
+                      setHomeProvinces([]);
+                    }}
                   />
-                </div>
-
-                <div className="focus-bar">
-                  {QUICK_FOCUS_OPTIONS.map((item) => (
-                    <button
-                      key={item}
-                      className={homeRegions.includes(item) ? 'is-active' : ''}
-                      onClick={() => {
-                        if (item === '重置世界视图') {
-                          setHomeRegions([]);
-                          setHomeProvinces([]);
-                          return;
-                        }
-                        toggleRegion(item);
-                      }}
-                    >
-                      {item}
-                    </button>
-                  ))}
                 </div>
               </section>
 
@@ -377,6 +430,7 @@ function App() {
                   <div className="home-summary__filters">
                     <span className="summary-tag">{homeStatus === 'all' ? '状态: 全部' : `状态: ${homeStatus}`}</span>
                     <span className="summary-tag">{homeService === 'all' ? '方向: 全部' : `方向: ${homeService}`}</span>
+                    {homeHotProvince !== 'all' && <span className="summary-tag">热门: {homeHotProvince}</span>}
                     {homeRegions.map((region) => <span key={`region-${region}`} className="summary-tag">地区: {region}</span>)}
                     {homeProvinces.map((province) => <span key={`province-${province}`} className="summary-tag">省份: {province}</span>)}
                     {debouncedSearch && <span className="summary-tag">搜索: {debouncedSearch}</span>}
