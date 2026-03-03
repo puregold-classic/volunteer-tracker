@@ -1,115 +1,135 @@
 # Codex Handoff (Next Chat Inherit)
 
-This file summarizes the current project state after the latest backend data-model and frontend filter/map upgrades.
+This file summarizes the project state after the latest frontend redesign and NPS application flow updates.
 
 ## Current Status
 
-- Auth/account system is active:
-  - `Account` + JWT middleware in use
+- Auth/account system active:
+  - `Account` + JWT middleware
   - `/api/v1/auth/register|login|me|logout|accounts`
-- Review center works in frontend:
-  - Header tabs: `首页 / 个人中心 / 审核中心`
-  - `审核中心` loads pending + processed via `reviewService`
-- Home page map/list flow is active:
-  - Left: `react-leaflet` map + quick focus
-  - Right: summary/search/compact volunteer list
-  - Volunteer card click opens detail modal (DB-backed)
+- Review center active:
+  - Tabs: `首页 / 个人中心 / 审核中心`
+  - `审核中心` loads pending + processed
+- Home page active:
+  - Left: larger `react-leaflet` map + top-left custom controls
+  - Right: summary/search + compact volunteer cards
+  - Volunteer cards render **2 per row** on desktop
 
-## Important New Rules (Implemented)
+## Major Frontend Changes (Completed)
 
-### 1) Volunteer-account policy
+### 1) Home Filter + Map UX
 
-- Every volunteer should have an account.
-- Accounts may exist without volunteer binding (system/reviewer/admin accounts).
-- `Account.volunteerId` uses unique partial index for 1:1 binding behavior.
+- Removed deprecated direction options from UI:
+  - removed `项目培训 / 非项目培训 / 受训 / 社区服务`
+  - keeps `翻译 / 校对 / 管理 / 技术`
+- Added `热门省份` filter between `方向` and `地区/省份`:
+  - `全部 / 北京 / 上海 / 深圳`
+  - mapped to province query:
+    - 北京 -> 北京市
+    - 上海 -> 上海市
+    - 深圳 -> 广东省
+- `地区/省份` now supports mode switch:
+  - `单选 / 多选`
+- Map quick focus is now packed behind icon control:
+  - Controls at **top-left**, horizontal: `+ / - / ◎ / ↻`
+  - `◎` toggles quick-focus region panel
+  - `↻` resets map view + clears region/province filters
+- Removed filter-bar selection text for `地区/省份` (`未选择` no longer shown there).
 
-### 2) Reserved reviewer/admin IDs
+### 2) Layout Width + Cards
 
-- `admin` uses reserved ID: `PG-0000`
-- `a_admin` uses reserved IDs from high range (e.g. `PG-9999` downward)
-- Migration script added to enforce/repair this.
+- Reduced side margins and expanded container width.
+- Rebalanced home split to give right panel more room.
+- Compact volunteer cards tightened and now 2-column layout on desktop.
 
-### 3) Audit for seeded NPS data
+### 3) Personal Center Model
 
-- Seed now writes `AuditLog` records for imported NPS entries (`action=seed_import`)
-- `AuditLog` model expanded to support these non-review actions
+- `我的个人中心` now combines:
+  - Account info
+  - Volunteer profile
+  - NPS records
+- Other-person center (opened by clicking volunteer card) shows:
+  - Volunteer profile
+  - NPS records
+  - no account data
+- NPS list supports pagination via “查看更多记录” in both places.
 
-### 4) NPS duplicate prevention
+### 4) NPS Application Submit in Personal Panels
 
-- `NonProjectService` has unique partial index for active duplicate event signature
-- Dedupe migration script added for existing data
+- Added NPS application submit entry in both personal panels.
+- UX now packed as a single toggle button:
+  - default: single button + minimal hint text
+  - expand to form only after click
+- Form submits `create` application to `/api/v1/applications`.
 
-## Frontend Filter/Map Behavior (Latest)
+## Critical Backend/Validation Rules (Important)
 
-- Region/province filtering now supports multi-select.
-- Quick focus buttons toggle multiple regions.
-- Map clicks toggle multiple provinces.
-- Region + province are merged into one display block: `地区/省份`.
-- Taiwan handling fixed:
-  - map click on `台湾省` -> region `中国台湾`, province `台湾省`
-  - no more `未知省份` labels for unnamed shapes
+- Service types now constrained to: `翻译 / 校对 / 管理 / 技术` in:
+  - `Volunteer.services`
+  - `NonProjectService.serviceType`
+  - validation utils and export template hints
+- New migration script:
+  - `backend/scripts/migrate-remove-deprecated-service-types.js`
+  - npm script: `migrate:services:remove-deprecated`
+  - make target: `make migrate-remove-deprecated-services`
+- This migration was executed and deactivated active NPS records with deprecated types.
+  - Effect example:
+    - `PG-0002` had 2 records; now only 1 active (`项目培训` deactivated)
+    - `PG-0004` records all inactive (both deprecated types)
 
-## New Backend Scripts
+## Very Important Fix (Latest)
 
-- `backend/scripts/seed-quality-dataset.js`
-  - high-quality seed dataset (12 volunteers + linked accounts + services + audit logs)
-- `backend/scripts/backfill-volunteer-accounts.js`
-  - creates missing volunteer-linked accounts
-- `backend/scripts/migrate-account-volunteer-unique.js`
-  - enforces unique partial index + resolves duplicates
-- `backend/scripts/migrate-dedupe-service-records.js`
-  - deactivates duplicate active NPS records + enforces dedupe index
-- `backend/scripts/migrate-reviewer-reserved-ids.js`
-  - ensures reserved PG IDs for admin/a_admin
+- NPS application submit originally failed with 400/500 due to submitter ID format.
+- Root cause:
+  - backend `IDGenerator.generateApplicationId(submittedBy.id)` requires `PG-xxxx`
+  - frontend initially sent account Mongo `_id` (24-hex), invalid
+- Fixed in frontend:
+  - now sends `submittedBy.id = account.volunteerId` (fallback `PG-0000` for admin)
+  - if no volunteerId and non-admin -> blocks submit with clear message
+- Improved API error mapping:
+  - frontend now surfaces backend `error` field (not only `message`)
+
+## New/Updated Frontend Service Files
+
+- Added:
+  - `frontend/src/services/serviceRecordService.ts`
+  - `frontend/src/services/applicationService.ts`
+- Updated:
+  - `frontend/src/services/api.ts` (better error message mapping)
+
+## Recent Commits
+
+- `6479029` `feat: revamp home filtering/map controls and clean deprecated service types`
+- `d71ad71` `chore: remove obsolete mock docs`
 
 ## Make/NPM Commands
 
-### Stable dev startup
-
 ```bash
 make dev
-```
-
-### Data operations
-
-```bash
 make seed-quality
 make migrate-data
+make migrate-remove-deprecated-services
 make backfill-accounts
 make migrate-reviewer-ids
-```
-
-### Recovery command
-
-```bash
 make recover
 ```
 
 ## Current Seed Credentials
 
 - Volunteer accounts default password: `Volunteer@123`
-- `admin@example.com` / `Admin@12345` (admin, `PG-0000`)
-- `reviewer@example.com` / `Reviewer@123` (a_admin, `PG-9999`)
-
-## Last Verified Counts
-
-From latest `seed-quality` run:
-
-- volunteers: 12
-- accounts: 14
-- linkedAccounts: 14
-- services: 22
-- audit logs for seed import present
+- `admin@example.com` / `Admin@12345` (`admin`, `PG-0000`)
+- `reviewer@example.com` / `Reviewer@123` (`a_admin`, `PG-9999`)
 
 ## Known Caveats
 
-- If Docker environment drifts, recreate backend:
+- If user reports “missing NPS records”, check `isActive`:
+  - deprecated-type migration may have deactivated older records
+- Backend application ID logic still assumes submitter ID is volunteer-style (`PG-xxxx`).
+- Docker drift recovery:
   - `docker-compose up -d --force-recreate backend`
-- If Docker permissions block commands in tool execution contexts, rerun with elevated permissions.
-- `Account` model previously showed duplicate email-index warning; email index declaration was simplified in model.
 
-## Next Suggested Work
+## Suggested Next Work
 
-1. Add chip UI to remove single selected region/province with `x`.
-2. Optionally add route-based volunteer detail page (`/volunteers/:id`) in addition to modal.
-3. Add explicit audit writes for any non-review direct service CRUD path (if introduced later).
+1. Add “我的申请记录” section in personal center (pending/approved/rejected/withdrawn).
+2. Decide whether to keep deprecated NPS rows inactive or remap/reactivate them (`项目培训/非项目培训/社区服务 -> 管理`, `受训 -> 技术`).
+3. Optional: route-based personal pages (`/volunteers/:id`) instead of modal-only flow.

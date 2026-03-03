@@ -22,6 +22,7 @@ help:
 	@echo "  make migrate-reviewer-ids 给admin/a_admin分配保留PG编号"
 	@echo "  make db-shell    进入数据库Shell"
 	@echo "  make db-reset    重置数据库"
+	@echo "  make db-reset-system-admin 清空业务数据并仅保留系统管理员"
 	@echo ""
 	@echo "测试:"
 	@echo "  make test        运行测试"
@@ -72,6 +73,9 @@ db-reset:
 	@docker-compose up -d mongodb
 	@sleep 3
 	@docker-compose exec backend npm run seed
+
+db-reset-system-admin:
+	@docker-compose exec backend npm run reset:system-admin
 
 test:
 	@docker-compose exec backend npm test

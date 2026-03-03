@@ -23,6 +23,7 @@
     "backfill:volunteer-accounts": "node scripts/backfill-volunteer-accounts.js --apply",
     "seed:quality": "node scripts/seed-quality-dataset.js",
     "seed:admin": "node scripts/seed-admin-account.js",
+    "reset:system-admin": "node scripts/reset-to-system-admin.js",
     "reset": "npm run seed",
     "lint": "eslint src/**/*.js",
     "format": "prettier --write \"src/**/*.js\""

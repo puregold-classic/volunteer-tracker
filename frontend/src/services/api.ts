@@ -125,7 +125,7 @@ const createApiInstance = (config: AxiosRequestConfig = {}): AxiosInstance => {
             errorResponse.message = '服务器内部错误';
             break;
           default:
-            errorResponse.message = error.response.data?.message || '请求失败';
+            errorResponse.message = error.response.data?.message || error.response.data?.error || '请求失败';
         }
       } else if (error.request) {
         errorResponse.message = '网络不可用，请检查网络连接';
