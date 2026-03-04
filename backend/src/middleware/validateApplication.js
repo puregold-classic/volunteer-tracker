@@ -46,7 +46,15 @@ export const validateApplicationSubmission = [
     }),
   
   body('changes.*.to')
-    .notEmpty().withMessage('变更后值不能为空'),
+    .custom((value) => {
+      if (value === undefined || value === null) {
+        throw new Error('变更后值不能为空');
+      }
+      if (typeof value === 'string' && value.trim() === '') {
+        throw new Error('变更后值不能为空');
+      }
+      return true;
+    }),
   
   // 提交人信息验证
   body('submittedBy.id')

@@ -66,6 +66,13 @@ function App() {
   const [meApplicationSubmitting, setMeApplicationSubmitting] = useState(false);
   const [meApplicationMessage, setMeApplicationMessage] = useState('');
   const [showMeApplicationForm, setShowMeApplicationForm] = useState(false);
+  const [meEditingServiceId, setMeEditingServiceId] = useState<string | null>(null);
+  const [meEditDate, setMeEditDate] = useState('');
+  const [meEditType, setMeEditType] = useState<(typeof NPS_SERVICE_TYPES)[number]>('翻译');
+  const [meEditDuration, setMeEditDuration] = useState('1');
+  const [meEditDescription, setMeEditDescription] = useState('');
+  const [meRecordActionSubmitting, setMeRecordActionSubmitting] = useState(false);
+  const [meRecordActionMessage, setMeRecordActionMessage] = useState('');
   const [detailApplicationDate, setDetailApplicationDate] = useState('');
   const [detailApplicationType, setDetailApplicationType] = useState<(typeof NPS_SERVICE_TYPES)[number]>('翻译');
   const [detailApplicationDuration, setDetailApplicationDuration] = useState('1');
@@ -335,56 +342,49 @@ function App() {
     }
   };
 
+  const buildSubmitter = () => {
+    if (!account) return null;
+    const submitterVolunteerId = account.volunteerId || (account.role === 'admin' ? 'PG-0000' : '');
+    if (!submitterVolunteerId) return null;
+    return {
+      id: submitterVolunteerId,
+      name: account.name,
+      role: account.role
+    };
+  };
+
   const submitNpsApplication = async (
-    volunteer: Volunteer,
-    form: { date: string; type: string; duration: string; description: string },
+    payload: {
+      applicationType: 'create' | 'update' | 'delete';
+      volunteer: Volunteer;
+      targetId?: string;
+      changes: Array<{
+        field: 'serviceDate' | 'serviceType' | 'duration' | 'description' | 'isActive';
+        from?: string | number | boolean | null;
+        to: string | number | boolean | null;
+      }>;
+    },
     setSubmitting: (value: boolean) => void,
     setMessage: (value: string) => void,
     onSuccess: () => Promise<void> | void
   ) => {
-    if (!account) {
+    const submitter = buildSubmitter();
+    if (!submitter) {
       promptLogin();
-      return;
-    }
-
-    if (!form.date || !form.description.trim()) {
-      setMessage('请填写服务日期和服务描述');
-      return;
-    }
-
-    const durationValue = Number(form.duration);
-    if (!durationValue || durationValue <= 0) {
-      setMessage('服务时长必须大于 0');
       return;
     }
 
     setSubmitting(true);
     setMessage('');
     try {
-      const submitterVolunteerId = account.volunteerId || (account.role === 'admin' ? 'PG-0000' : '');
-      if (!submitterVolunteerId) {
-        setMessage('当前账号未绑定志愿者ID，无法提交申请');
-        return;
-      }
-
-      const payload = {
-        applicationType: 'create' as const,
-        volunteerId: volunteer.id,
-        volunteerName: volunteer.chineseName,
-        changes: [
-          { field: 'serviceDate' as const, to: form.date },
-          { field: 'serviceType' as const, to: form.type },
-          { field: 'duration' as const, to: durationValue },
-          { field: 'description' as const, to: form.description.trim() }
-        ],
-        submittedBy: {
-          id: submitterVolunteerId,
-          name: account.name,
-          role: account.role
-        }
-      };
-
-      const result = await applicationService.submitCreateApplication(payload);
+      const result = await applicationService.submitApplication({
+        applicationType: payload.applicationType,
+        volunteerId: payload.volunteer.id,
+        volunteerName: payload.volunteer.chineseName,
+        targetId: payload.targetId,
+        changes: payload.changes,
+        submittedBy: submitter
+      });
       if (result?.success) {
         setMessage(`申请已提交：${result?.data?.applicationId || '待生成ID'}`);
         await onSuccess();
@@ -400,13 +400,25 @@ function App() {
 
   const submitMeNpsApplication = async () => {
     if (!meVolunteer) return;
+    if (!meApplicationDate || !meApplicationDescription.trim()) {
+      setMeApplicationMessage('请填写服务日期和服务描述');
+      return;
+    }
+    const durationValue = Number(meApplicationDuration);
+    if (!durationValue || durationValue <= 0) {
+      setMeApplicationMessage('服务时长必须大于 0');
+      return;
+    }
     await submitNpsApplication(
-      meVolunteer,
       {
-        date: meApplicationDate,
-        type: meApplicationType,
-        duration: meApplicationDuration,
-        description: meApplicationDescription
+        applicationType: 'create',
+        volunteer: meVolunteer,
+        changes: [
+          { field: 'serviceDate', to: meApplicationDate },
+          { field: 'serviceType', to: meApplicationType },
+          { field: 'duration', to: durationValue },
+          { field: 'description', to: meApplicationDescription.trim() }
+        ]
       },
       setMeApplicationSubmitting,
       setMeApplicationMessage,
@@ -422,13 +434,25 @@ function App() {
 
   const submitDetailNpsApplication = async () => {
     if (!volunteerDetail) return;
+    if (!detailApplicationDate || !detailApplicationDescription.trim()) {
+      setDetailApplicationMessage('请填写服务日期和服务描述');
+      return;
+    }
+    const durationValue = Number(detailApplicationDuration);
+    if (!durationValue || durationValue <= 0) {
+      setDetailApplicationMessage('服务时长必须大于 0');
+      return;
+    }
     await submitNpsApplication(
-      volunteerDetail,
       {
-        date: detailApplicationDate,
-        type: detailApplicationType,
-        duration: detailApplicationDuration,
-        description: detailApplicationDescription
+        applicationType: 'create',
+        volunteer: volunteerDetail,
+        changes: [
+          { field: 'serviceDate', to: detailApplicationDate },
+          { field: 'serviceType', to: detailApplicationType },
+          { field: 'duration', to: durationValue },
+          { field: 'description', to: detailApplicationDescription.trim() }
+        ]
       },
       setDetailApplicationSubmitting,
       setDetailApplicationMessage,
@@ -443,6 +467,104 @@ function App() {
         setDetailApplicationType('翻译');
         setDetailApplicationDuration('1');
         setDetailApplicationDescription('');
+      }
+    );
+  };
+
+  const startMeEdit = (record: NonProjectServiceRecord) => {
+    setMeEditingServiceId(record.serviceId);
+    setMeEditDate(record.serviceDate ? new Date(record.serviceDate).toISOString().split('T')[0] : '');
+    setMeEditType((NPS_SERVICE_TYPES.includes(record.serviceType as any) ? record.serviceType : '翻译') as (typeof NPS_SERVICE_TYPES)[number]);
+    setMeEditDuration(String(record.duration ?? 1));
+    setMeEditDescription(record.description || '');
+    setMeRecordActionMessage('');
+  };
+
+  const cancelMeEdit = () => {
+    setMeEditingServiceId(null);
+    setMeRecordActionMessage('');
+  };
+
+  const submitMeUpdateApplication = async (record: NonProjectServiceRecord) => {
+    if (!meVolunteer || meVolunteer.id !== record.volunteerId) {
+      setMeRecordActionMessage('只能修改自己的非项目服务记录');
+      return;
+    }
+    if (!meEditDate || !meEditDescription.trim()) {
+      setMeRecordActionMessage('请填写服务日期和服务描述');
+      return;
+    }
+    const durationValue = Number(meEditDuration);
+    if (!durationValue || durationValue <= 0) {
+      setMeRecordActionMessage('服务时长必须大于 0');
+      return;
+    }
+
+    const currentDate = new Date(record.serviceDate).toISOString().split('T')[0];
+    const currentType = (record.serviceType || '').trim();
+    const currentDuration = Number(record.duration);
+    const currentDescription = (record.description || '').trim();
+    const nextDate = meEditDate.trim();
+    const nextType = meEditType.trim();
+    const nextDuration = durationValue;
+    const nextDescription = meEditDescription.trim();
+
+    const changes: Array<{
+      field: 'serviceDate' | 'serviceType' | 'duration' | 'description';
+      from: string | number;
+      to: string | number;
+    }> = [];
+
+    if (currentDate !== nextDate) changes.push({ field: 'serviceDate', from: currentDate, to: nextDate });
+    if (currentType !== nextType) changes.push({ field: 'serviceType', from: currentType, to: nextType });
+    if (currentDuration !== nextDuration) changes.push({ field: 'duration', from: currentDuration, to: nextDuration });
+    if (currentDescription !== nextDescription) changes.push({ field: 'description', from: currentDescription, to: nextDescription });
+
+    if (changes.length === 0) {
+      setMeRecordActionMessage('没有检测到任何修改，请先调整内容再提交');
+      return;
+    }
+
+    await submitNpsApplication(
+      {
+        applicationType: 'update',
+        volunteer: meVolunteer,
+        targetId: record.serviceId,
+        changes
+      },
+      setMeRecordActionSubmitting,
+      setMeRecordActionMessage,
+      async () => {
+        await fetchMePanel();
+        setMeEditingServiceId(null);
+      }
+    );
+  };
+
+  const submitMeDeleteApplication = async (record: NonProjectServiceRecord) => {
+    if (!meVolunteer || meVolunteer.id !== record.volunteerId) {
+      setMeRecordActionMessage('只能删除自己的非项目服务记录');
+      return;
+    }
+    const confirmed = window.confirm(`确认提交删除审核申请？\n记录ID: ${record.serviceId}`);
+    if (!confirmed) return;
+    await submitNpsApplication(
+      {
+        applicationType: 'delete',
+        volunteer: meVolunteer,
+        targetId: record.serviceId,
+        changes: [
+          { field: 'serviceDate', from: new Date(record.serviceDate).toISOString().split('T')[0], to: new Date(record.serviceDate).toISOString().split('T')[0] },
+          { field: 'serviceType', from: record.serviceType, to: record.serviceType },
+          { field: 'duration', from: record.duration, to: record.duration },
+          { field: 'description', from: record.description, to: record.description },
+          { field: 'isActive', from: true, to: false }
+        ]
+      },
+      setMeRecordActionSubmitting,
+      setMeRecordActionMessage,
+      async () => {
+        await fetchMePanel();
       }
     );
   };
@@ -741,6 +863,13 @@ function App() {
                   meApplicationSubmitting={meApplicationSubmitting}
                   meApplicationMessage={meApplicationMessage}
                   showMeApplicationForm={showMeApplicationForm}
+                  meEditingServiceId={meEditingServiceId}
+                  meEditDate={meEditDate}
+                  meEditType={meEditType}
+                  meEditDuration={meEditDuration}
+                  meEditDescription={meEditDescription}
+                  meRecordActionSubmitting={meRecordActionSubmitting}
+                  meRecordActionMessage={meRecordActionMessage}
                   onRefresh={() => void fetchMePanel()}
                   onVolunteerDetail={(id) => void handleVolunteerClick(id)}
                   onBackHome={() => setActivePage('home')}
@@ -751,10 +880,18 @@ function App() {
                     setMeApplicationMessage('');
                   }}
                   onSubmitApplication={() => void submitMeNpsApplication()}
+                  onStartEdit={(record) => startMeEdit(record)}
+                  onCancelEdit={cancelMeEdit}
+                  onSubmitEdit={(record) => void submitMeUpdateApplication(record)}
+                  onSubmitDelete={(record) => void submitMeDeleteApplication(record)}
                   setMeApplicationDate={setMeApplicationDate}
                   setMeApplicationType={setMeApplicationType}
                   setMeApplicationDuration={setMeApplicationDuration}
                   setMeApplicationDescription={setMeApplicationDescription}
+                  setMeEditDate={setMeEditDate}
+                  setMeEditType={setMeEditType}
+                  setMeEditDuration={setMeEditDuration}
+                  setMeEditDescription={setMeEditDescription}
                 />
               )}
             </section>

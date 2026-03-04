@@ -6,6 +6,8 @@ export interface ReviewPendingApplication {
   targetType: string;
   volunteerId: string;
   volunteerName: string;
+  serviceType?: string;
+  duration?: number | string;
   targetId?: string | null;
   changes: Array<{
     field: string;

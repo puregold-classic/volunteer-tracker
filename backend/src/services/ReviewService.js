@@ -11,6 +11,10 @@ import TransactionUtils from '../utils/transactionUtils.js';
  * 处理申请审核的核心业务逻辑
  */
 class ReviewService {
+  static isTransactionUnsupported(error) {
+    const message = error?.message || '';
+    return message.includes('Transaction numbers are only allowed on a replica set member or mongos');
+  }
   /**
    * 解析审核标识：支持 auditId 或 applicationId
    * @private
@@ -322,7 +326,8 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
    * @private
    */
   static async reviewUpdateApplication(application, reviewData, reviewer) {
-    return await TransactionUtils.executeTransaction(async (session) => {
+    try {
+      return await TransactionUtils.executeTransaction(async (session) => {
       // 查找目标记录
       const targetRecord = await NonProjectService.findOne({
         serviceId: application.targetId,
@@ -393,7 +398,14 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
         modifiedId,
         targetRecord: reviewData.result === 'approved' ? this.sanitizeServiceRecord(targetRecord) : null
       };
-    });
+      });
+    } catch (error) {
+      if (!this.isTransactionUnsupported(error)) {
+        throw error;
+      }
+      console.warn('事务不可用，降级为无事务审核(update):', error.message);
+      return await this.reviewUpdateApplicationWithoutTransaction(application, reviewData, reviewer);
+    }
   }
   
   /**
@@ -401,7 +413,8 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
    * @private
    */
   static async reviewDeleteApplication(application, reviewData, reviewer) {
-    return await TransactionUtils.executeTransaction(async (session) => {
+    try {
+      return await TransactionUtils.executeTransaction(async (session) => {
       // 查找目标记录
       const targetRecord = await NonProjectService.findOne({
         serviceId: application.targetId,
@@ -420,8 +433,8 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
         targetRecord.isActive = false;
         targetRecord.updatedAt = new Date();
         
-        // 添加审核历史
-        targetRecord.auditHistory.push({
+        // 删除后仅保留本次删除审核历史，清理旧历史
+        targetRecord.auditHistory = [{
           auditId: await IDGenerator.generateAuditId(reviewer.id),
           auditTime: new Date(),
           auditResult: 'approved',
@@ -429,7 +442,7 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
           reviewerName: reviewer.name,
           auditNote: reviewData.notes || '审核通过，记录已删除',
           applicationId: application.applicationId
-        });
+        }];
         
         await targetRecord.save({ session });
         
@@ -462,7 +475,141 @@ static async reviewCreateApplicationWithoutTransaction(application, reviewData, 
         modifiedId,
         targetRecord: reviewData.result === 'approved' ? this.sanitizeServiceRecord(targetRecord) : null
       };
+      });
+    } catch (error) {
+      if (!this.isTransactionUnsupported(error)) {
+        throw error;
+      }
+      console.warn('事务不可用，降级为无事务审核(delete):', error.message);
+      return await this.reviewDeleteApplicationWithoutTransaction(application, reviewData, reviewer);
+    }
+  }
+
+  /**
+   * 无事务版本的审核更新申请
+   * @private
+   */
+  static async reviewUpdateApplicationWithoutTransaction(application, reviewData, reviewer) {
+    const targetRecord = await NonProjectService.findOne({
+      serviceId: application.targetId,
+      isActive: true
     });
+
+    if (!targetRecord) {
+      throw new Error(`目标服务记录不存在: ${application.targetId}`);
+    }
+
+    let modifiedId = application.targetId;
+
+    if (reviewData.result === 'approved') {
+      const oldValues = {};
+      const changesData = this.extractDataFromChanges(application.changes);
+
+      for (const change of application.changes) {
+        oldValues[change.field] = targetRecord[change.field];
+        targetRecord[change.field] = change.to;
+      }
+
+      targetRecord.auditHistory.push({
+        auditId: await IDGenerator.generateAuditId(reviewer.id),
+        auditTime: new Date(),
+        auditResult: 'approved',
+        reviewerId: reviewer.id,
+        reviewerName: reviewer.name,
+        auditNote: reviewData.notes || '审核通过',
+        applicationId: application.applicationId,
+        oldValues
+      });
+
+      targetRecord.updatedAt = new Date();
+      await targetRecord.save();
+
+      if (changesData.duration !== oldValues.duration) {
+        await this.updateVolunteerStatistics(application.volunteerId);
+      }
+    }
+
+    application.status = reviewData.result;
+    application.reviewNotes = reviewData.notes || '';
+    application.updatedAt = new Date();
+    application.indexedStatus = reviewData.result;
+    await application.save();
+
+    await this.createAuditLogWithoutTransaction({
+      application,
+      reviewData,
+      reviewer,
+      submitter: application.submittedBy,
+      modifiedId,
+      changes: application.changes
+    });
+
+    return {
+      success: true,
+      applicationId: application.applicationId,
+      result: reviewData.result,
+      modifiedId,
+      targetRecord: reviewData.result === 'approved' ? this.sanitizeServiceRecord(targetRecord) : null
+    };
+  }
+
+  /**
+   * 无事务版本的审核删除申请
+   * @private
+   */
+  static async reviewDeleteApplicationWithoutTransaction(application, reviewData, reviewer) {
+    const targetRecord = await NonProjectService.findOne({
+      serviceId: application.targetId,
+      isActive: true
+    });
+
+    if (!targetRecord) {
+      throw new Error(`目标服务记录不存在: ${application.targetId}`);
+    }
+
+    let modifiedId = application.targetId;
+
+    if (reviewData.result === 'approved') {
+      targetRecord.isActive = false;
+      targetRecord.updatedAt = new Date();
+
+      // 删除后仅保留本次删除审核历史，清理旧历史
+      targetRecord.auditHistory = [{
+        auditId: await IDGenerator.generateAuditId(reviewer.id),
+        auditTime: new Date(),
+        auditResult: 'approved',
+        reviewerId: reviewer.id,
+        reviewerName: reviewer.name,
+        auditNote: reviewData.notes || '审核通过，记录已删除',
+        applicationId: application.applicationId
+      }];
+
+      await targetRecord.save();
+      await this.updateVolunteerStatistics(application.volunteerId);
+    }
+
+    application.status = reviewData.result;
+    application.reviewNotes = reviewData.notes || '';
+    application.updatedAt = new Date();
+    application.indexedStatus = reviewData.result;
+    await application.save();
+
+    await this.createAuditLogWithoutTransaction({
+      application,
+      reviewData,
+      reviewer,
+      submitter: application.submittedBy,
+      modifiedId,
+      changes: application.changes
+    });
+
+    return {
+      success: true,
+      applicationId: application.applicationId,
+      result: reviewData.result,
+      modifiedId,
+      targetRecord: reviewData.result === 'approved' ? this.sanitizeServiceRecord(targetRecord) : null
+    };
   }
   
   /**

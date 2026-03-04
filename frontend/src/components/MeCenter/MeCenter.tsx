@@ -19,6 +19,13 @@ interface MeCenterProps {
   meApplicationSubmitting: boolean;
   meApplicationMessage: string;
   showMeApplicationForm: boolean;
+  meEditingServiceId: string | null;
+  meEditDate: string;
+  meEditType: '翻译' | '校对' | '管理' | '技术';
+  meEditDuration: string;
+  meEditDescription: string;
+  meRecordActionSubmitting: boolean;
+  meRecordActionMessage: string;
   onRefresh: () => void;
   onVolunteerDetail: (id: string) => void;
   onBackHome: () => void;
@@ -26,10 +33,18 @@ interface MeCenterProps {
   onLoadMore: () => void;
   onToggleApplicationForm: () => void;
   onSubmitApplication: () => void;
+  onStartEdit: (record: NonProjectServiceRecord) => void;
+  onCancelEdit: () => void;
+  onSubmitEdit: (record: NonProjectServiceRecord) => void;
+  onSubmitDelete: (record: NonProjectServiceRecord) => void;
   setMeApplicationDate: (value: string) => void;
   setMeApplicationType: (value: '翻译' | '校对' | '管理' | '技术') => void;
   setMeApplicationDuration: (value: string) => void;
   setMeApplicationDescription: (value: string) => void;
+  setMeEditDate: (value: string) => void;
+  setMeEditType: (value: '翻译' | '校对' | '管理' | '技术') => void;
+  setMeEditDuration: (value: string) => void;
+  setMeEditDescription: (value: string) => void;
 }
 
 const NPS_SERVICE_TYPES = ['翻译', '校对', '管理', '技术'] as const;
@@ -50,6 +65,13 @@ const MeCenter: React.FC<MeCenterProps> = ({
   meApplicationSubmitting,
   meApplicationMessage,
   showMeApplicationForm,
+  meEditingServiceId,
+  meEditDate,
+  meEditType,
+  meEditDuration,
+  meEditDescription,
+  meRecordActionSubmitting,
+  meRecordActionMessage,
   onRefresh,
   onVolunteerDetail,
   onBackHome,
@@ -57,10 +79,18 @@ const MeCenter: React.FC<MeCenterProps> = ({
   onLoadMore,
   onToggleApplicationForm,
   onSubmitApplication,
+  onStartEdit,
+  onCancelEdit,
+  onSubmitEdit,
+  onSubmitDelete,
   setMeApplicationDate,
   setMeApplicationType,
   setMeApplicationDuration,
-  setMeApplicationDescription
+  setMeApplicationDescription,
+  setMeEditDate,
+  setMeEditType,
+  setMeEditDuration,
+  setMeEditDescription
 }) => {
   return (
     <section className="center-panel">
@@ -130,6 +160,51 @@ const MeCenter: React.FC<MeCenterProps> = ({
                       <div className="nps-item__head"><strong>{record.serviceType}</strong><span>{record.duration}h</span></div>
                       <p>{record.description}</p>
                       <small>{new Date(record.serviceDate).toLocaleDateString()} · {record.serviceId}</small>
+                      {meVolunteer?.id === record.volunteerId && (
+                        <div className="nps-item__actions">
+                          <button
+                            type="button"
+                            className="action-chip"
+                            disabled={meRecordActionSubmitting}
+                            onClick={() => onStartEdit(record)}
+                          >
+                            修改（提交审核）
+                          </button>
+                          <button
+                            type="button"
+                            className="action-chip nps-item__delete"
+                            disabled={meRecordActionSubmitting}
+                            onClick={() => onSubmitDelete(record)}
+                          >
+                            删除（提交审核）
+                          </button>
+                        </div>
+                      )}
+                      {meEditingServiceId === record.serviceId && (
+                        <div className="nps-item__edit">
+                          <div className="nps-apply-grid">
+                            <input type="date" value={meEditDate} onChange={(e) => setMeEditDate(e.target.value)} />
+                            <select value={meEditType} onChange={(e) => setMeEditType(e.target.value as '翻译' | '校对' | '管理' | '技术')}>
+                              {NPS_SERVICE_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}
+                            </select>
+                            <input type="number" step="0.5" min="0.5" value={meEditDuration} onChange={(e) => setMeEditDuration(e.target.value)} placeholder="时长(小时)" />
+                            <input type="text" value={meEditDescription} onChange={(e) => setMeEditDescription(e.target.value)} placeholder="服务描述（至少5字）" />
+                          </div>
+                          <div className="nps-item__actions">
+                            <button
+                              type="button"
+                              className="nps-load-more"
+                              disabled={meRecordActionSubmitting}
+                              onClick={() => onSubmitEdit(record)}
+                            >
+                              {meRecordActionSubmitting ? '提交中...' : '确认提交修改'}
+                            </button>
+                            <button type="button" className="nps-load-more" disabled={meRecordActionSubmitting} onClick={onCancelEdit}>
+                              取消
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </article>
                   ))}
                 </div>
@@ -161,6 +236,7 @@ const MeCenter: React.FC<MeCenterProps> = ({
                 </>
               )}
               {meApplicationMessage && <p className="nps-msg">{meApplicationMessage}</p>}
+              {meRecordActionMessage && <p className="nps-msg">{meRecordActionMessage}</p>}
             </div>
           </section>
           {mePanelError && <p className="auth-form-error">{mePanelError}</p>}

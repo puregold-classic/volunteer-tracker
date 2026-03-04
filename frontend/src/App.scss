@@ -507,6 +507,24 @@
   }
 }
 
+.nps-item__actions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nps-item__delete {
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.nps-item__edit {
+  margin-top: 8px;
+  border-top: 1px dashed #d1d5db;
+  padding-top: 8px;
+}
+
 .nps-item__head {
   display: flex;
   justify-content: space-between;
@@ -600,9 +618,204 @@
   }
 }
 
+.review-chart-card {
+  border: 1px solid #dbe3ef;
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+
+  h4 {
+    margin: 0 0 4px;
+    font-size: 0.9rem;
+    color: #0f172a;
+  }
+}
+
+.review-chart-subtitle {
+  margin: 0 0 10px;
+  color: #475569;
+  font-size: 12px;
+}
+
+.review-chart-switch {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+
+.review-chart-switch-btn {
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: white;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #334155;
+  cursor: pointer;
+
+  &.is-active {
+    background: #dbeafe;
+    border-color: #60a5fa;
+    color: #1e3a8a;
+    font-weight: 700;
+  }
+}
+
+.review-chart-shell {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.review-chart-y-axis {
+  height: 240px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+
+  span {
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1;
+    transform: translateY(50%);
+  }
+}
+
+.review-chart-plot {
+  position: relative;
+  height: 240px;
+  border-left: 1px solid #cbd5e1;
+  border-bottom: 1px solid #cbd5e1;
+  padding: 6px 6px 0 8px;
+}
+
+.review-chart-grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.review-chart-grid-line:nth-child(1) { top: 0; }
+.review-chart-grid-line:nth-child(2) { top: 25%; }
+.review-chart-grid-line:nth-child(3) { top: 50%; }
+.review-chart-grid-line:nth-child(4) { top: 75%; }
+.review-chart-grid-line:nth-child(5) { top: 100%; }
+
+.review-chart-bars {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+  gap: 8px;
+}
+
+.review-chart-bar-wrap {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.review-chart-bar {
+  width: 100%;
+  max-width: 56px;
+  height: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 8px 8px 0 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+  border: 1px solid #cbd5e1;
+  border-bottom: none;
+}
+
+.review-chart-segment {
+  width: 100%;
+  min-height: 2px;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+
+  &:hover {
+    filter: brightness(0.92);
+  }
+}
+
+.review-chart-x-label {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #334155;
+}
+
+.review-chart-total {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #1e40af;
+  font-weight: 700;
+}
+
+.review-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.review-chart-bulk {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.review-chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #dbe3ef;
+  border-radius: 999px;
+  background: white;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: #334155;
+
+  i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+}
+
 .center-empty {
   margin: 0;
   color: var.$color-gray-600;
+}
+
+.review-detail-modal {
+  max-width: 720px;
+}
+
+.review-detail-meta {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.review-detail-list {
+  display: grid;
+  gap: 8px;
+  max-height: 46vh;
+  overflow: auto;
+}
+
+.review-item-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
 }
 
 // ============================================
@@ -910,6 +1123,23 @@
   .review-columns,
   .info-grid {
     grid-template-columns: 1fr;
+  }
+
+  .review-chart-shell {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .review-chart-y-axis {
+    height: 210px;
+  }
+
+  .review-chart-plot {
+    height: 210px;
+    overflow-x: auto;
+  }
+
+  .review-chart-bars {
+    min-width: 320px;
   }
 
   .home-volunteer-list {

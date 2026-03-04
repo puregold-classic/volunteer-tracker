@@ -8,6 +8,68 @@ import QueryUtils from '../utils/queryUtils.js';
  * 申请控制器
  */
 class ApplicationController {
+  static normalizeChangeValue(field, value) {
+    if (value === null || value === undefined) return value;
+    if (field === 'serviceDate') {
+      return new Date(value).toISOString().split('T')[0];
+    }
+    if (typeof value === 'string') return value.trim();
+    return value;
+  }
+
+  static normalizeChanges(changes = []) {
+    return [...changes]
+      .map((change) => ({
+        field: change.field,
+        from: ApplicationController.normalizeChangeValue(change.field, change.from),
+        to: ApplicationController.normalizeChangeValue(change.field, change.to)
+      }))
+      .sort((a, b) => a.field.localeCompare(b.field));
+  }
+
+  static buildCreateProjectSignature(changes = []) {
+    const normalized = ApplicationController.normalizeChanges(changes);
+    const fields = ['serviceDate', 'serviceType', 'duration', 'description'];
+    const map = new Map(normalized.map((item) => [item.field, item.to]));
+    if (!fields.every((field) => map.has(field))) return null;
+    return JSON.stringify({
+      serviceDate: map.get('serviceDate'),
+      serviceType: map.get('serviceType'),
+      duration: map.get('duration'),
+      description: map.get('description')
+    });
+  }
+
+  static async findPendingProjectConflict(applicationData, validatedChanges) {
+    // update/delete: targetId 已能唯一表示一条NPS项目，若该项目已有任意待审核申请则阻止
+    if (applicationData.targetId) {
+      const conflict = await ServiceApplication.findOne({
+        status: 'pending',
+        targetId: applicationData.targetId
+      })
+        .select('applicationId applicationType status targetId createdAt')
+        .lean();
+      return conflict || null;
+    }
+
+    // create: 没有targetId，按完整项目内容识别是否已在待审核队列
+    const incomingSignature = ApplicationController.buildCreateProjectSignature(validatedChanges);
+    if (!incomingSignature) return null;
+
+    const candidates = await ServiceApplication.find({
+      status: 'pending',
+      volunteerId: applicationData.volunteerId,
+      applicationType: 'create',
+      targetId: null
+    })
+      .select('applicationId applicationType status targetId createdAt changes')
+      .lean();
+
+    return candidates.find((candidate) => {
+      const candidateSignature = ApplicationController.buildCreateProjectSignature(candidate.changes || []);
+      return candidateSignature === incomingSignature;
+    }) || null;
+  }
   
   /**
    * 提交申请
@@ -32,6 +94,20 @@ class ApplicationController {
         return res.status(400).json({
           success: false,
           error: validationResult.error,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // 步骤1.5: 若该项目已在待审核申请中（任意action），提醒并阻止新申请
+      const conflict = await ApplicationController.findPendingProjectConflict(
+        applicationData,
+        validationResult.validatedChanges
+      );
+      if (conflict) {
+        return res.status(409).json({
+          success: false,
+          error: `该项目已在审核队列中（${conflict.applicationId} / ${conflict.applicationType}），请等待处理后再提交`,
+          code: 'PENDING_PROJECT_CONFLICT',
           timestamp: new Date().toISOString()
         });
       }

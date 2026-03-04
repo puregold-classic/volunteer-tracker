@@ -1,12 +1,17 @@
 import { api } from './api';
 
+type ApplicationType = 'create' | 'update' | 'delete';
+type ChangeField = 'serviceDate' | 'serviceType' | 'duration' | 'description' | 'isActive';
+
 export interface SubmitApplicationPayload {
-  applicationType: 'create';
+  applicationType: ApplicationType;
   volunteerId: string;
   volunteerName: string;
+  targetId?: string;
   changes: Array<{
-    field: 'serviceDate' | 'serviceType' | 'duration' | 'description';
-    to: string | number;
+    field: ChangeField;
+    from?: string | number | boolean | null;
+    to: string | number | boolean | null;
   }>;
   submittedBy: {
     id: string;
@@ -27,7 +32,7 @@ export interface SubmitApplicationResponse {
 }
 
 export const applicationService = {
-  submitCreateApplication: async (payload: SubmitApplicationPayload): Promise<SubmitApplicationResponse> => {
+  submitApplication: async (payload: SubmitApplicationPayload): Promise<SubmitApplicationResponse> => {
     return api.post('/applications', payload);
   }
 };

@@ -162,6 +162,8 @@ class ValidationUtils {
       }
     }
     
+    let hasEffectiveUpdate = false;
+
     // 验证每个变更项
     for (const change of changes) {
       const { field, from, to } = change;
@@ -211,6 +213,21 @@ class ValidationUtils {
         } else if (currentValue !== from) {
           errors.push(`字段 ${field} 的原始值 ${from} 与当前值 ${currentValue} 不匹配`);
         }
+
+        // 对于update，过滤未实际变化的字段（避免出现 技术 -> 技术）
+        let isChanged = false;
+        if (field === 'serviceDate') {
+          const toDate = new Date(to).toISOString().split('T')[0];
+          const fromDate = new Date(from).toISOString().split('T')[0];
+          isChanged = toDate !== fromDate;
+        } else {
+          isChanged = to !== from;
+        }
+
+        if (!isChanged) {
+          continue;
+        }
+        hasEffectiveUpdate = true;
       }
       
       // 对于delete，验证from值
@@ -226,8 +243,15 @@ class ValidationUtils {
       validatedChanges.push({
         field,
         from: applicationType === 'create' ? null : from,
-        to: applicationType === 'delete' && field === 'isActive' ? null : to
+        to
       });
+    }
+
+    if (applicationType === 'update' && !hasEffectiveUpdate) {
+      return {
+        isValid: false,
+        error: '未检测到有效修改，请调整后再提交'
+      };
     }
     
     if (errors.length > 0) {
