@@ -30,6 +30,11 @@ const HOT_PROVINCE_MAP: Record<HotProvinceFilter, string | undefined> = {
 };
 const NPS_PAGE_SIZE = 8;
 const NPS_SERVICE_TYPES = ['翻译', '校对', '管理', '技术'] as const;
+type NpsServiceType = (typeof NPS_SERVICE_TYPES)[number];
+
+const isNpsServiceType = (value: string): value is NpsServiceType => {
+  return (NPS_SERVICE_TYPES as readonly string[]).includes(value);
+};
 
 function App() {
   const [activePage, setActivePage] = useState<HeaderPage>('home');
@@ -60,7 +65,7 @@ function App() {
   const [volunteerDetailHasMoreServices, setVolunteerDetailHasMoreServices] = useState(false);
   const [volunteerDetailServicesLoadingMore, setVolunteerDetailServicesLoadingMore] = useState(false);
   const [meApplicationDate, setMeApplicationDate] = useState('');
-  const [meApplicationType, setMeApplicationType] = useState<(typeof NPS_SERVICE_TYPES)[number]>('翻译');
+  const [meApplicationType, setMeApplicationType] = useState<NpsServiceType>('翻译');
   const [meApplicationDuration, setMeApplicationDuration] = useState('1');
   const [meApplicationDescription, setMeApplicationDescription] = useState('');
   const [meApplicationSubmitting, setMeApplicationSubmitting] = useState(false);
@@ -68,13 +73,13 @@ function App() {
   const [showMeApplicationForm, setShowMeApplicationForm] = useState(false);
   const [meEditingServiceId, setMeEditingServiceId] = useState<string | null>(null);
   const [meEditDate, setMeEditDate] = useState('');
-  const [meEditType, setMeEditType] = useState<(typeof NPS_SERVICE_TYPES)[number]>('翻译');
+  const [meEditType, setMeEditType] = useState<NpsServiceType>('翻译');
   const [meEditDuration, setMeEditDuration] = useState('1');
   const [meEditDescription, setMeEditDescription] = useState('');
   const [meRecordActionSubmitting, setMeRecordActionSubmitting] = useState(false);
   const [meRecordActionMessage, setMeRecordActionMessage] = useState('');
   const [detailApplicationDate, setDetailApplicationDate] = useState('');
-  const [detailApplicationType, setDetailApplicationType] = useState<(typeof NPS_SERVICE_TYPES)[number]>('翻译');
+  const [detailApplicationType, setDetailApplicationType] = useState<NpsServiceType>('翻译');
   const [detailApplicationDuration, setDetailApplicationDuration] = useState('1');
   const [detailApplicationDescription, setDetailApplicationDescription] = useState('');
   const [detailApplicationSubmitting, setDetailApplicationSubmitting] = useState(false);
@@ -474,7 +479,7 @@ function App() {
   const startMeEdit = (record: NonProjectServiceRecord) => {
     setMeEditingServiceId(record.serviceId);
     setMeEditDate(record.serviceDate ? new Date(record.serviceDate).toISOString().split('T')[0] : '');
-    setMeEditType((NPS_SERVICE_TYPES.includes(record.serviceType as any) ? record.serviceType : '翻译') as (typeof NPS_SERVICE_TYPES)[number]);
+    setMeEditType(isNpsServiceType(record.serviceType) ? record.serviceType : '翻译');
     setMeEditDuration(String(record.duration ?? 1));
     setMeEditDescription(record.description || '');
     setMeRecordActionMessage('');

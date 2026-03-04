@@ -110,7 +110,7 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
       string,
       {
         totalHours: number;
-        people: Array<{ volunteerId: string; volunteerName: string; hours: number; applications: ReviewPendingApplication[] }>;
+        people: Array<{ volunteerId: string; volunteerName: string; hours: number }>;
       }
     >();
 
@@ -125,13 +125,11 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
       const existed = bucket.people.find((person) => person.volunteerId === item.volunteerId);
       if (existed) {
         existed.hours += unitValue;
-        existed.applications.push(item);
       } else {
         bucket.people.push({
           volunteerId: item.volunteerId,
           volunteerName: item.volunteerName,
-          hours: unitValue,
-          applications: [item]
+          hours: unitValue
         });
       }
 
@@ -177,6 +175,10 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
       .filter((item) => getServiceType(item) === selectedGroup.serviceType && item.volunteerId === selectedGroup.volunteerId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [pendingReviews, selectedGroup, chartMode]);
+  const selectedProcessedEffectiveChanges = useMemo(
+    () => (selectedProcessed?.changes || []).filter((change) => hasEffectiveChange(change.from, change.to)),
+    [selectedProcessed]
+  );
 
   const handleReview = async (applicationId: string, result: 'approved' | 'rejected') => {
     try {
@@ -439,16 +441,11 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
                 <strong>{selectedProcessed.volunteerName}</strong> · {selectedProcessed.applicationType} · {selectedProcessed.status}
               </p>
               <p className="review-detail-meta">申请ID: {selectedProcessed.applicationId}</p>
-              {(() => {
-                const effectiveChanges = (selectedProcessed.changes || []).filter((change) =>
-                  hasEffectiveChange(change.from, change.to)
-                );
-                return (
               <div className="review-detail-list">
-                {effectiveChanges.length === 0 ? (
+                {selectedProcessedEffectiveChanges.length === 0 ? (
                   <p className="center-empty">无变更明细</p>
                 ) : (
-                  effectiveChanges.map((change, index) => (
+                  selectedProcessedEffectiveChanges.map((change, index) => (
                     <article key={`${selectedProcessed.applicationId}-${change.field}-${index}`} className="review-item-card">
                       <p><strong>{change.field}</strong></p>
                       <p>{formatChangeValue(change.from)} → {formatChangeValue(change.to)}</p>
@@ -456,8 +453,6 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
                   ))
                 )}
               </div>
-                );
-              })()}
             </div>
           </div>
         </div>
