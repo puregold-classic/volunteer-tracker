@@ -1,135 +1,128 @@
-# Codex Handoff (Next Chat Inherit)
+# 项目状态文档（AI 接班用）
 
-This file summarizes the project state after the latest frontend redesign and NPS application flow updates.
+> 最后更新：2026-03-04，由 OpenClaw AI 重新探索整理。
 
-## Current Status
+---
 
-- Auth/account system active:
-  - `Account` + JWT middleware
-  - `/api/v1/auth/register|login|me|logout|accounts`
-- Review center active:
-  - Tabs: `首页 / 个人中心 / 审核中心`
-  - `审核中心` loads pending + processed
-- Home page active:
-  - Left: larger `react-leaflet` map + top-left custom controls
-  - Right: summary/search + compact volunteer cards
-  - Volunteer cards render **2 per row** on desktop
+## 项目概览
 
-## Major Frontend Changes (Completed)
+**全球志愿者可视化与管理平台**，前后端分离架构，已部署生产环境。
 
-### 1) Home Filter + Map UX
+- **前端（Netlify）：** https://pgc-volunteer.netlify.app/
+- **后端（Render）：** https://volunteer-tracker.onrender.com/
+- **本地开发：** 前端 http://localhost:3000 / 后端 http://localhost:5000
 
-- Removed deprecated direction options from UI:
-  - removed `项目培训 / 非项目培训 / 受训 / 社区服务`
-  - keeps `翻译 / 校对 / 管理 / 技术`
-- Added `热门省份` filter between `方向` and `地区/省份`:
-  - `全部 / 北京 / 上海 / 深圳`
-  - mapped to province query:
-    - 北京 -> 北京市
-    - 上海 -> 上海市
-    - 深圳 -> 广东省
-- `地区/省份` now supports mode switch:
-  - `单选 / 多选`
-- Map quick focus is now packed behind icon control:
-  - Controls at **top-left**, horizontal: `+ / - / ◎ / ↻`
-  - `◎` toggles quick-focus region panel
-  - `↻` resets map view + clears region/province filters
-- Removed filter-bar selection text for `地区/省份` (`未选择` no longer shown there).
+---
 
-### 2) Layout Width + Cards
+## 技术栈（当前实际）
 
-- Reduced side margins and expanded container width.
-- Rebalanced home split to give right panel more room.
-- Compact volunteer cards tightened and now 2-column layout on desktop.
+| 层 | 技术 |
+|----|------|
+| 前端 | React 18 + TypeScript + Vite 7 + SCSS + react-leaflet |
+| 后端 | Node.js + Express（ESM）|
+| 数据库 | MongoDB + Mongoose |
+| 认证 | JWT（bcryptjs）|
+| 导出 | csv-writer + exceljs + jszip |
+| 部署 | Netlify（前端）+ Render（后端）+ MongoDB Atlas |
 
-### 3) Personal Center Model
+---
 
-- `我的个人中心` now combines:
-  - Account info
-  - Volunteer profile
-  - NPS records
-- Other-person center (opened by clicking volunteer card) shows:
-  - Volunteer profile
-  - NPS records
-  - no account data
-- NPS list supports pagination via “查看更多记录” in both places.
+## 权限体系（当前实现）
 
-### 4) NPS Application Submit in Personal Panels
+| role | 说明 |
+|------|------|
+| `user` | 普通志愿者，可提交 NPS 申请 |
+| `b_admin` | 审核员（部长），可审核申请 |
+| `a_admin` | 高级管理员，含审核员权限 |
+| `admin` | 开发者，进入 AdminCenter（账号管理） |
 
-- Added NPS application submit entry in both personal panels.
-- UX now packed as a single toggle button:
-  - default: single button + minimal hint text
-  - expand to form only after click
-- Form submits `create` application to `/api/v1/applications`.
+前端判断：`isReviewer = ['b_admin', 'a_admin', 'admin'].includes(role)`，`isSystemAdmin = role === 'admin'`。
 
-## Critical Backend/Validation Rules (Important)
+---
 
-- Service types now constrained to: `翻译 / 校对 / 管理 / 技术` in:
-  - `Volunteer.services`
-  - `NonProjectService.serviceType`
-  - validation utils and export template hints
-- New migration script:
-  - `backend/scripts/migrate-remove-deprecated-service-types.js`
-  - npm script: `migrate:services:remove-deprecated`
-  - make target: `make migrate-remove-deprecated-services`
-- This migration was executed and deactivated active NPS records with deprecated types.
-  - Effect example:
-    - `PG-0002` had 2 records; now only 1 active (`项目培训` deactivated)
-    - `PG-0004` records all inactive (both deprecated types)
+## 当前已实现功能
 
-## Very Important Fix (Latest)
+### 后端 API 路由
+- `GET/POST /api/v1/volunteers` — 志愿者列表、搜索、筛选、分页、统计
+- `GET /api/v1/volunteers/:id` — 单个志愿者详情
+- `GET /api/v1/services` — NPS 服务记录
+- `GET /api/v1/services/export` — 导出（CSV/Excel）
+- `POST /api/v1/applications` — 提交 NPS 申请（create/update/delete）
+- `GET/POST /api/v1/reviews` — 待审/已处理申请，审核操作
+- `GET /api/v1/audit` — 审计日志
+- `POST /api/v1/auth/login|register|logout` + `GET /api/v1/auth/me|accounts`
 
-- NPS application submit originally failed with 400/500 due to submitter ID format.
-- Root cause:
-  - backend `IDGenerator.generateApplicationId(submittedBy.id)` requires `PG-xxxx`
-  - frontend initially sent account Mongo `_id` (24-hex), invalid
-- Fixed in frontend:
-  - now sends `submittedBy.id = account.volunteerId` (fallback `PG-0000` for admin)
-  - if no volunteerId and non-admin -> blocks submit with clear message
-- Improved API error mapping:
-  - frontend now surfaces backend `error` field (not only `message`)
+### 前端页面
+- **首页（home）：** 地图（react-leaflet）+ 右侧志愿者列表，支持：
+  - 状态筛选（在职/不在职）
+  - 方向筛选（翻译/校对/管理/技术）
+  - 热门省份快捷（北京/上海/深圳）
+  - 地区/省份多选或单选
+  - 地图点击省份联动
+  - 实时搜索（250ms debounce）
+  - 顶部 summary 统计（总数/在职占比/服务时长）
+- **个人中心（me）：**
+  - 普通用户：账号信息 + 志愿者档案 + NPS 记录（分页）+ 提交/修改/删除 NPS 申请
+  - admin 用户：AdminCenter（账号管理、批量导入、重置系统）
+- **审核中心（review）：**
+  - 待审申请列表 + 图表（按 serviceType / volunteerId 可视化）
+  - 已处理历史
+  - 单条审核（通过/拒绝）+ 批量审核
+  - 图表模式切换：Create / Change / Delete
+- **志愿者详情弹窗（VolunteerDetailModal）：**
+  - 志愿者档案 + NPS 记录（分页）
+  - 提交 NPS 申请入口（需登录）
 
-## New/Updated Frontend Service Files
+### 数据模型
+- `Volunteer` — id（PG-xxxx）/ chineseName / englishName / status / region / province / services[]
+- `Account` — email / passwordHash / name / role / volunteerId / isActive
+- `NonProjectService` — serviceId / volunteerId / serviceType / duration / serviceDate / description / isActive
+- `ServiceApplication` — applicationId / applicationType / volunteerId / changes[] / submittedBy / status / reviewNote
+- `AuditLog` — 操作审计
 
-- Added:
-  - `frontend/src/services/serviceRecordService.ts`
-  - `frontend/src/services/applicationService.ts`
-- Updated:
-  - `frontend/src/services/api.ts` (better error message mapping)
+### 服务类型（当前有效）
+`翻译 / 校对 / 管理 / 技术`（旧类型已迁移清理）
 
-## Recent Commits
+---
 
-- `6479029` `feat: revamp home filtering/map controls and clean deprecated service types`
-- `d71ad71` `chore: remove obsolete mock docs`
+## 开发账号（本地 seed 数据）
 
-## Make/NPM Commands
+| 邮箱 | 密码 | role | volunteerId |
+|------|------|------|-------------|
+| admin@example.com | Admin@12345 | admin | PG-0000 |
+| reviewer@example.com | Reviewer@123 | a_admin | PG-9999 |
+| （志愿者账号）| Volunteer@123 | user | PG-xxxx |
+
+---
+
+## 常用命令
 
 ```bash
-make dev
-make seed-quality
-make migrate-data
-make migrate-remove-deprecated-services
-make backfill-accounts
-make migrate-reviewer-ids
-make recover
+make dev                              # 启动前后端开发服务
+make seed-quality                     # 种子数据（质量数据集）
+make seed-admin                       # 创建 admin 账号
+make migrate-data                     # 运行所有迁移
+make migrate-remove-deprecated-services  # 清理废弃服务类型
+make backfill-accounts                # 补全账号-志愿者关联
+make migrate-reviewer-ids             # 迁移审核员 ID
+make recover                          # Docker 恢复
 ```
 
-## Current Seed Credentials
+---
 
-- Volunteer accounts default password: `Volunteer@123`
-- `admin@example.com` / `Admin@12345` (`admin`, `PG-0000`)
-- `reviewer@example.com` / `Reviewer@123` (`a_admin`, `PG-9999`)
+## 已知问题 / 注意事项
 
-## Known Caveats
+1. **NPS 申请 submitter ID** 必须是 `PG-xxxx` 格式。admin 回退到 `PG-0000`，无 volunteerId 的普通用户会被前端 block。
+2. **isActive 字段**：旧迁移脚本将废弃类型的 NPS 记录设为 inactive，若用户反馈"记录消失"，先检查 `isActive`。
+3. **App.tsx 较大**：所有 state 和逻辑目前在 App.tsx 中，通过 `useAdminCenter` / `useReviewCenter` / `useMeCenter` 三个自定义 hook 分离了部分逻辑。
+4. **无路由系统**：志愿者详情页是弹窗（modal），无 URL，不可直接分享链接。
 
-- If user reports “missing NPS records”, check `isActive`:
-  - deprecated-type migration may have deactivated older records
-- Backend application ID logic still assumes submitter ID is volunteer-style (`PG-xxxx`).
-- Docker drift recovery:
-  - `docker-compose up -d --force-recreate backend`
+---
 
-## Suggested Next Work
+## 下一步建议（待 Shuyu 确认优先级）
 
-1. Add “我的申请记录” section in personal center (pending/approved/rejected/withdrawn).
-2. Decide whether to keep deprecated NPS rows inactive or remap/reactivate them (`项目培训/非项目培训/社区服务 -> 管理`, `受训 -> 技术`).
-3. Optional: route-based personal pages (`/volunteers/:id`) instead of modal-only flow.
+1. **"我的申请记录"**：个人中心增加 pending/approved/rejected/withdrawn 申请历史视图
+2. **志愿者详情路由化**：`/volunteers/:id` 独立页面，取代或补充弹窗
+3. **废弃 NPS 记录处理**：决定是保持 inactive 还是重新映射到现有类型
+4. **前端拆分**：App.tsx 过大，可继续模块化
+5. **自动化测试**：目前无前端测试覆盖
