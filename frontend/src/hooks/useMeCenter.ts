@@ -20,6 +20,7 @@ export const useMeCenter = (
   const [meServicesLoadingMore, setMeServicesLoadingMore] = useState(false);
   const [myApplications, setMyApplications] = useState<MyApplicationRecord[]>([]);
   const [myApplicationsLoading, setMyApplicationsLoading] = useState(false);
+  const [myApplicationsDeactivating, setMyApplicationsDeactivating] = useState(false);
 
   const fetchMePanel = async () => {
     if (!accountVolunteerId) {
@@ -119,6 +120,28 @@ export const useMeCenter = (
     }
   };
 
+  const deactivateAllMyApplications = async () => {
+    if (!accountVolunteerId) {
+      return { success: false, message: '未绑定志愿者账号' };
+    }
+    setMyApplicationsDeactivating(true);
+    try {
+      const result = await applicationService.deactivateAllMyApplications(accountVolunteerId);
+      if (result?.success) {
+        await fetchMyApplications();
+        return {
+          success: true,
+          message: result.message || `已清空 ${result?.data?.deactivatedCount || 0} 条申请记录`
+        };
+      }
+      return { success: false, message: result?.error || result?.message || '清空失败' };
+    } catch (error: any) {
+      return { success: false, message: error?.message || '清空失败' };
+    } finally {
+      setMyApplicationsDeactivating(false);
+    }
+  };
+
   useEffect(() => {
     if (activePage !== 'me' || !isAuthenticated || isSystemAdmin) return;
     void fetchMePanel();
@@ -133,10 +156,12 @@ export const useMeCenter = (
     meServicesLoadingMore,
     myApplications,
     myApplicationsLoading,
+    myApplicationsDeactivating,
     fetchMePanel,
     loadMoreMeServices,
     fetchMyApplications,
-    withdrawApplication
+    withdrawApplication,
+    deactivateAllMyApplications
   };
 };
 

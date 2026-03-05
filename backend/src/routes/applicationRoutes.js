@@ -11,6 +11,7 @@ router.post('/', validateApplicationSubmission, ApplicationController.submitAppl
 
 // 申请查询
 router.get('/my', ApplicationController.getMyApplications);
+router.post('/my/deactivate-all', ApplicationController.deactivateAllMyApplications);
 
 // 申请维护
 router.delete('/:applicationId', ApplicationController.withdrawApplication);

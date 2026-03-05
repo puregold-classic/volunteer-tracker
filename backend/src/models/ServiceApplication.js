@@ -113,6 +113,13 @@ const serviceApplicationSchema = new mongoose.Schema({
     },
     default: 'pending'
   },
+
+  // 软删除标记：个人中心默认仅展示 active 申请记录
+  isActive: {
+    type: Boolean,
+    default: true,
+    index: true
+  },
   
   // 审核备注（审核员填写）
   reviewNotes: {

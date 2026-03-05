@@ -97,9 +97,11 @@ function App() {
     meServicesLoadingMore,
     myApplications,
     myApplicationsLoading,
+    myApplicationsDeactivating,
     fetchMePanel,
     loadMoreMeServices,
-    withdrawApplication: withdrawMyApplication
+    withdrawApplication: withdrawMyApplication,
+    deactivateAllMyApplications
   } = useMeCenter(account?.volunteerId, activePage, isAuthenticated, isSystemAdmin, NPS_PAGE_SIZE);
   const { pendingReviews, processedReviews, reviewLoading, reviewError, refreshReview } = useReviewCenter(
     activePage,
@@ -582,6 +584,11 @@ function App() {
     setMeRecordActionMessage(result.message);
   };
 
+  const handleDeactivateAllMyApplications = async () => {
+    const result = await deactivateAllMyApplications();
+    setMeRecordActionMessage(result.message);
+  };
+
   const handleResubmitRejectedApplication = (application: MyApplicationRecord) => {
     const getChangeToValue = (field: 'serviceDate' | 'serviceType' | 'duration' | 'description') =>
       application.changes.find((change) => change.field === field)?.to;
@@ -882,6 +889,7 @@ function App() {
                   meServicesLoadingMore={meServicesLoadingMore}
                   myApplications={myApplications}
                   myApplicationsLoading={myApplicationsLoading}
+                  myApplicationsDeactivating={myApplicationsDeactivating}
                   meApplicationDate={meApplicationDate}
                   meApplicationType={meApplicationType}
                   meApplicationDuration={meApplicationDuration}
@@ -902,6 +910,7 @@ function App() {
                   onLogout={() => void logout()}
                   onLoadMore={() => void loadMoreMeServices()}
                   onWithdrawApplication={(applicationId) => void handleWithdrawMyApplication(applicationId)}
+                  onDeactivateAllMyApplications={() => void handleDeactivateAllMyApplications()}
                   onResubmitApplication={handleResubmitRejectedApplication}
                   onToggleApplicationForm={() => {
                     setShowMeApplicationForm((v) => !v);

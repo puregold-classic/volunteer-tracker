@@ -260,13 +260,18 @@ class ApplicationController {
         });
       }
       
-      const { page = 1, limit = 20, status } = req.query;
+      const { page = 1, limit = 20, status, includeInactive } = req.query;
       const pagination = QueryUtils.buildPaginationOptions(page, limit);
+      const shouldIncludeInactive = String(includeInactive).toLowerCase() === 'true';
       
       // 构建查询条件
       const query = {
         'submittedBy.id': submittedById
       };
+
+      if (!shouldIncludeInactive) {
+        query.isActive = true;
+      }
       
       // 状态筛选
       if (status && ['pending', 'approved', 'rejected', 'withdrawn'].includes(status)) {
@@ -303,6 +308,50 @@ class ApplicationController {
       return res.status(500).json({
         success: false,
         error: '获取申请列表失败',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * 清空我的申请记录（软删除）
+   * POST /api/v1/applications/my/deactivate-all
+   */
+  static async deactivateAllMyApplications(req, res) {
+    try {
+      const { submittedById } = req.body;
+
+      if (!submittedById || typeof submittedById !== 'string' || !submittedById.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: '需要提供 submittedById',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const updateResult = await ServiceApplication.updateMany(
+        {
+          'submittedBy.id': submittedById.trim(),
+          isActive: true
+        },
+        {
+          $set: { isActive: false }
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        message: '申请记录已清空',
+        data: {
+          deactivatedCount: updateResult.modifiedCount || 0
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('清空申请记录失败:', error);
+      return res.status(500).json({
+        success: false,
+        error: '清空申请记录失败',
         timestamp: new Date().toISOString()
       });
     }

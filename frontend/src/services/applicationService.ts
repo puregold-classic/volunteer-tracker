@@ -82,6 +82,15 @@ export interface WithdrawApplicationResponse {
   };
 }
 
+export interface DeactivateAllMyApplicationsResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: {
+    deactivatedCount: number;
+  };
+}
+
 export const applicationService = {
   submitApplication: async (payload: SubmitApplicationPayload): Promise<SubmitApplicationResponse> => {
     return api.post('/applications', payload);
@@ -101,6 +110,12 @@ export const applicationService = {
   ): Promise<WithdrawApplicationResponse> => {
     const payload = withdrawnById ? { withdrawnBy: { id: withdrawnById } } : undefined;
     return api.delete(`/applications/${applicationId}`, payload ? { data: payload } : undefined);
+  },
+
+  deactivateAllMyApplications: async (
+    submittedById: string
+  ): Promise<DeactivateAllMyApplicationsResponse> => {
+    return api.post('/applications/my/deactivate-all', { submittedById });
   }
 };
 

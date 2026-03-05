@@ -15,6 +15,7 @@ interface MeCenterProps {
   meServicesLoadingMore: boolean;
   myApplications: MyApplicationRecord[];
   myApplicationsLoading: boolean;
+  myApplicationsDeactivating: boolean;
   meApplicationDate: string;
   meApplicationType: '翻译' | '校对' | '管理' | '技术';
   meApplicationDuration: string;
@@ -35,6 +36,7 @@ interface MeCenterProps {
   onLogout: () => void;
   onLoadMore: () => void;
   onWithdrawApplication: (applicationId: string) => Promise<void> | void;
+  onDeactivateAllMyApplications: () => Promise<void> | void;
   onResubmitApplication: (application: MyApplicationRecord) => void;
   onToggleApplicationForm: () => void;
   onSubmitApplication: () => void;
@@ -71,6 +73,7 @@ const MeCenter: React.FC<MeCenterProps> = ({
   meServicesLoadingMore,
   myApplications,
   myApplicationsLoading,
+  myApplicationsDeactivating,
   meApplicationDate,
   meApplicationType,
   meApplicationDuration,
@@ -91,6 +94,7 @@ const MeCenter: React.FC<MeCenterProps> = ({
   onLogout,
   onLoadMore,
   onWithdrawApplication,
+  onDeactivateAllMyApplications,
   onResubmitApplication,
   onToggleApplicationForm,
   onSubmitApplication,
@@ -276,7 +280,23 @@ const MeCenter: React.FC<MeCenterProps> = ({
           </section>
 
           <section className="community-panel">
-            <h3>我的申请记录</h3>
+            <div className="center-panel__head">
+              <h3>我的申请记录</h3>
+              <button
+                type="button"
+                className="filter-reset"
+                disabled={myApplicationsDeactivating || myApplicationsLoading || myApplications.length === 0}
+                onClick={async () => {
+                  const firstConfirm = window.confirm('确认清空“我的申请记录”？此操作不会删除数据，只会隐藏记录。');
+                  if (!firstConfirm) return;
+                  const secondConfirm = window.confirm('请再次确认：要清空当前账号下全部申请记录展示吗？');
+                  if (!secondConfirm) return;
+                  await onDeactivateAllMyApplications();
+                }}
+              >
+                {myApplicationsDeactivating ? '清空中...' : '清空我的申请记录'}
+              </button>
+            </div>
             {myApplicationsLoading ? (
               <p className="center-empty">正在加载申请记录...</p>
             ) : myApplications.length === 0 ? (
