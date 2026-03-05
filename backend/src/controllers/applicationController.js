@@ -250,12 +250,15 @@ class ApplicationController {
    */
   static async getMyApplications(req, res) {
     try {
-      const { submittedById } = req.query;
+      const { volunteerId, submittedById } = req.query;
+      const queryVolunteerId = (typeof volunteerId === 'string' && volunteerId.trim())
+        ? volunteerId.trim()
+        : (typeof submittedById === 'string' ? submittedById.trim() : '');
       
-      if (!submittedById) {
+      if (!queryVolunteerId) {
         return res.status(400).json({
           success: false,
-          error: '需要提供提交人ID',
+          error: '需要提供 volunteerId 或 submittedById',
           timestamp: new Date().toISOString()
         });
       }
@@ -266,7 +269,7 @@ class ApplicationController {
       
       // 构建查询条件
       const query = {
-        'submittedBy.id': submittedById
+        volunteerId: queryVolunteerId
       };
 
       if (!shouldIncludeInactive) {
@@ -319,19 +322,22 @@ class ApplicationController {
    */
   static async deactivateAllMyApplications(req, res) {
     try {
-      const { submittedById } = req.body;
+      const { volunteerId, submittedById } = req.body;
+      const queryVolunteerId = (typeof volunteerId === 'string' && volunteerId.trim())
+        ? volunteerId.trim()
+        : (typeof submittedById === 'string' ? submittedById.trim() : '');
 
-      if (!submittedById || typeof submittedById !== 'string' || !submittedById.trim()) {
+      if (!queryVolunteerId) {
         return res.status(400).json({
           success: false,
-          error: '需要提供 submittedById',
+          error: '需要提供 volunteerId 或 submittedById',
           timestamp: new Date().toISOString()
         });
       }
 
       const updateResult = await ServiceApplication.updateMany(
         {
-          'submittedBy.id': submittedById.trim(),
+          volunteerId: queryVolunteerId,
           isActive: true
         },
         {

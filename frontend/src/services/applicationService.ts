@@ -99,7 +99,7 @@ export const applicationService = {
   getMyApplications: async (volunteerId: string): Promise<MyApplicationsResponse> => {
     return api.get('/applications/my', {
       params: {
-        submittedById: volunteerId
+        volunteerId
       }
     });
   },
@@ -113,9 +113,9 @@ export const applicationService = {
   },
 
   deactivateAllMyApplications: async (
-    submittedById: string
+    volunteerId: string
   ): Promise<DeactivateAllMyApplicationsResponse> => {
-    return api.post('/applications/my/deactivate-all', { submittedById });
+    return api.post('/applications/my/deactivate-all', { volunteerId });
   }
 };
 
