@@ -12,7 +12,7 @@ import { VolunteersParams } from '@services/api';
 import { volunteerService } from '@services/volunteerService';
 import type { Volunteer } from '@services/types';
 import serviceRecordService, { NonProjectServiceRecord } from '@services/serviceRecordService';
-import applicationService from '@services/applicationService';
+import applicationService, { MyApplicationRecord } from '@services/applicationService';
 import useAdminCenter from './hooks/useAdminCenter';
 import useReviewCenter from './hooks/useReviewCenter';
 import useMeCenter from './hooks/useMeCenter';
@@ -582,6 +582,25 @@ function App() {
     setMeRecordActionMessage(result.message);
   };
 
+  const handleResubmitRejectedApplication = (application: MyApplicationRecord) => {
+    const getChangeToValue = (field: 'serviceDate' | 'serviceType' | 'duration' | 'description') =>
+      application.changes.find((change) => change.field === field)?.to;
+
+    const serviceDate = getChangeToValue('serviceDate');
+    const serviceType = getChangeToValue('serviceType');
+    const duration = getChangeToValue('duration');
+    const description = getChangeToValue('description');
+
+    setMeApplicationDate(typeof serviceDate === 'string' ? serviceDate : '');
+    setMeApplicationType(
+      typeof serviceType === 'string' && isNpsServiceType(serviceType) ? serviceType : '翻译'
+    );
+    setMeApplicationDuration(duration === null || duration === undefined ? '1' : String(duration));
+    setMeApplicationDescription(typeof description === 'string' ? description : String(description ?? ''));
+    setShowMeApplicationForm(true);
+    setMeApplicationMessage('');
+  };
+
   useEffect(() => {
     if (activePage !== 'me' || !isAuthenticated || !isSystemAdmin) return;
     void fetchAdminCenter();
@@ -891,6 +910,7 @@ function App() {
                   onLogout={() => void logout()}
                   onLoadMore={() => void loadMoreMeServices()}
                   onWithdrawApplication={(applicationId) => void handleWithdrawMyApplication(applicationId)}
+                  onResubmitApplication={handleResubmitRejectedApplication}
                   onToggleApplicationForm={() => {
                     setShowMeApplicationForm((v) => !v);
                     setMeApplicationMessage('');

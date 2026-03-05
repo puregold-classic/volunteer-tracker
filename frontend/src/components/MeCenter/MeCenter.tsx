@@ -35,6 +35,7 @@ interface MeCenterProps {
   onLogout: () => void;
   onLoadMore: () => void;
   onWithdrawApplication: (applicationId: string) => Promise<void> | void;
+  onResubmitApplication: (application: MyApplicationRecord) => void;
   onToggleApplicationForm: () => void;
   onSubmitApplication: () => void;
   onStartEdit: (record: NonProjectServiceRecord) => void;
@@ -52,11 +53,6 @@ interface MeCenterProps {
 }
 
 const NPS_SERVICE_TYPES = ['翻译', '校对', '管理', '技术'] as const;
-const APPLICATION_TYPE_LABEL: Record<'create' | 'update' | 'delete', string> = {
-  create: '新增',
-  update: '修改',
-  delete: '删除'
-};
 const APPLICATION_STATUS_LABEL: Record<'pending' | 'approved' | 'rejected' | 'withdrawn', string> = {
   pending: '待审核',
   approved: '已通过',
@@ -95,6 +91,7 @@ const MeCenter: React.FC<MeCenterProps> = ({
   onLogout,
   onLoadMore,
   onWithdrawApplication,
+  onResubmitApplication,
   onToggleApplicationForm,
   onSubmitApplication,
   onStartEdit,
@@ -110,6 +107,26 @@ const MeCenter: React.FC<MeCenterProps> = ({
   setMeEditDuration,
   setMeEditDescription
 }) => {
+  const getChangeToValue = (
+    item: MyApplicationRecord,
+    field: 'serviceDate' | 'serviceType' | 'duration' | 'description'
+  ) => {
+    return item.changes.find((change) => change.field === field)?.to;
+  };
+
+  const getDescriptionSummary = (item: MyApplicationRecord) => {
+    const raw = getChangeToValue(item, 'description');
+    const text = typeof raw === 'string' ? raw.trim() : String(raw ?? '').trim();
+    if (!text) return '-';
+    return text.length > 10 ? `${text.slice(0, 10)}...` : text;
+  };
+
+  const getServiceTypeLabel = (item: MyApplicationRecord) => {
+    const raw = getChangeToValue(item, 'serviceType');
+    const text = typeof raw === 'string' ? raw.trim() : String(raw ?? '').trim();
+    return text || '-';
+  };
+
   return (
     <section className="center-panel">
       <div className="center-panel__head">
@@ -269,24 +286,40 @@ const MeCenter: React.FC<MeCenterProps> = ({
                 {myApplications.map((item) => (
                   <article key={item.applicationId} className="nps-item">
                     <div className="nps-item__head">
-                      <strong>申请类型：{APPLICATION_TYPE_LABEL[item.applicationType] || item.applicationType}</strong>
+                      <strong>申请类型：{item.applicationType}</strong>
                       <span>状态：{APPLICATION_STATUS_LABEL[item.status] || item.status}</span>
                     </div>
                     <p>时间：{new Date(item.createdAt).toLocaleString()}</p>
+                    <p>服务类型：{getServiceTypeLabel(item)}</p>
+                    <p>内容摘要：{getDescriptionSummary(item)}</p>
+                    {item.submittedBy?.name && account?.name && item.submittedBy.name !== account.name && (
+                      <small>代提交：{item.submittedBy.name}</small>
+                    )}
                     <small>审核意见：{item.reviewNotes?.trim() || '-'}</small>
-                    {item.status === 'pending' && (
+                    {(item.status === 'pending' || item.status === 'rejected') && (
                       <div className="nps-item__actions">
-                        <button
-                          type="button"
-                          className="action-chip nps-item__delete"
-                          onClick={async () => {
-                            const confirmed = window.confirm(`确认撤回该申请？\n申请ID: ${item.applicationId}`);
-                            if (!confirmed) return;
-                            await onWithdrawApplication(item.applicationId);
-                          }}
-                        >
-                          撤回
-                        </button>
+                        {item.status === 'pending' && (
+                          <button
+                            type="button"
+                            className="action-chip nps-item__delete"
+                            onClick={async () => {
+                              const confirmed = window.confirm(`确认撤回该申请？\n申请ID: ${item.applicationId}`);
+                              if (!confirmed) return;
+                              await onWithdrawApplication(item.applicationId);
+                            }}
+                          >
+                            撤回
+                          </button>
+                        )}
+                        {item.status === 'rejected' && (
+                          <button
+                            type="button"
+                            className="action-chip"
+                            onClick={() => onResubmitApplication(item)}
+                          >
+                            重新提交
+                          </button>
+                        )}
                       </div>
                     )}
                   </article>
