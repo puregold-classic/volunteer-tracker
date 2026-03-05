@@ -394,11 +394,12 @@ class ApplicationController {
         });
       }
       
-      // 验证撤销权限（只能撤销自己提交的申请）
-      if (application.submittedBy.id !== withdrawnBy.id) {
+      // 验证撤销权限（提交人或被提交人本人均可撤销）
+      const canWithdraw = application.submittedBy.id === withdrawnBy.id || application.volunteerId === withdrawnBy.id;
+      if (!canWithdraw) {
         return res.status(403).json({
           success: false,
-          error: '只能撤销自己提交的申请',
+          error: '无权撤销该申请',
           timestamp: new Date().toISOString()
         });
       }

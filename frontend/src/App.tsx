@@ -579,17 +579,7 @@ function App() {
     );
   };
 
-  const handleWithdrawMyApplication = async (applicationId: string) => {
-    const result = await withdrawMyApplication(applicationId);
-    setMeRecordActionMessage(result.message);
-  };
-
-  const handleDeactivateAllMyApplications = async () => {
-    const result = await deactivateAllMyApplications();
-    setMeRecordActionMessage(result.message);
-  };
-
-  const handleResubmitRejectedApplication = (application: MyApplicationRecord) => {
+  const prefillMeApplicationFromRecord = (application: MyApplicationRecord) => {
     const getChangeToValue = (field: 'serviceDate' | 'serviceType' | 'duration' | 'description') =>
       application.changes.find((change) => change.field === field)?.to;
 
@@ -606,6 +596,26 @@ function App() {
     setMeApplicationDescription(typeof description === 'string' ? description : String(description ?? ''));
     setShowMeApplicationForm(true);
     setMeApplicationMessage('');
+  };
+
+  const handleWithdrawMyApplication = async (applicationId: string) => {
+    const record = myApplications.find((item) => item.applicationId === applicationId);
+    const result = await withdrawMyApplication(applicationId);
+    if (result.success && record) {
+      prefillMeApplicationFromRecord(record);
+      setMeRecordActionMessage(`${result.message}，已自动填入申请表，可修改后重新提交`);
+      return;
+    }
+    setMeRecordActionMessage(result.message);
+  };
+
+  const handleDeactivateAllMyApplications = async () => {
+    const result = await deactivateAllMyApplications();
+    setMeRecordActionMessage(result.message);
+  };
+
+  const handleResubmitRejectedApplication = (application: MyApplicationRecord) => {
+    prefillMeApplicationFromRecord(application);
   };
 
   useEffect(() => {
