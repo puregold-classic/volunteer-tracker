@@ -816,14 +816,6 @@ function App() {
 
           {activePage === 'me' && (
             <section className="center-panel">
-              {!isSystemAdmin && (
-                <div className="center-panel__head">
-                  <h2>我的个人中心</h2>
-                  <button type="button" className="filter-reset" onClick={() => void fetchMePanel()}>
-                    刷新面板
-                  </button>
-                </div>
-              )}
               {isSystemAdmin ? (
                 <AdminCenter
                   accountId={account?.id}
