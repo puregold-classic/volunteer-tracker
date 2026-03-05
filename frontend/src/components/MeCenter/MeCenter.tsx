@@ -2,6 +2,7 @@ import React from 'react';
 import type { Volunteer } from '@services/types';
 import { Account } from '@services/authService';
 import { NonProjectServiceRecord } from '@services/serviceRecordService';
+import { MyApplicationRecord } from '@services/applicationService';
 
 interface MeCenterProps {
   account: Account | null;
@@ -12,6 +13,8 @@ interface MeCenterProps {
   meServices: NonProjectServiceRecord[];
   meHasMoreServices: boolean;
   meServicesLoadingMore: boolean;
+  myApplications: MyApplicationRecord[];
+  myApplicationsLoading: boolean;
   meApplicationDate: string;
   meApplicationType: '翻译' | '校对' | '管理' | '技术';
   meApplicationDuration: string;
@@ -31,6 +34,7 @@ interface MeCenterProps {
   onBackHome: () => void;
   onLogout: () => void;
   onLoadMore: () => void;
+  onWithdrawApplication: (applicationId: string) => Promise<void> | void;
   onToggleApplicationForm: () => void;
   onSubmitApplication: () => void;
   onStartEdit: (record: NonProjectServiceRecord) => void;
@@ -48,6 +52,17 @@ interface MeCenterProps {
 }
 
 const NPS_SERVICE_TYPES = ['翻译', '校对', '管理', '技术'] as const;
+const APPLICATION_TYPE_LABEL: Record<'create' | 'update' | 'delete', string> = {
+  create: '新增',
+  update: '修改',
+  delete: '删除'
+};
+const APPLICATION_STATUS_LABEL: Record<'pending' | 'approved' | 'rejected' | 'withdrawn', string> = {
+  pending: '待审核',
+  approved: '已通过',
+  rejected: '已拒绝',
+  withdrawn: '已撤回'
+};
 
 const MeCenter: React.FC<MeCenterProps> = ({
   account,
@@ -58,6 +73,8 @@ const MeCenter: React.FC<MeCenterProps> = ({
   meServices,
   meHasMoreServices,
   meServicesLoadingMore,
+  myApplications,
+  myApplicationsLoading,
   meApplicationDate,
   meApplicationType,
   meApplicationDuration,
@@ -77,6 +94,7 @@ const MeCenter: React.FC<MeCenterProps> = ({
   onBackHome,
   onLogout,
   onLoadMore,
+  onWithdrawApplication,
   onToggleApplicationForm,
   onSubmitApplication,
   onStartEdit,
@@ -238,6 +256,43 @@ const MeCenter: React.FC<MeCenterProps> = ({
               {meApplicationMessage && <p className="nps-msg">{meApplicationMessage}</p>}
               {meRecordActionMessage && <p className="nps-msg">{meRecordActionMessage}</p>}
             </div>
+          </section>
+
+          <section className="community-panel">
+            <h3>我的申请记录</h3>
+            {myApplicationsLoading ? (
+              <p className="center-empty">正在加载申请记录...</p>
+            ) : myApplications.length === 0 ? (
+              <p className="center-empty">暂无申请记录</p>
+            ) : (
+              <div className="nps-list">
+                {myApplications.map((item) => (
+                  <article key={item.applicationId} className="nps-item">
+                    <div className="nps-item__head">
+                      <strong>申请类型：{APPLICATION_TYPE_LABEL[item.applicationType] || item.applicationType}</strong>
+                      <span>状态：{APPLICATION_STATUS_LABEL[item.status] || item.status}</span>
+                    </div>
+                    <p>时间：{new Date(item.createdAt).toLocaleString()}</p>
+                    <small>审核意见：{item.reviewNotes?.trim() || '-'}</small>
+                    {item.status === 'pending' && (
+                      <div className="nps-item__actions">
+                        <button
+                          type="button"
+                          className="action-chip nps-item__delete"
+                          onClick={async () => {
+                            const confirmed = window.confirm(`确认撤回该申请？\n申请ID: ${item.applicationId}`);
+                            if (!confirmed) return;
+                            await onWithdrawApplication(item.applicationId);
+                          }}
+                        >
+                          撤回
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
           {mePanelError && <p className="auth-form-error">{mePanelError}</p>}
         </div>

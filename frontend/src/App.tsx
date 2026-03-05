@@ -95,8 +95,11 @@ function App() {
     meServices,
     meHasMoreServices,
     meServicesLoadingMore,
+    myApplications,
+    myApplicationsLoading,
     fetchMePanel,
-    loadMoreMeServices
+    loadMoreMeServices,
+    withdrawApplication: withdrawMyApplication
   } = useMeCenter(account?.volunteerId, activePage, isAuthenticated, isSystemAdmin, NPS_PAGE_SIZE);
   const { pendingReviews, processedReviews, reviewLoading, reviewError, refreshReview } = useReviewCenter(
     activePage,
@@ -574,6 +577,11 @@ function App() {
     );
   };
 
+  const handleWithdrawMyApplication = async (applicationId: string) => {
+    const result = await withdrawMyApplication(applicationId);
+    setMeRecordActionMessage(result.message);
+  };
+
   useEffect(() => {
     if (activePage !== 'me' || !isAuthenticated || !isSystemAdmin) return;
     void fetchAdminCenter();
@@ -861,6 +869,8 @@ function App() {
                   meServices={meServices}
                   meHasMoreServices={meHasMoreServices}
                   meServicesLoadingMore={meServicesLoadingMore}
+                  myApplications={myApplications}
+                  myApplicationsLoading={myApplicationsLoading}
                   meApplicationDate={meApplicationDate}
                   meApplicationType={meApplicationType}
                   meApplicationDuration={meApplicationDuration}
@@ -880,6 +890,7 @@ function App() {
                   onBackHome={() => setActivePage('home')}
                   onLogout={() => void logout()}
                   onLoadMore={() => void loadMoreMeServices()}
+                  onWithdrawApplication={(applicationId) => void handleWithdrawMyApplication(applicationId)}
                   onToggleApplicationForm={() => {
                     setShowMeApplicationForm((v) => !v);
                     setMeApplicationMessage('');
