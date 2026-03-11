@@ -1,6 +1,7 @@
+import React from 'react';
 import AdminCenter from '@components/AdminCenter';
 import MeCenter from '@components/MeCenter';
-import type { Account } from '../context/AuthContext';
+import type { Account, AdminAccountItem } from '@services/authService';
 import type { NonProjectServiceRecord } from '@services/serviceRecordService';
 import type { MyApplicationRecord } from '@services/applicationService';
 import type { Volunteer } from '@services/types';
@@ -38,14 +39,14 @@ interface MePageProps {
   onHandleAdminImport: () => Promise<void> | void;
   onHandleAdminGenerateAccounts: () => Promise<void> | void;
   onHandleAdminCreateAccount: () => Promise<void> | void;
-  onOpenAdminDetail: (item: unknown) => Promise<void> | void;
+  onOpenAdminDetail: (item: AdminAccountItem) => Promise<void> | void;
   onHandleAdminSaveDetail: () => Promise<void> | void;
   onHandleAdminDeleteAccount: (id: string) => Promise<void> | void;
   adminLoading: boolean;
   adminSubmitting: boolean;
   adminError: string;
   adminActionMessage: string;
-  adminAccounts: unknown[];
+  adminAccounts: AdminAccountItem[];
   adminImportCsvText: string;
   adminImportCreateAccounts: boolean;
   adminDefaultPassword: string;
@@ -62,9 +63,23 @@ interface MePageProps {
   adminNewAccountPassword: string;
   adminNewAccountRole: string;
   adminNewAccountVolunteerId: string;
-  adminDetailAccountId: string | null;
+  adminDetailAccountId: string;
   adminDetailLoading: boolean;
-  adminDetailForm: Record<string, unknown>;
+  adminDetailForm: {
+    accountName: string;
+    accountEmail: string;
+    role: 'user' | 'b_admin' | 'a_admin' | 'admin';
+    isActive: boolean;
+    volunteerId: string;
+    volunteerChineseName: string;
+    volunteerEnglishName: string;
+    volunteerStatus: '在职' | '不在职';
+    volunteerRegion: '中国大陆' | '中国台湾' | '东南亚' | '美国' | '欧洲' | '其他';
+    volunteerProvince: string;
+    volunteerServices: string;
+    volunteerPhone: string;
+    volunteerEmail: string;
+  };
   setAdminImportCsvText: (value: string) => void;
   setAdminImportCreateAccounts: (value: boolean) => void;
   setAdminDefaultPassword: (value: string) => void;
@@ -81,7 +96,23 @@ interface MePageProps {
   setAdminNewAccountPassword: (value: string) => void;
   setAdminNewAccountRole: (value: string) => void;
   setAdminNewAccountVolunteerId: (value: string) => void;
-  setAdminDetailForm: (value: Record<string, unknown>) => void;
+  setAdminDetailForm: React.Dispatch<
+    React.SetStateAction<{
+      accountName: string;
+      accountEmail: string;
+      role: 'user' | 'b_admin' | 'a_admin' | 'admin';
+      isActive: boolean;
+      volunteerId: string;
+      volunteerChineseName: string;
+      volunteerEnglishName: string;
+      volunteerStatus: '在职' | '不在职';
+      volunteerRegion: '中国大陆' | '中国台湾' | '东南亚' | '美国' | '欧洲' | '其他';
+      volunteerProvince: string;
+      volunteerServices: string;
+      volunteerPhone: string;
+      volunteerEmail: string;
+    }>
+  >;
   onFetchMePanel: () => Promise<void> | void;
   onVolunteerDetail: (id: string) => Promise<void> | void;
   onBackHome: () => void;
@@ -217,7 +248,7 @@ function MePage(props: MePageProps) {
           adminSubmitting={adminSubmitting}
           adminError={adminError}
           adminActionMessage={adminActionMessage}
-          adminAccounts={adminAccounts as never[]}
+          adminAccounts={adminAccounts}
           adminImportCsvText={adminImportCsvText}
           adminImportCreateAccounts={adminImportCreateAccounts}
           adminDefaultPassword={adminDefaultPassword}
@@ -236,7 +267,7 @@ function MePage(props: MePageProps) {
           adminNewAccountVolunteerId={adminNewAccountVolunteerId}
           adminDetailAccountId={adminDetailAccountId}
           adminDetailLoading={adminDetailLoading}
-          adminDetailForm={adminDetailForm as never}
+          adminDetailForm={adminDetailForm}
           onRefresh={() => void onFetchAdminCenter()}
           onResetSystem={() => void onHandleAdminResetSystem()}
           onCreateSingle={() => void onHandleAdminCreateSingle()}

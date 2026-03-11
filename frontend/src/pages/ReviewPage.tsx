@@ -1,11 +1,12 @@
 import ReviewCenter from '@components/ReviewCenter';
+import type { ReviewPendingApplication } from '@services/reviewService';
 
 interface ReviewPageProps {
   isReviewer: boolean;
   reviewLoading: boolean;
   reviewError: string;
-  pendingReviews: unknown[];
-  processedReviews: unknown[];
+  pendingReviews: ReviewPendingApplication[];
+  processedReviews: ReviewPendingApplication[];
   onRefresh: () => Promise<void> | void;
 }
 
@@ -22,8 +23,8 @@ function ReviewPage({
       isReviewer={isReviewer}
       reviewLoading={reviewLoading}
       reviewError={reviewError}
-      pendingReviews={pendingReviews as never[]}
-      processedReviews={processedReviews as never[]}
+      pendingReviews={pendingReviews}
+      processedReviews={processedReviews}
       onRefresh={onRefresh}
     />
   );

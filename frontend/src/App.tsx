@@ -1,13 +1,11 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import './App.scss';
-import VolunteerList from '@components/VolunteerList';
 import Header from '@components/Header';
 import Footer from '@components/Footer';
-import HomeMap from '@components/HomeMap';
-import AdminCenter from '@components/AdminCenter';
-import ReviewCenter from '@components/ReviewCenter';
-import MeCenter from '@components/MeCenter';
 import VolunteerDetailModal from '@components/VolunteerDetailModal';
+import HomePage from './pages/HomePage';
+import MePage from './pages/MePage';
+import ReviewPage from './pages/ReviewPage';
 import { VolunteersParams } from '@services/api';
 import { volunteerService } from '@services/volunteerService';
 import type { Volunteer } from '@services/types';
@@ -675,277 +673,159 @@ function App() {
       <main className="main-content">
         <div className="container">
           {activePage === 'home' && (
-            <div className="home-shell">
-              <section className="home-left">
-                <div className="controls-bar">
-                  <div className="filter-tools">
-                    <div className="filter-field">
-                      <span>状态</span>
-                      <select value={homeStatus} onChange={(e) => setHomeStatus(e.target.value as 'all' | '在职' | '不在职')}>
-                        <option value="all">全部</option>
-                        <option value="在职">在职</option>
-                        <option value="不在职">不在职</option>
-                      </select>
-                    </div>
-                    <div className="filter-field">
-                      <span>方向</span>
-                      <select value={homeService} onChange={(e) => setHomeService(e.target.value)}>
-                        <option value="all">全部</option>
-                        <option value="翻译">翻译</option>
-                        <option value="校对">校对</option>
-                        <option value="管理">管理</option>
-                        <option value="技术">技术</option>
-                      </select>
-                    </div>
-                    <div className="filter-field">
-                      <span>热门省份</span>
-                      <select
-                        value={homeHotProvince}
-                        onChange={(e) => {
-                          const value = e.target.value as HotProvinceFilter;
-                          setHomeHotProvince(value);
-                          const province = HOT_PROVINCE_MAP[value];
-                          if (province) {
-                            toggleLocationSelection({ type: 'province', value: province }, 'hot');
-                          }
-                        }}
-                      >
-                        <option value="all">全部</option>
-                        <option value="北京">北京</option>
-                        <option value="上海">上海</option>
-                        <option value="深圳">深圳</option>
-                      </select>
-                    </div>
-                    <div className="filter-field">
-                      <span>地区/省份</span>
-                      <div className="filter-mode-switch">
-                        <button
-                          type="button"
-                          className={homeRegionMode === 'single' ? 'is-active' : ''}
-                          onClick={() => handleRegionModeChange('single')}
-                        >
-                          单选
-                        </button>
-                        <button
-                          type="button"
-                          className={homeRegionMode === 'multiple' ? 'is-active' : ''}
-                          onClick={() => handleRegionModeChange('multiple')}
-                        >
-                          多选
-                        </button>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="filter-reset"
-                      onClick={() => {
-                        setHomeStatus('all');
-                        setHomeService('all');
-                        setHomeHotProvince('all');
-                        setHomeRegionMode('multiple');
-                        setHomeSelections([]);
-                        setHomeSearch('');
-                      }}
-                    >
-                      重置
-                    </button>
-                  </div>
-                </div>
-
-                <div className="map-stage">
-                  <HomeMap
-                    activeProvince={selectedProvinces}
-                    activeRegions={selectedRegions}
-                    quickFocusOptions={[...QUICK_FOCUS_OPTIONS]}
-                    focusRegion={primaryFocusRegion}
-                    onProvinceSelect={(province) => {
-                      toggleProvince(province);
-                    }}
-                    onReset={() => setHomeSelections((prev) => prev.filter((item) => item.type !== 'province'))}
-                    onQuickFocusSelect={(item) => toggleRegion(item)}
-                    onRefresh={() => {
-                      setHomeSelections([]);
-                      setHomeHotProvince('all');
-                    }}
-                  />
-                </div>
-              </section>
-
-              <aside className="home-right">
-                <div className="home-summary">
-                  <div className="home-summary__head">
-                    <h3>筛选摘要</h3>
-                    <span>{homeStatsLoading ? '同步中...' : `${homeStats.totalVolunteers} 条`}</span>
-                  </div>
-                  <div className="home-summary__metrics">
-                    <div>
-                      <strong>{homeStatsLoading ? '...' : homeStats.totalVolunteers}</strong>
-                      <span>匹配志愿者</span>
-                    </div>
-                    <div>
-                      <strong>
-                        {homeStatsLoading || homeStats.totalVolunteers === 0
-                          ? '...'
-                          : `${Math.round((homeStats.totalActive / homeStats.totalVolunteers) * 100)}%`}
-                      </strong>
-                      <span>在职占比</span>
-                    </div>
-                    <div>
-                      <strong>{homeStatsLoading ? '...' : `${homeStats.totalHours}h`}</strong>
-                      <span>总服务时长</span>
-                    </div>
-                  </div>
-                  <div className="home-summary__filters">
-                    <span className="summary-tag">{homeStatus === 'all' ? '状态: 全部' : `状态: ${homeStatus}`}</span>
-                    <span className="summary-tag">{homeService === 'all' ? '方向: 全部' : `方向: ${homeService}`}</span>
-                    {selectedRegions.map((region) => <span key={`region-${region}`} className="summary-tag">地区: {region}</span>)}
-                    {selectedProvinces.map((province) => <span key={`province-${province}`} className="summary-tag">省份: {province}</span>)}
-                    {debouncedSearch && <span className="summary-tag">搜索: {debouncedSearch}</span>}
-                  </div>
-                </div>
-
-                <div className="home-search">
-                  <input
-                    type="text"
-                    value={homeSearch}
-                    onChange={(e) => setHomeSearch(e.target.value)}
-                    placeholder="搜索姓名 / 英文名 / ID / 省份..."
-                  />
-                  {homeSearch && (
-                    <button type="button" onClick={() => setHomeSearch('')}>
-                      清空
-                    </button>
-                  )}
-                </div>
-
-                <div className="home-volunteer-list">
-                  <VolunteerList 
-                    compact
-                    onVolunteerClick={handleVolunteerClick}
-                    showStats={false}
-                    showPagination={false}
-                    filterParams={homeFilterParams}
-                  />
-                </div>
-              </aside>
-            </div>
+            <HomePage
+              homeStatus={homeStatus}
+              homeService={homeService}
+              homeHotProvince={homeHotProvince}
+              homeRegionMode={homeRegionMode}
+              homeSearch={homeSearch}
+              homeStats={homeStats}
+              homeStatsLoading={homeStatsLoading}
+              selectedRegions={selectedRegions}
+              selectedProvinces={selectedProvinces}
+              debouncedSearch={debouncedSearch}
+              primaryFocusRegion={primaryFocusRegion}
+              quickFocusOptions={QUICK_FOCUS_OPTIONS}
+              homeFilterParams={homeFilterParams}
+              onStatusChange={setHomeStatus}
+              onServiceChange={setHomeService}
+              onHotProvinceChange={(value) => {
+                setHomeHotProvince(value);
+                const province = HOT_PROVINCE_MAP[value];
+                if (province) {
+                  toggleLocationSelection({ type: 'province', value: province }, 'hot');
+                }
+              }}
+              onRegionModeChange={handleRegionModeChange}
+              onResetFilters={() => {
+                setHomeStatus('all');
+                setHomeService('all');
+                setHomeHotProvince('all');
+                setHomeRegionMode('multiple');
+                setHomeSelections([]);
+                setHomeSearch('');
+              }}
+              onProvinceSelect={toggleProvince}
+              onResetProvinceSelections={() => setHomeSelections((prev) => prev.filter((item) => item.type !== 'province'))}
+              onQuickFocusSelect={toggleRegion}
+              onRefreshMap={() => {
+                setHomeSelections([]);
+                setHomeHotProvince('all');
+              }}
+              onSearchChange={setHomeSearch}
+              onClearSearch={() => setHomeSearch('')}
+              onVolunteerClick={handleVolunteerClick}
+            />
           )}
 
           {activePage === 'me' && (
-            <section className="center-panel">
-              {isSystemAdmin ? (
-                <AdminCenter
-                  accountId={account?.id}
-                  adminLoading={adminLoading}
-                  adminSubmitting={adminSubmitting}
-                  adminError={adminError}
-                  adminActionMessage={adminActionMessage}
-                  adminAccounts={adminAccounts}
-                  adminImportCsvText={adminImportCsvText}
-                  adminImportCreateAccounts={adminImportCreateAccounts}
-                  adminDefaultPassword={adminDefaultPassword}
-                  adminFormChineseName={adminFormChineseName}
-                  adminFormEnglishName={adminFormEnglishName}
-                  adminFormStatus={adminFormStatus}
-                  adminFormRegion={adminFormRegion}
-                  adminFormProvince={adminFormProvince}
-                  adminFormServices={adminFormServices}
-                  adminFormUsername={adminFormUsername}
-                  adminFormEmail={adminFormEmail}
-                  adminNewAccountName={adminNewAccountName}
-                  adminNewAccountEmail={adminNewAccountEmail}
-                  adminNewAccountPassword={adminNewAccountPassword}
-                  adminNewAccountRole={adminNewAccountRole}
-                  adminNewAccountVolunteerId={adminNewAccountVolunteerId}
-                  adminDetailAccountId={adminDetailAccountId}
-                  adminDetailLoading={adminDetailLoading}
-                  adminDetailForm={adminDetailForm}
-                  onRefresh={() => void fetchAdminCenter()}
-                  onResetSystem={() => void handleAdminResetSystem()}
-                  onCreateSingle={() => void handleAdminCreateSingle()}
-                  onImport={() => void handleAdminImport()}
-                  onGenerateAccounts={() => void handleAdminGenerateAccounts()}
-                  onCreateAccount={() => void handleAdminCreateAccount()}
-                  onOpenDetail={(item) => void openAdminDetail(item)}
-                  onSaveDetail={() => void handleAdminSaveDetail()}
-                  onDeleteAccount={(id) => void handleAdminDeleteAccount(id)}
-                  setAdminImportCsvText={setAdminImportCsvText}
-                  setAdminImportCreateAccounts={setAdminImportCreateAccounts}
-                  setAdminDefaultPassword={setAdminDefaultPassword}
-                  setAdminFormChineseName={setAdminFormChineseName}
-                  setAdminFormEnglishName={setAdminFormEnglishName}
-                  setAdminFormStatus={setAdminFormStatus}
-                  setAdminFormRegion={setAdminFormRegion}
-                  setAdminFormProvince={setAdminFormProvince}
-                  setAdminFormServices={setAdminFormServices}
-                  setAdminFormUsername={setAdminFormUsername}
-                  setAdminFormEmail={setAdminFormEmail}
-                  setAdminNewAccountName={setAdminNewAccountName}
-                  setAdminNewAccountEmail={setAdminNewAccountEmail}
-                  setAdminNewAccountPassword={setAdminNewAccountPassword}
-                  setAdminNewAccountRole={setAdminNewAccountRole}
-                  setAdminNewAccountVolunteerId={setAdminNewAccountVolunteerId}
-                  setAdminDetailForm={setAdminDetailForm}
-                />
-              ) : (
-                <MeCenter
-                  account={account}
-                  homeTotalVolunteers={homeStats.totalVolunteers}
-                  meVolunteer={meVolunteer}
-                  mePanelLoading={mePanelLoading}
-                  mePanelError={mePanelError}
-                  meServices={meServices}
-                  meHasMoreServices={meHasMoreServices}
-                  meServicesLoadingMore={meServicesLoadingMore}
-                  myApplications={myApplications}
-                  myApplicationsLoading={myApplicationsLoading}
-                  myApplicationsDeactivating={myApplicationsDeactivating}
-                  meApplicationDate={meApplicationDate}
-                  meApplicationType={meApplicationType}
-                  meApplicationDuration={meApplicationDuration}
-                  meApplicationDescription={meApplicationDescription}
-                  meApplicationSubmitting={meApplicationSubmitting}
-                  meApplicationMessage={meApplicationMessage}
-                  showMeApplicationForm={showMeApplicationForm}
-                  meEditingServiceId={meEditingServiceId}
-                  meEditDate={meEditDate}
-                  meEditType={meEditType}
-                  meEditDuration={meEditDuration}
-                  meEditDescription={meEditDescription}
-                  meRecordActionSubmitting={meRecordActionSubmitting}
-                  meRecordActionMessage={meRecordActionMessage}
-                  onRefresh={() => void fetchMePanel()}
-                  onVolunteerDetail={(id) => void handleVolunteerClick(id)}
-                  onBackHome={() => setActivePage('home')}
-                  onLogout={() => void logout()}
-                  onLoadMore={() => void loadMoreMeServices()}
-                  onWithdrawApplication={(applicationId) => void handleWithdrawMyApplication(applicationId)}
-                  onDeactivateAllMyApplications={() => void handleDeactivateAllMyApplications()}
-                  onResubmitApplication={handleResubmitRejectedApplication}
-                  onToggleApplicationForm={() => {
-                    setShowMeApplicationForm((v) => !v);
-                    setMeApplicationMessage('');
-                  }}
-                  onSubmitApplication={() => void submitMeNpsApplication()}
-                  onStartEdit={(record) => startMeEdit(record)}
-                  onCancelEdit={cancelMeEdit}
-                  onSubmitEdit={(record) => void submitMeUpdateApplication(record)}
-                  onSubmitDelete={(record) => void submitMeDeleteApplication(record)}
-                  setMeApplicationDate={setMeApplicationDate}
-                  setMeApplicationType={setMeApplicationType}
-                  setMeApplicationDuration={setMeApplicationDuration}
-                  setMeApplicationDescription={setMeApplicationDescription}
-                  setMeEditDate={setMeEditDate}
-                  setMeEditType={setMeEditType}
-                  setMeEditDuration={setMeEditDuration}
-                  setMeEditDescription={setMeEditDescription}
-                />
-              )}
-            </section>
+            <MePage
+              isSystemAdmin={isSystemAdmin}
+              account={account}
+              homeTotalVolunteers={homeStats.totalVolunteers}
+              meVolunteer={meVolunteer}
+              mePanelLoading={mePanelLoading}
+              mePanelError={mePanelError}
+              meServices={meServices}
+              meHasMoreServices={meHasMoreServices}
+              meServicesLoadingMore={meServicesLoadingMore}
+              myApplications={myApplications}
+              myApplicationsLoading={myApplicationsLoading}
+              myApplicationsDeactivating={myApplicationsDeactivating}
+              meApplicationDate={meApplicationDate}
+              meApplicationType={meApplicationType}
+              meApplicationDuration={meApplicationDuration}
+              meApplicationDescription={meApplicationDescription}
+              meApplicationSubmitting={meApplicationSubmitting}
+              meApplicationMessage={meApplicationMessage}
+              showMeApplicationForm={showMeApplicationForm}
+              meEditingServiceId={meEditingServiceId}
+              meEditDate={meEditDate}
+              meEditType={meEditType}
+              meEditDuration={meEditDuration}
+              meEditDescription={meEditDescription}
+              meRecordActionSubmitting={meRecordActionSubmitting}
+              meRecordActionMessage={meRecordActionMessage}
+              onFetchAdminCenter={fetchAdminCenter}
+              onHandleAdminResetSystem={handleAdminResetSystem}
+              onHandleAdminCreateSingle={handleAdminCreateSingle}
+              onHandleAdminImport={handleAdminImport}
+              onHandleAdminGenerateAccounts={handleAdminGenerateAccounts}
+              onHandleAdminCreateAccount={handleAdminCreateAccount}
+              onOpenAdminDetail={openAdminDetail}
+              onHandleAdminSaveDetail={handleAdminSaveDetail}
+              onHandleAdminDeleteAccount={handleAdminDeleteAccount}
+              adminLoading={adminLoading}
+              adminSubmitting={adminSubmitting}
+              adminError={adminError}
+              adminActionMessage={adminActionMessage}
+              adminAccounts={adminAccounts}
+              adminImportCsvText={adminImportCsvText}
+              adminImportCreateAccounts={adminImportCreateAccounts}
+              adminDefaultPassword={adminDefaultPassword}
+              adminFormChineseName={adminFormChineseName}
+              adminFormEnglishName={adminFormEnglishName}
+              adminFormStatus={adminFormStatus}
+              adminFormRegion={adminFormRegion}
+              adminFormProvince={adminFormProvince}
+              adminFormServices={adminFormServices}
+              adminFormUsername={adminFormUsername}
+              adminFormEmail={adminFormEmail}
+              adminNewAccountName={adminNewAccountName}
+              adminNewAccountEmail={adminNewAccountEmail}
+              adminNewAccountPassword={adminNewAccountPassword}
+              adminNewAccountRole={adminNewAccountRole}
+              adminNewAccountVolunteerId={adminNewAccountVolunteerId}
+              adminDetailAccountId={adminDetailAccountId}
+              adminDetailLoading={adminDetailLoading}
+              adminDetailForm={adminDetailForm}
+              setAdminImportCsvText={setAdminImportCsvText}
+              setAdminImportCreateAccounts={setAdminImportCreateAccounts}
+              setAdminDefaultPassword={setAdminDefaultPassword}
+              setAdminFormChineseName={setAdminFormChineseName}
+              setAdminFormEnglishName={setAdminFormEnglishName}
+              setAdminFormStatus={setAdminFormStatus}
+              setAdminFormRegion={setAdminFormRegion}
+              setAdminFormProvince={setAdminFormProvince}
+              setAdminFormServices={setAdminFormServices}
+              setAdminFormUsername={setAdminFormUsername}
+              setAdminFormEmail={setAdminFormEmail}
+              setAdminNewAccountName={setAdminNewAccountName}
+              setAdminNewAccountEmail={setAdminNewAccountEmail}
+              setAdminNewAccountPassword={setAdminNewAccountPassword}
+              setAdminNewAccountRole={setAdminNewAccountRole}
+              setAdminNewAccountVolunteerId={setAdminNewAccountVolunteerId}
+              setAdminDetailForm={setAdminDetailForm}
+              onFetchMePanel={fetchMePanel}
+              onVolunteerDetail={handleVolunteerClick}
+              onBackHome={() => setActivePage('home')}
+              onLogout={logout}
+              onLoadMoreMeServices={loadMoreMeServices}
+              onWithdrawMyApplication={handleWithdrawMyApplication}
+              onDeactivateAllMyApplications={handleDeactivateAllMyApplications}
+              onResubmitApplication={handleResubmitRejectedApplication}
+              onToggleApplicationForm={() => {
+                setShowMeApplicationForm((v) => !v);
+                setMeApplicationMessage('');
+              }}
+              onSubmitMeApplication={submitMeNpsApplication}
+              onStartMeEdit={startMeEdit}
+              onCancelMeEdit={cancelMeEdit}
+              onSubmitMeUpdateApplication={submitMeUpdateApplication}
+              onSubmitMeDeleteApplication={submitMeDeleteApplication}
+              setMeApplicationDate={setMeApplicationDate}
+              setMeApplicationType={setMeApplicationType}
+              setMeApplicationDuration={setMeApplicationDuration}
+              setMeApplicationDescription={setMeApplicationDescription}
+              setMeEditDate={setMeEditDate}
+              setMeEditType={setMeEditType}
+              setMeEditDuration={setMeEditDuration}
+              setMeEditDescription={setMeEditDescription}
+            />
           )}
 
           {activePage === 'review' && (
-            <ReviewCenter
+            <ReviewPage
               isReviewer={isReviewer}
               reviewLoading={reviewLoading}
               reviewError={reviewError}
