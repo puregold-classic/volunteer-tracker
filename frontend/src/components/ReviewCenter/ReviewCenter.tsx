@@ -328,54 +328,60 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
                 </>
               )}
             </div>
-            {pendingReviews.length === 0 ? (
-              <p className="center-empty">暂无待审核记录</p>
-            ) : (
-              pendingReviews.map((item) => (
-                <article key={item.applicationId} className="review-item-card">
-                  <p className="flex flex-wrap items-center gap-2"><strong>{item.volunteerName}</strong><Badge variant="outline">{item.applicationType}</Badge></p>
-                  <p>ID: {item.applicationId}</p>
-                  <p>志愿者ID: {item.volunteerId}</p>
-                  <p>提交时间: {new Date(item.createdAt).toLocaleString()}</p>
-                </article>
-              ))
-            )}
-          </div>
-          <div className="review-column">
-            <div className="center-panel__head">
-              <h3>已审核记录 ({visibleProcessed.length})</h3>
-              <button
-                type="button"
-                className="filter-reset"
-                onClick={() => setHideProcessed((v) => !v)}
-              >
-                {hideProcessed ? '恢复显示' : '清空列表'}
-              </button>
-            </div>
-            {visibleProcessed.length === 0 ? (
-              <p className="center-empty">暂无已审核记录</p>
-            ) : (
-              visibleProcessed.map((item) => (
-                <article
-                  key={item.applicationId}
-                  className="review-item-card"
-                  onClick={() => setSelectedProcessed(item)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      setSelectedProcessed(item);
-                    }
-                  }}
-                >
-                  <p><strong>{item.volunteerName}</strong> · {item.status}</p>
-                  <p>ID: {item.applicationId}</p>
-                  <p>类型: {item.applicationType}</p>
-                  <p>更新时间: {new Date(item.updatedAt).toLocaleString()}</p>
-                </article>
-              ))
-            )}
+          </Card>
+
+          <div className="grid gap-6 xl:grid-cols-[1.45fr_0.85fr]">
+            <Card variant="elevated" className="p-6">
+              <SectionHeader eyebrow="pending" title={`待审核列表 (${pendingReviews.length})`} description="左侧主列承载待审核列表与快速操作入口。" />
+              <div className="mt-5 space-y-3">
+                {pendingReviews.length === 0 ? (
+                  <p className="center-empty">暂无待审核记录</p>
+                ) : (
+                  pendingReviews.map((item) => (
+                    <article key={item.applicationId} className="review-item-card">
+                      <p className="flex flex-wrap items-center gap-2"><strong>{item.volunteerName}</strong><Badge variant="outline">{item.applicationType}</Badge></p>
+                      <p>ID: {item.applicationId}</p>
+                      <p>志愿者ID: {item.volunteerId}</p>
+                      <p>提交时间: {new Date(item.createdAt).toLocaleString()}</p>
+                    </article>
+                  ))
+                )}
+              </div>
+            </Card>
+
+            <Card variant="elevated" className="p-6">
+              <SectionHeader
+                eyebrow="processed"
+                title={`已审核记录 (${visibleProcessed.length})`}
+                actions={<Button type="button" variant="outline" size="sm" onClick={() => setHideProcessed((v) => !v)}>{hideProcessed ? '恢复显示' : '清空列表'}</Button>}
+              />
+              <div className="mt-5 space-y-3">
+                {visibleProcessed.length === 0 ? (
+                  <p className="center-empty">暂无已审核记录</p>
+                ) : (
+                  visibleProcessed.map((item) => (
+                    <article
+                      key={item.applicationId}
+                      className="review-item-card"
+                      onClick={() => setSelectedProcessed(item)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSelectedProcessed(item);
+                        }
+                      }}
+                    >
+                      <p><strong>{item.volunteerName}</strong> · {item.status}</p>
+                      <p>ID: {item.applicationId}</p>
+                      <p>类型: {item.applicationType}</p>
+                      <p>更新时间: {new Date(item.updatedAt).toLocaleString()}</p>
+                    </article>
+                  ))
+                )}
+              </div>
+            </Card>
           </div>
         </div>
       )}
