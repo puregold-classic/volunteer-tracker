@@ -1,5 +1,11 @@
 import React, { useMemo, useState } from 'react';
+import { RefreshCcw } from 'lucide-react';
 import reviewService, { ReviewPendingApplication } from '@services/reviewService';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { SectionHeader } from '@/components/shared/section-header';
 
 interface ReviewCenterProps {
   isReviewer: boolean;
@@ -218,11 +224,15 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
   };
 
   return (
-    <section className="center-panel">
-      <div className="center-panel__head">
-        <h2>审核中心</h2>
-        <button type="button" className="filter-reset" onClick={onRefresh}>刷新</button>
-      </div>
+    <section className="space-y-5">
+      <Card variant="elevated" className="p-6">
+        <SectionHeader
+          eyebrow="review"
+          title="审核中心"
+          description="保持现有审核逻辑不变，优先统一按钮、输入框和状态标签反馈。"
+          actions={<Button type="button" variant="outline" onClick={onRefresh}><RefreshCcw className="h-4 w-4" />刷新</Button>}
+        />
+      </Card>
       {!isReviewer ? (
         <p className="center-empty">当前账号无审核权限（需 b_admin / a_admin / admin）。</p>
       ) : reviewLoading ? (
@@ -230,17 +240,18 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
       ) : reviewError ? (
         <p className="center-empty">{reviewError}</p>
       ) : (
-        <div className="review-columns">
-          <div className="review-column">
-            <h3>待审核列表 ({pendingReviews.length})</h3>
-            <div className="review-chart-card">
+        <div className="space-y-6">
+          <Card variant="elevated" className="p-6">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">待审核申请图表</h3>
+            <div className="review-chart-card mt-4">
               <h4>{CHART_MODE_LABEL[chartMode]} 申请图</h4>
               <div className="review-chart-switch">
                 {(Object.keys(CHART_MODE_LABEL) as ChartMode[]).map((mode) => (
-                  <button
+                  <Button
                     key={mode}
                     type="button"
-                    className={`review-chart-switch-btn ${chartMode === mode ? 'is-active' : ''}`}
+                    variant={chartMode === mode ? 'default' : 'outline'}
+                    size="sm"
                     onClick={() => {
                       setChartMode(mode);
                       setSelectedGroup(null);
@@ -248,7 +259,7 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
                     }}
                   >
                     {CHART_MODE_LABEL[mode]}
-                  </button>
+                  </Button>
                 ))}
               </div>
               <p className="review-chart-subtitle">
@@ -306,14 +317,13 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
                     ))}
                   </div>
                   <div className="review-chart-bulk">
-                    <button
+                    <Button
                       type="button"
-                      className="modal-action-btn is-primary"
                       onClick={() => void handleApproveAllInCurrentGraph()}
                       disabled={bulkApproving || pendingByMode.length === 0}
                     >
                       {bulkApproving ? '一键通过中...' : `一键通过当前${CHART_MODE_LABEL[chartMode]}图全部`}
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}
@@ -323,7 +333,7 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
             ) : (
               pendingReviews.map((item) => (
                 <article key={item.applicationId} className="review-item-card">
-                  <p><strong>{item.volunteerName}</strong> · {item.applicationType}</p>
+                  <p className="flex flex-wrap items-center gap-2"><strong>{item.volunteerName}</strong><Badge variant="outline">{item.applicationType}</Badge></p>
                   <p>ID: {item.applicationId}</p>
                   <p>志愿者ID: {item.volunteerId}</p>
                   <p>提交时间: {new Date(item.createdAt).toLocaleString()}</p>
@@ -380,10 +390,9 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
               <p className="review-detail-meta">
                 类型: <strong>{CHART_MODE_LABEL[chartMode]}</strong> · 分类: <strong>{selectedGroup.serviceType}</strong> · 志愿者ID: <strong>{selectedGroup.volunteerId}</strong>
               </p>
-              <div className="auth-form-field">
-                <label>审核备注（可选，留空将用默认备注）</label>
-                <input
-                  className="auth-form-input"
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">审核备注（可选，留空将用默认备注）</label>
+                <Input
                   value={reviewNote}
                   onChange={(event) => setReviewNote(event.target.value)}
                   placeholder="例如：信息完整，建议通过"
@@ -403,22 +412,21 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
                       <p>描述: {getDescription(item) || '-'}</p>
                       <p>提交时间: {new Date(item.createdAt).toLocaleString()}</p>
                       <div className="review-item-actions">
-                        <button
+                        <Button
                           type="button"
-                          className="modal-action-btn is-primary"
                           disabled={reviewSubmittingId === item.applicationId}
                           onClick={() => void handleReview(item.applicationId, 'approved')}
                         >
                           {reviewSubmittingId === item.applicationId ? '处理中...' : '通过'}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
-                          className="modal-action-btn"
+                          variant="outline"
                           disabled={reviewSubmittingId === item.applicationId}
                           onClick={() => void handleReview(item.applicationId, 'rejected')}
                         >
                           驳回
-                        </button>
+                        </Button>
                       </div>
                     </article>
                   ))}

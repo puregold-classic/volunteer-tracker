@@ -1,11 +1,13 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
-import './App.scss';
+import { cn } from './lib/utils';
 import Header from '@components/Header';
+import { Button } from '@/components/ui/button';
 import Footer from '@components/Footer';
-import VolunteerDetailModal from '@components/VolunteerDetailModal';
 import HomePage from './pages/HomePage';
 import MePage from './pages/MePage';
 import ReviewPage from './pages/ReviewPage';
+import LoginPage from './pages/LoginPage';
+import VolunteerDetailPage from './pages/VolunteerDetailPage';
 import { VolunteersParams } from '@services/api';
 import { volunteerService } from '@services/volunteerService';
 import type { Volunteer } from '@services/types';
@@ -15,10 +17,16 @@ import useAdminCenter from './hooks/useAdminCenter';
 import useReviewCenter from './hooks/useReviewCenter';
 import useMeCenter from './hooks/useMeCenter';
 import { useAuth } from './context/AuthContext';
+import { toast } from '@/hooks/use-toast';
 
-type HeaderPage = 'home' | 'me' | 'review';
+type AppRoute = 'home' | 'login' | 'me' | 'review' | 'volunteer';
 type HotProvinceFilter = 'all' | '北京' | '上海' | '深圳';
 type HomeSelection = { type: 'region' | 'province'; value: string };
+
+type RouteState = {
+  route: AppRoute;
+  volunteerId?: string;
+};
 
 const HOT_PROVINCE_MAP: Record<HotProvinceFilter, string | undefined> = {
   all: undefined,
@@ -34,8 +42,37 @@ const isNpsServiceType = (value: string): value is NpsServiceType => {
   return (NPS_SERVICE_TYPES as readonly string[]).includes(value);
 };
 
+const parseHashRoute = (): RouteState => {
+  const raw = window.location.hash.replace(/^#/, '') || '/';
+  if (raw === '/' || raw === '') return { route: 'home' };
+  if (raw === '/login') return { route: 'login' };
+  if (raw === '/me') return { route: 'me' };
+  if (raw === '/review') return { route: 'review' };
+  if (raw.startsWith('/volunteer/')) {
+    const volunteerId = decodeURIComponent(raw.replace('/volunteer/', '').trim());
+    return volunteerId ? { route: 'volunteer', volunteerId } : { route: 'home' };
+  }
+  return { route: 'home' };
+};
+
+const toHash = (route: RouteState): string => {
+  switch (route.route) {
+    case 'login':
+      return '#/login';
+    case 'me':
+      return '#/me';
+    case 'review':
+      return '#/review';
+    case 'volunteer':
+      return route.volunteerId ? `#/volunteer/${encodeURIComponent(route.volunteerId)}` : '#/';
+    case 'home':
+    default:
+      return '#/';
+  }
+};
+
 function App() {
-  const [activePage, setActivePage] = useState<HeaderPage>('home');
+  const [routeState, setRouteState] = useState<RouteState>(() => parseHashRoute());
   const [homeStatus, setHomeStatus] = useState<'all' | '在职' | '不在职'>('all');
   const [homeService, setHomeService] = useState<string>('all');
   const [homeHotProvince, setHomeHotProvince] = useState<HotProvinceFilter>('all');
@@ -49,12 +86,10 @@ function App() {
     totalHours: 0
   });
   const [homeStatsLoading, setHomeStatsLoading] = useState(false);
-  const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginSubmitting, setLoginSubmitting] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [showVolunteerModal, setShowVolunteerModal] = useState(false);
   const [volunteerDetailLoading, setVolunteerDetailLoading] = useState(false);
   const [volunteerDetailError, setVolunteerDetailError] = useState('');
   const [volunteerDetail, setVolunteerDetail] = useState<Volunteer | null>(null);
@@ -86,6 +121,7 @@ function App() {
   const { account, isAuthenticated, isLoading, login, logout } = useAuth();
   const isReviewer = Boolean(account && ['b_admin', 'a_admin', 'admin'].includes(account.role));
   const isSystemAdmin = account?.role === 'admin';
+  const currentPage = routeState.route;
   const {
     meVolunteer,
     mePanelLoading,
@@ -100,9 +136,9 @@ function App() {
     loadMoreMeServices,
     withdrawApplication: withdrawMyApplication,
     deactivateAllMyApplications
-  } = useMeCenter(account?.volunteerId, activePage, isAuthenticated, isSystemAdmin, NPS_PAGE_SIZE);
+  } = useMeCenter(account?.volunteerId, currentPage === 'me' ? 'me' : 'home', isAuthenticated, isSystemAdmin, NPS_PAGE_SIZE);
   const { pendingReviews, processedReviews, reviewLoading, reviewError, refreshReview } = useReviewCenter(
-    activePage,
+    currentPage === 'review' ? 'review' : 'home',
     isAuthenticated,
     isReviewer
   );
@@ -161,6 +197,22 @@ function App() {
 
   const QUICK_FOCUS_OPTIONS = ['中国大陆', '中国台湾', '东南亚', '美国', '欧洲'] as const;
 
+  const navigateTo = (nextRoute: RouteState) => {
+    const nextHash = toHash(nextRoute);
+    if (window.location.hash === nextHash) {
+      setRouteState(nextRoute);
+      return;
+    }
+    window.location.hash = nextHash;
+  };
+
+  useEffect(() => {
+    const syncRoute = () => setRouteState(parseHashRoute());
+    window.addEventListener('hashchange', syncRoute);
+    syncRoute();
+    return () => window.removeEventListener('hashchange', syncRoute);
+  }, []);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(homeSearch.trim());
@@ -170,7 +222,20 @@ function App() {
 
   useEffect(() => {
     if (homeRegionMode !== 'single') return;
-    setHomeSelections((prev) => (prev.length <= 1 ? prev : [prev[prev.length - 1]]));
+    setHomeSelections((prev) => {
+      if (prev.length <= 1) return prev;
+      const lastProvince = [...prev].reverse().find((item) => item.type === 'province');
+      return [lastProvince || prev[prev.length - 1]];
+    });
+  }, [homeRegionMode]);
+
+  useEffect(() => {
+    if (homeRegionMode !== 'single') return;
+    setHomeSelections((prev) => {
+      if (prev.length <= 1) return prev;
+      const lastProvince = [...prev].reverse().find((item) => item.type === 'province');
+      return [lastProvince || prev[prev.length - 1]];
+    });
   }, [homeRegionMode, homeSelections]);
 
   const selectedRegions = useMemo(
@@ -229,39 +294,45 @@ function App() {
     void fetchHomeStats();
   }, [homeStatsFilterParams]);
 
-  const handleVolunteerClick = async (id: string) => {
-    setShowVolunteerModal(true);
-    setVolunteerDetailLoading(true);
-    setVolunteerDetailError('');
-    setVolunteerDetail(null);
-    setVolunteerDetailServices([]);
-    setVolunteerDetailServicesPage(1);
-    setVolunteerDetailHasMoreServices(false);
-    try {
-      const [volunteerResult, serviceResult] = await Promise.all([
-        volunteerService.getVolunteerById(id),
-        serviceRecordService.getByVolunteer(id, 1, NPS_PAGE_SIZE)
-      ]);
-      if (volunteerResult?.success && volunteerResult?.data) {
-        setVolunteerDetail(volunteerResult.data);
-        const services = serviceResult?.data?.services || [];
-        const pagination = serviceResult?.data?.pagination;
-        setVolunteerDetailServices(services);
-        setVolunteerDetailServicesPage(pagination?.page || 1);
-        setVolunteerDetailHasMoreServices(Boolean(pagination && pagination.page < pagination.totalPages));
-      } else {
-        setVolunteerDetailError('未找到该志愿者信息');
+  useEffect(() => {
+    if (routeState.route !== 'volunteer' || !routeState.volunteerId) return;
+    const volunteerId = routeState.volunteerId;
+
+    const fetchVolunteerDetail = async () => {
+      setVolunteerDetailLoading(true);
+      setVolunteerDetailError('');
+      setVolunteerDetail(null);
+      setVolunteerDetailServices([]);
+      setVolunteerDetailServicesPage(1);
+      setVolunteerDetailHasMoreServices(false);
+      try {
+        const [volunteerResult, serviceResult] = await Promise.all([
+          volunteerService.getVolunteerById(volunteerId),
+          serviceRecordService.getByVolunteer(volunteerId, 1, NPS_PAGE_SIZE)
+        ]);
+        if (volunteerResult?.success && volunteerResult?.data) {
+          setVolunteerDetail(volunteerResult.data);
+          const services = serviceResult?.data?.services || [];
+          const pagination = serviceResult?.data?.pagination;
+          setVolunteerDetailServices(services);
+          setVolunteerDetailServicesPage(pagination?.page || 1);
+          setVolunteerDetailHasMoreServices(Boolean(pagination && pagination.page < pagination.totalPages));
+        } else {
+          setVolunteerDetailError('未找到该志愿者信息');
+        }
+      } catch (error: any) {
+        setVolunteerDetailError(error?.message || '加载志愿者详情失败');
+      } finally {
+        setVolunteerDetailLoading(false);
       }
-    } catch (error: any) {
-      setVolunteerDetailError(error?.message || '加载志愿者详情失败');
-    } finally {
-      setVolunteerDetailLoading(false);
-    }
-  };
+    };
+
+    void fetchVolunteerDetail();
+  }, [routeState]);
 
   const promptLogin = () => {
     setLoginError('请先登录后再访问该功能');
-    setShowLoginModal(true);
+    navigateTo({ route: 'login' });
   };
 
   const goToPersonalCenter = () => {
@@ -269,7 +340,7 @@ function App() {
       promptLogin();
       return;
     }
-    setActivePage('me');
+    navigateTo({ route: 'me' });
   };
 
   const goToReviewCenter = () => {
@@ -277,7 +348,7 @@ function App() {
       promptLogin();
       return;
     }
-    setActivePage('review');
+    navigateTo({ route: 'review' });
   };
 
   const primaryFocusRegion = selectedRegions.length > 0 ? selectedRegions[selectedRegions.length - 1] : '';
@@ -288,19 +359,15 @@ function App() {
     setHomeSelections((prev) => {
       const exists = prev.some((item) => item.type === selection.type && item.value === selection.value);
       if (homeRegionMode === 'single') {
+        if (prev.length === 1 && exists) return [selection];
         return [selection];
       }
-      if (exists) {
-        return prev.filter((item) => !(item.type === selection.type && item.value === selection.value));
-      }
+      if (exists) return prev.filter((item) => !(item.type === selection.type && item.value === selection.value));
       return [...prev, selection];
     });
   };
 
-  const toggleRegion = (region: string) => {
-    toggleLocationSelection({ type: 'region', value: region }, 'quick-focus');
-  };
-
+  const toggleRegion = (region: string) => toggleLocationSelection({ type: 'region', value: region }, 'quick-focus');
   const toggleProvince = (province: string) => {
     const normalized = province === '台湾' ? '台湾省' : province;
     toggleLocationSelection({ type: 'province', value: normalized }, 'map');
@@ -309,15 +376,18 @@ function App() {
   const handleRegionModeChange = (mode: 'single' | 'multiple') => {
     if (mode === homeRegionMode) return;
     setHomeRegionMode(mode);
-
-    if (mode !== 'single') return;
-    setHomeSelections((prev) => (prev.length > 0 ? [prev[prev.length - 1]] : []));
+    if (mode === 'single') setHomeSelections((prev) => (prev.length > 0 ? [prev[prev.length - 1]] : []));
   };
 
   const handleLoginSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!loginEmail || !loginPassword) {
       setLoginError('请输入邮箱和密码');
+      toast({
+        title: '登录失败',
+        description: '请输入邮箱和密码',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -325,10 +395,19 @@ function App() {
     setLoginError('');
     try {
       await login(loginEmail, loginPassword);
-      setShowLoginModal(false);
       setLoginPassword('');
+      navigateTo({ route: 'me' });
+      toast({
+        title: '登录成功',
+        description: '欢迎回来！',
+      });
     } catch (error: any) {
       setLoginError(error?.message || '登录失败，请稍后重试');
+      toast({
+        title: '登录失败',
+        description: error?.message || '请稍后重试',
+        variant: 'destructive',
+      });
     } finally {
       setLoginSubmitting(false);
     }
@@ -354,11 +433,7 @@ function App() {
     if (!account) return null;
     const submitterVolunteerId = account.volunteerId || (account.role === 'admin' ? 'PG-0000' : '');
     if (!submitterVolunteerId) return null;
-    return {
-      id: submitterVolunteerId,
-      name: account.name,
-      role: account.role
-    };
+    return { id: submitterVolunteerId, name: account.name, role: account.role };
   };
 
   const submitNpsApplication = async (
@@ -517,12 +592,7 @@ function App() {
     const nextDuration = durationValue;
     const nextDescription = meEditDescription.trim();
 
-    const changes: Array<{
-      field: 'serviceDate' | 'serviceType' | 'duration' | 'description';
-      from: string | number;
-      to: string | number;
-    }> = [];
-
+    const changes: Array<{ field: 'serviceDate' | 'serviceType' | 'duration' | 'description'; from: string | number; to: string | number }> = [];
     if (currentDate !== nextDate) changes.push({ field: 'serviceDate', from: currentDate, to: nextDate });
     if (currentType !== nextType) changes.push({ field: 'serviceType', from: currentType, to: nextType });
     if (currentDuration !== nextDuration) changes.push({ field: 'duration', from: currentDuration, to: nextDuration });
@@ -587,9 +657,7 @@ function App() {
     const description = getChangeToValue('description');
 
     setMeApplicationDate(typeof serviceDate === 'string' ? serviceDate : '');
-    setMeApplicationType(
-      typeof serviceType === 'string' && isNpsServiceType(serviceType) ? serviceType : '翻译'
-    );
+    setMeApplicationType(typeof serviceType === 'string' && isNpsServiceType(serviceType) ? serviceType : '翻译');
     setMeApplicationDuration(duration === null || duration === undefined ? '1' : String(duration));
     setMeApplicationDescription(typeof description === 'string' ? description : String(description ?? ''));
     setShowMeApplicationForm(true);
@@ -617,62 +685,74 @@ function App() {
   };
 
   useEffect(() => {
-    if (activePage !== 'me' || !isAuthenticated || !isSystemAdmin) return;
+    if (currentPage !== 'me' || !isAuthenticated || !isSystemAdmin) return;
     void fetchAdminCenter();
-  }, [activePage, isAuthenticated, isSystemAdmin]);
+  }, [currentPage, isAuthenticated, isSystemAdmin]);
 
   if (isLoading) {
-    return <div className="loading-overlay"><div className="loading-content">正在检查登录状态...</div></div>;
+    return (
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-white/90 backdrop-blur-sm dark:bg-slate-950/85">
+        <div className="rounded-2xl bg-white px-6 py-5 text-center text-sm font-medium text-slate-700 shadow-xl dark:bg-slate-900 dark:text-slate-100">
+          正在检查登录状态...
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="app">
-      <Header 
-        title="志愿者管理系统" 
+    <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-950">
+      <Header
+        title="志愿者管理系统"
         subtitle="全球志愿者可视化平台"
         navItems={[
           {
             label: '首页',
-            active: activePage === 'home',
+            active: currentPage === 'home',
             onClick: () => {
-              setActivePage('home');
+              navigateTo({ route: 'home' });
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }
           },
-          { label: '个人中心', active: activePage === 'me', onClick: goToPersonalCenter },
-          { label: '审核中心', active: activePage === 'review', onClick: goToReviewCenter }
+          { label: '个人中心', active: currentPage === 'me', onClick: goToPersonalCenter },
+          { label: '审核中心', active: currentPage === 'review', onClick: goToReviewCenter }
         ]}
         actions={
           isAuthenticated ? (
             <>
-              <span className="account-chip">{account?.name} · {account?.role}</span>
-              <button
-                className="action-btn"
+              <span className="rounded-full bg-white/18 px-3 py-1.5 text-sm text-white">
+                {account?.name} · {account?.role}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn('border-slate-200 bg-white/85 text-slate-700 hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100')}
                 onClick={() => {
-                  setActivePage('home');
+                  navigateTo({ route: 'home' });
                   void logout();
                 }}
               >
                 退出登录
-              </button>
+              </Button>
             </>
           ) : (
-            <button
-              className="action-btn"
+            <Button
+              variant="default"
+              size="sm"
+              className={cn('bg-sky-600 text-white hover:bg-sky-500')}
               onClick={() => {
                 setLoginError('');
-                setShowLoginModal(true);
+                navigateTo({ route: 'login' });
               }}
             >
               登录
-            </button>
+            </Button>
           )
         }
       />
-      
-      <main className="main-content">
-        <div className="container">
-          {activePage === 'home' && (
+
+      <main className="flex-1 py-6 md:py-4">
+        <div className="mx-auto w-full max-w-[92rem] px-2">
+          {currentPage === 'home' && (
             <HomePage
               homeStatus={homeStatus}
               homeService={homeService}
@@ -692,9 +772,7 @@ function App() {
               onHotProvinceChange={(value) => {
                 setHomeHotProvince(value);
                 const province = HOT_PROVINCE_MAP[value];
-                if (province) {
-                  toggleLocationSelection({ type: 'province', value: province }, 'hot');
-                }
+                if (province) toggleLocationSelection({ type: 'province', value: province }, 'hot');
               }}
               onRegionModeChange={handleRegionModeChange}
               onResetFilters={() => {
@@ -714,11 +792,24 @@ function App() {
               }}
               onSearchChange={setHomeSearch}
               onClearSearch={() => setHomeSearch('')}
-              onVolunteerClick={handleVolunteerClick}
+              onVolunteerClick={(id) => navigateTo({ route: 'volunteer', volunteerId: id })}
             />
           )}
 
-          {activePage === 'me' && (
+          {currentPage === 'login' && (
+            <LoginPage
+              loginEmail={loginEmail}
+              loginPassword={loginPassword}
+              loginSubmitting={loginSubmitting}
+              loginError={loginError}
+              onSubmit={handleLoginSubmit}
+              onEmailChange={setLoginEmail}
+              onPasswordChange={setLoginPassword}
+              onBackHome={() => navigateTo({ route: 'home' })}
+            />
+          )}
+
+          {currentPage === 'me' && (
             <MePage
               isSystemAdmin={isSystemAdmin}
               account={account}
@@ -797,8 +888,8 @@ function App() {
               setAdminNewAccountVolunteerId={setAdminNewAccountVolunteerId}
               setAdminDetailForm={setAdminDetailForm}
               onFetchMePanel={fetchMePanel}
-              onVolunteerDetail={handleVolunteerClick}
-              onBackHome={() => setActivePage('home')}
+              onVolunteerDetail={(id) => navigateTo({ route: 'volunteer', volunteerId: id })}
+              onBackHome={() => navigateTo({ route: 'home' })}
               onLogout={logout}
               onLoadMoreMeServices={loadMoreMeServices}
               onWithdrawMyApplication={handleWithdrawMyApplication}
@@ -824,7 +915,7 @@ function App() {
             />
           )}
 
-          {activePage === 'review' && (
+          {currentPage === 'review' && (
             <ReviewPage
               isReviewer={isReviewer}
               reviewLoading={reviewLoading}
@@ -834,77 +925,38 @@ function App() {
               onRefresh={refreshReview}
             />
           )}
+
+          {currentPage === 'volunteer' && (
+            <VolunteerDetailPage
+              volunteerDetailLoading={volunteerDetailLoading}
+              volunteerDetailError={volunteerDetailError}
+              volunteerDetail={volunteerDetail}
+              volunteerDetailServices={volunteerDetailServices}
+              volunteerDetailHasMoreServices={volunteerDetailHasMoreServices}
+              volunteerDetailServicesLoadingMore={volunteerDetailServicesLoadingMore}
+              showDetailApplicationForm={showDetailApplicationForm}
+              detailApplicationDate={detailApplicationDate}
+              detailApplicationType={detailApplicationType}
+              detailApplicationDuration={detailApplicationDuration}
+              detailApplicationDescription={detailApplicationDescription}
+              detailApplicationSubmitting={detailApplicationSubmitting}
+              detailApplicationMessage={detailApplicationMessage}
+              onBackHome={() => navigateTo({ route: 'home' })}
+              onLoadMoreServices={() => void loadMoreVolunteerDetailServices()}
+              onToggleApplicationForm={() => {
+                setShowDetailApplicationForm((v) => !v);
+                setDetailApplicationMessage('');
+              }}
+              onSubmitApplication={() => void submitDetailNpsApplication()}
+              setDetailApplicationDate={setDetailApplicationDate}
+              setDetailApplicationType={setDetailApplicationType}
+              setDetailApplicationDuration={setDetailApplicationDuration}
+              setDetailApplicationDescription={setDetailApplicationDescription}
+            />
+          )}
         </div>
       </main>
 
-      {showLoginModal && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-header">
-              <h3 className="modal-title">账号登录</h3>
-              <button className="modal-close" onClick={() => setShowLoginModal(false)}>×</button>
-            </div>
-            <form className="modal-body" onSubmit={handleLoginSubmit}>
-              <div className="auth-form-field">
-                <label>邮箱</label>
-                <input
-                  className="auth-form-input"
-                  type="email"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="admin@example.com"
-                />
-              </div>
-              <div className="auth-form-field">
-                <label>密码</label>
-                <input
-                  className="auth-form-input"
-                  type="password"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="请输入密码"
-                />
-              </div>
-              {loginError && <p className="auth-form-error">{loginError}</p>}
-              <div className="modal-footer">
-                <button type="button" className="modal-action-btn" onClick={() => setShowLoginModal(false)}>取消</button>
-                <button type="submit" className="modal-action-btn is-primary" disabled={loginSubmitting}>
-                  {loginSubmitting ? '登录中...' : '登录'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <VolunteerDetailModal
-        isOpen={showVolunteerModal}
-        volunteerDetailLoading={volunteerDetailLoading}
-        volunteerDetailError={volunteerDetailError}
-        volunteerDetail={volunteerDetail}
-        volunteerDetailServices={volunteerDetailServices}
-        volunteerDetailHasMoreServices={volunteerDetailHasMoreServices}
-        volunteerDetailServicesLoadingMore={volunteerDetailServicesLoadingMore}
-        showDetailApplicationForm={showDetailApplicationForm}
-        detailApplicationDate={detailApplicationDate}
-        detailApplicationType={detailApplicationType}
-        detailApplicationDuration={detailApplicationDuration}
-        detailApplicationDescription={detailApplicationDescription}
-        detailApplicationSubmitting={detailApplicationSubmitting}
-        detailApplicationMessage={detailApplicationMessage}
-        onClose={() => setShowVolunteerModal(false)}
-        onLoadMoreServices={() => void loadMoreVolunteerDetailServices()}
-        onToggleApplicationForm={() => {
-          setShowDetailApplicationForm((v) => !v);
-          setDetailApplicationMessage('');
-        }}
-        onSubmitApplication={() => void submitDetailNpsApplication()}
-        setDetailApplicationDate={setDetailApplicationDate}
-        setDetailApplicationType={setDetailApplicationType}
-        setDetailApplicationDuration={setDetailApplicationDuration}
-        setDetailApplicationDescription={setDetailApplicationDescription}
-      />
-      
       <Footer />
     </div>
   );

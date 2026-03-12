@@ -8,7 +8,7 @@ async function testAPI() {
     if (!healthRes.ok) throw new Error(`HTTP ${healthRes.status}`);
     const healthData = await healthRes.json();
     console.log(`✅ ${healthData.message}`);
-    console.log(`   MongoDB状态: ${healthData.mongodb}`);
+    console.log(`   PostgreSQL状态: ${healthData.postgresql}`);
     
     // 测试志愿者API
     console.log('\n2. 测试志愿者API...');
@@ -35,8 +35,7 @@ async function testAPI() {
     console.error('\n❌ API测试失败:', error.message);
     console.log('\n💡 解决方案:');
     console.log('   1. 确保服务器运行: npm run dev');
-    console.log('   2. 初始化数据库: npm run seed');
-    console.log('   3. 检查MongoDB连接');
+    console.log('   2. 检查PostgreSQL连接');
   }
 }
 

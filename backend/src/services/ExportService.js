@@ -1,5 +1,6 @@
 // src/services/ExportService.js
-import NonProjectService from '../models/NonProjectService.js';
+// Phase 5: Switched from Mongoose to Prisma. Shadow writes removed.
+import prisma from '../utils/prismaClient.js';
 import ServiceService from './ServiceService.js';
 import CsvExporter from '../utils/csvExporter.js';
 import ExcelExporter from '../utils/excelExporter.js';
@@ -32,28 +33,28 @@ class ExportService {
       });
       
       // 获取总记录数
-      const query = QueryUtils.buildServiceRecordsQuery(filters);
-      const totalCount = await NonProjectService.countDocuments(query);
-      
+      const totalCount = await prisma.nonProjectService.count({ where: { isActive: filters.isActive !== false } });
+
       if (totalCount > maxRecords) {
         throw new Error(`记录数量过多 (${totalCount})，最多支持导出 ${maxRecords} 条记录`);
       }
-      
+
       // 分批获取数据
       const allServices = [];
       const batchCount = Math.ceil(totalCount / chunkSize);
-      
+
       for (let i = 0; i < batchCount; i++) {
         const skip = i * chunkSize;
         const limit = Math.min(chunkSize, totalCount - skip);
-        
-        const pipeline = QueryUtils.buildServiceAggregationPipeline(filters);
-        pipeline.push({ $skip: skip });
-        pipeline.push({ $limit: limit });
-        
-        const batchServices = await NonProjectService.aggregate(pipeline);
-        allServices.push(...batchServices);
-        
+
+        const batch = await prisma.nonProjectService.findMany({
+          where: { isActive: filters.isActive !== false },
+          orderBy: { serviceDate: 'desc' },
+          skip,
+          take: limit,
+        });
+        allServices.push(...batch);
+
         console.log(`导出进度: ${i + 1}/${batchCount} 批次完成`);
       }
       
@@ -452,50 +453,23 @@ class ExportService {
    * @private
    */
   static async generateVolunteerStats(filters) {
-    const query = QueryUtils.buildServiceRecordsQuery(filters);
-    
-    const pipeline = [
-      { $match: query },
-      {
-        $group: {
-          _id: '$volunteerId',
-          volunteerName: { $first: '$volunteerName' },
-          totalHours: { $sum: '$duration' },
-          totalCount: { $sum: 1 },
-          lastServiceDate: { $max: '$serviceDate' }
-        }
-      },
-      {
-        $lookup: {
-          from: 'volunteers',
-          localField: '_id',
-          foreignField: 'id',
-          as: 'volunteerInfo'
-        }
-      },
-      {
-        $unwind: {
-          path: '$volunteerInfo',
-          preserveNullAndEmptyArrays: true
-        }
-      },
-      {
-        $project: {
-          volunteerId: '$_id',
-          volunteerName: 1,
-          region: '$volunteerInfo.region',
-          status: '$volunteerInfo.status',
-          totalHours: 1,
-          totalCount: 1,
-          avgDuration: { $divide: ['$totalHours', '$totalCount'] },
-          lastServiceDate: 1,
-          activityLevel: '$volunteerInfo.activityLevel'
-        }
-      },
-      { $sort: { totalHours: -1 } }
-    ];
-    
-    return await NonProjectService.aggregate(pipeline);
+    return await prisma.$queryRaw`
+      SELECT
+        nps."volunteerId",
+        nps."volunteerName",
+        SUM(nps.duration) AS "totalHours",
+        COUNT(*)::int AS "totalCount",
+        MAX(nps."serviceDate") AS "lastServiceDate",
+        AVG(nps.duration) AS "avgDuration",
+        v.region,
+        v.status,
+        v."activityLevel"
+      FROM non_project_services nps
+      LEFT JOIN volunteers v ON v."volunteerId" = nps."volunteerId"
+      WHERE nps."isActive" = true
+      GROUP BY nps."volunteerId", nps."volunteerName", v.region, v.status, v."activityLevel"
+      ORDER BY "totalHours" DESC
+    `;
   }
   
   /**

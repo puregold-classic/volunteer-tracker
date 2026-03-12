@@ -260,6 +260,8 @@ const HomeMap: React.FC<HomeMapProps> = ({
     };
   };
 
+  const geoJsonRenderKey = `${activeProvince.join('|')}__${hoveredProvince}`;
+
   return (
     <div className="home-map">
       {loading && <div className="home-map__state">地图加载中...</div>}
@@ -291,6 +293,7 @@ const HomeMap: React.FC<HomeMapProps> = ({
           />
           {geoData && (
             <GeoJSON
+              key={geoJsonRenderKey}
               data={geoData}
               style={style}
               onEachFeature={(feature, layer) => {

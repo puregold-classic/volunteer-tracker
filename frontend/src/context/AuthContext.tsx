@@ -46,12 +46,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAccount(null);
       if (typeof window === 'undefined') return;
 
-      const currentPath = window.location.pathname;
+      const currentPath = window.location.hash.replace(/^#/, '') || '/';
       if (currentPath !== '/login') {
         window.sessionStorage.setItem('post_login_path', currentPath);
         window.sessionStorage.setItem('session_expired_message', '登录状态已过期，请重新登录。');
-        window.history.replaceState({}, '', '/login');
-        window.dispatchEvent(new PopStateEvent('popstate'));
+        window.location.hash = '#/login';
       }
     };
 

@@ -1,0 +1,232 @@
+// Prisma schema for Volunteer Tracker
+// Phase 1: Baseline schema mapping all 5 Mongoose models to PostgreSQL.
+// MongoDB + Mongoose are untouched. This is purely additive infrastructure.
+//
+// Design notes:
+// - Nested/embedded Mongoose docs → JSONB (Json) to preserve fidelity during migration
+//   phase; can normalize to relational tables in a later phase.
+// - Mongo "indexed" duplicate fields (indexedStatus, indexedVolunteerId, etc.) are
+//   dropped — PostgreSQL indexes work differently and don't need mirrored fields.
+// - Chinese enum values use @map() so PG stores the original strings.
+// - NonProjectService partial unique index (isActive=true) cannot be expressed in
+//   Prisma DSL; the generated migration SQL is patched via a migration script (see
+//   prisma/migrations/*_init/migration.sql comment).
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum Role {
+  user
+  b_admin
+  a_admin
+  admin
+}
+
+enum VolunteerStatus {
+  ACTIVE   @map("在职")
+  INACTIVE @map("不在职")
+
+  @@map("VolunteerStatus")
+}
+
+enum Region {
+  MAINLAND  @map("中国大陆")
+  TAIWAN    @map("中国台湾")
+  SOUTHEAST @map("东南亚")
+  USA       @map("美国")
+  EUROPE    @map("欧洲")
+  OTHER     @map("其他")
+
+  @@map("Region")
+}
+
+enum ActivityLevel {
+  HIGH   @map("高")
+  MEDIUM @map("中")
+  LOW    @map("低")
+
+  @@map("ActivityLevel")
+}
+
+enum ServiceType {
+  TRANSLATION @map("翻译")
+  PROOFREADING @map("校对")
+  MANAGEMENT  @map("管理")
+  TECHNICAL   @map("技术")
+
+  @@map("ServiceType")
+}
+
+enum ApplicationType {
+  create
+  update
+  delete
+}
+
+enum ApplicationStatus {
+  pending
+  approved
+  rejected
+  withdrawn
+}
+
+enum AuditTargetType {
+  ServiceApplication
+  NonProjectService
+}
+
+enum AuditAction {
+  application_review
+  application_withdraw
+  application_reopen
+  review_withdraw
+  system_cleanup
+  seed_import
+}
+
+enum ReviewResult {
+  approved
+  rejected
+  reopened
+  withdrawn
+  seeded
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+// Corresponds to Mongoose Account model
+model Account {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         Role      @default(user)
+  // volunteerId is nullable-unique: PostgreSQL allows multiple NULLs under UNIQUE,
+  // so @unique here is correct (unlike Mongo's partialFilterExpression).
+  volunteerId  String?   @unique
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([role, isActive])
+  @@map("accounts")
+}
+
+// Corresponds to Mongoose Volunteer model
+model Volunteer {
+  id              String          @id @default(cuid())
+  // domain ID like "PG-0001" — kept as a string per existing convention
+  volunteerId     String          @unique
+  chineseName     String
+  englishName     String
+  avatar          String          @default("https://ui-avatars.com/api/?name=Unknown&background=random")
+  status          VolunteerStatus @default(ACTIVE)
+  region          Region
+  province        String?
+  subRegion       String?
+  // PostgreSQL native array of enum
+  services        ServiceType[]
+  nonProjectHours Float           @default(0)
+  nonProjectCount Int             @default(0)
+  activityLevel   ActivityLevel   @default(MEDIUM)
+  email           String?
+  phone           String?
+  role            Role            @default(user)
+  joinDate        DateTime        @default(now())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([status])
+  @@index([region])
+  @@index([activityLevel])
+  @@index([nonProjectHours])
+  @@map("volunteers")
+}
+
+// Corresponds to Mongoose ServiceApplication model
+model ServiceApplication {
+  id              String            @id @default(cuid())
+  applicationId   String            @unique
+  applicationType ApplicationType
+  targetType      String            @default("NonProjectService")
+  volunteerId     String
+  volunteerName   String
+  // Array of {field, from, to} — stored as JSONB
+  changes         Json
+  // Required for update/delete, null for create
+  targetId        String?
+  // {id, name, role, timestamp} — stored as JSONB
+  submittedBy     Json
+  status          ApplicationStatus @default(pending)
+  isActive        Boolean           @default(true)
+  reviewNotes     String?
+  expiresAt       DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+  @@index([volunteerId, createdAt(sort: Desc)])
+  @@index([createdAt])
+  @@map("service_applications")
+}
+
+// Corresponds to Mongoose NonProjectService model
+model NonProjectService {
+  id            String      @id @default(cuid())
+  serviceId     String      @unique
+  volunteerId   String
+  volunteerName String
+  serviceDate   DateTime
+  serviceType   ServiceType
+  duration      Float
+  description   String
+  // Array of audit records — stored as JSONB
+  auditHistory  Json        @default("[]")
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  // NOTE: The original Mongo schema has a partial unique index on
+  // (volunteerId, serviceDate, serviceType, duration, description) WHERE isActive=true.
+  // Prisma DSL cannot express partial unique indexes. The generated migration SQL
+  // is manually amended — see comment in migration file.
+  @@index([volunteerId, serviceDate(sort: Desc)])
+  @@index([serviceType])
+  @@index([isActive])
+  @@index([serviceDate])
+  @@map("non_project_services")
+}
+
+// Corresponds to Mongoose AuditLog model
+model AuditLog {
+  id            String          @id @default(cuid())
+  auditId       String          @unique
+  targetType    AuditTargetType
+  targetId      String
+  action        AuditAction
+  // {applicationType, reviewResult, reviewNote} — stored as JSONB
+  actionDetails Json
+  modifiedId    String?
+  // Array of {field, from, to} — stored as JSONB
+  changes       Json            @default("[]")
+  // {id, name, role} — stored as JSONB
+  operator      Json
+  // {id, name, role} — stored as JSONB
+  submitter     Json
+  // AuditLog uses "timestamp" as its primary time field (matches Mongo timestamps: { createdAt: 'timestamp' })
+  timestamp     DateTime        @default(now())
+
+  @@index([timestamp(sort: Desc)])
+  @@index([targetId])
+  @@index([modifiedId])
+  @@map("audit_logs")
+}

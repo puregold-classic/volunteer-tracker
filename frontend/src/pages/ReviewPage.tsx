@@ -1,3 +1,4 @@
+import './ReviewPage.scss';
 import ReviewCenter from '@components/ReviewCenter';
 import type { ReviewPendingApplication } from '@services/reviewService';
 

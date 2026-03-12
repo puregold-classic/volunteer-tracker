@@ -25,5 +25,5 @@ Type A（复杂业务系统，前后端分离）
 
 ## Owner's Notes
 - OC 作为产品代理：低风险事项可代决，高影响/高风险事项必须升级。
-- 工程协作以持续会话 + `QUESTIONS.md` 为主通道。
+- 工程协作以 ACP 持久会话为主通道，`QUESTIONS.md` 作为审计留痕。
 - 迁移期间必须明确 restore point，并保持可恢复路径。

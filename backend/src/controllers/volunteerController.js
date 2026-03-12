@@ -1,86 +1,84 @@
-import Volunteer from '../models/Volunteer.js';
-import QueryUtils from '../utils/queryUtils.js';
+// src/controllers/volunteerController.js
+// Phase 5: Switched from Mongoose to Prisma. Shadow writes removed.
+// Enum values (status, region, activityLevel, services) are translated
+// via pgSerializer both for query inputs and API responses.
 
-const buildVolunteerQuery = (queryParams = {}) => {
-  const query = {};
+import prisma from '../utils/prismaClient.js';
+import QueryUtils from '../utils/queryUtils.js';
+import {
+  serializeVolunteer,
+  VOLUNTEER_STATUS_TO_PG,
+  REGION_TO_PG,
+  SERVICE_TYPE_TO_PG,
+} from '../utils/pgSerializer.js';
+
+// Build a Prisma `where` clause from API query parameters (Chinese string values).
+const buildVolunteerWhere = (queryParams = {}) => {
   const { status, region, province, services, search } = queryParams;
+  const where = {};
+
   const parseMulti = (value) => {
     const raw = Array.isArray(value) ? value.join(',') : value;
-    return String(raw || '')
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
+    return String(raw || '').split(',').map(s => s.trim()).filter(Boolean);
   };
 
-  if (status && ['在职', '不在职'].includes(status)) {
-    query.status = status;
+  if (status) {
+    const pgStatus = VOLUNTEER_STATUS_TO_PG[status];
+    if (pgStatus) where.status = pgStatus;
   }
 
   if (region) {
     const regions = parseMulti(region);
-    if (regions.length === 1) query.region = regions[0];
-    if (regions.length > 1) query.region = { $in: regions };
+    const pgRegions = regions.map(r => REGION_TO_PG[r]).filter(Boolean);
+    if (pgRegions.length === 1) where.region = pgRegions[0];
+    else if (pgRegions.length > 1) where.region = { in: pgRegions };
   }
 
   if (province) {
     const provinces = parseMulti(province);
-    if (provinces.length === 1) query.province = provinces[0];
-    if (provinces.length > 1) query.province = { $in: provinces };
+    if (provinces.length === 1) where.province = provinces[0];
+    else if (provinces.length > 1) where.province = { in: provinces };
   }
 
   if (services) {
-    const serviceValue = Array.isArray(services) ? services.join(',') : services;
-    const servicesArray = String(serviceValue)
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-    if (servicesArray.length > 0) {
-      query.services = { $in: servicesArray };
-    }
+    const svcValues = parseMulti(services);
+    const pgSvcs = svcValues.map(s => SERVICE_TYPE_TO_PG[s]).filter(Boolean);
+    if (pgSvcs.length > 0) where.services = { hasSome: pgSvcs };
   }
 
   if (search) {
-    query.$or = [
-      { chineseName: { $regex: search, $options: 'i' } },
-      { englishName: { $regex: search, $options: 'i' } },
-      { id: { $regex: search, $options: 'i' } },
-      { province: { $regex: search, $options: 'i' } },
-      { subRegion: { $regex: search, $options: 'i' } }
+    where.OR = [
+      { chineseName: { contains: search, mode: 'insensitive' } },
+      { englishName: { contains: search, mode: 'insensitive' } },
+      { volunteerId: { contains: search, mode: 'insensitive' } },
+      { province: { contains: search, mode: 'insensitive' } },
+      { subRegion: { contains: search, mode: 'insensitive' } },
     ];
   }
 
-  return query;
+  return where;
 };
 
 // 获取所有志愿者
 export const getAllVolunteers = async (req, res) => {
   try {
     const {
-      status,
-      region,
-      province,
-      services,
-      search,
-      page = 1,
-      limit = 20,
-      sortBy = 'createdAt',
-      order = 'desc'
+      status, region, province, services, search,
+      page = 1, limit = 20, sortBy = 'createdAt', order = 'desc',
     } = req.query;
 
-    const query = buildVolunteerQuery({ status, region, province, services, search });
-
-    // 排序
-    const sortOptions = {};
-    sortOptions[sortBy] = order === 'desc' ? -1 : 1;
-
-    // 分页
+    const where = buildVolunteerWhere({ status, region, province, services, search });
     const pagination = QueryUtils.buildPaginationOptions(page, limit);
-    const total = await Volunteer.countDocuments(query);
-    const volunteers = await Volunteer.find(query)
-      .sort(sortOptions)
-      .skip(pagination.skip)
-      .limit(pagination.limit)
-      .select('-__v -isActive'); // 排除不必要字段
+
+    const [total, volunteers] = await Promise.all([
+      prisma.volunteer.count({ where }),
+      prisma.volunteer.findMany({
+        where,
+        orderBy: { [sortBy]: order },
+        skip: pagination.skip,
+        take: pagination.limit,
+      }),
+    ]);
 
     res.status(200).json({
       success: true,
@@ -88,222 +86,197 @@ export const getAllVolunteers = async (req, res) => {
       total,
       totalPages: Math.ceil(total / pagination.limit),
       currentPage: pagination.page,
-      data: volunteers
+      data: volunteers.map(serializeVolunteer),
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: '获取志愿者列表失败',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: '获取志愿者列表失败', error: error.message });
   }
 };
 
 // 获取单个志愿者
 export const getVolunteerById = async (req, res) => {
   try {
-    const volunteer = await Volunteer.findOne({ id: req.params.id });
-    
+    const volunteer = await prisma.volunteer.findFirst({
+      where: { volunteerId: req.params.id },
+    });
+
     if (!volunteer) {
-      return res.status(404).json({
-        success: false,
-        message: `未找到ID为 ${req.params.id} 的志愿者`
-      });
+      return res.status(404).json({ success: false, message: `未找到ID为 ${req.params.id} 的志愿者` });
     }
 
-    res.status(200).json({
-      success: true,
-      data: volunteer
-    });
+    res.status(200).json({ success: true, data: serializeVolunteer(volunteer) });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: '获取志愿者信息失败',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: '获取志愿者信息失败', error: error.message });
   }
 };
 
 // 创建志愿者
 export const createVolunteer = async (req, res) => {
   try {
-    const existingVolunteer = await Volunteer.findOne({ id: req.body.id });
-    if (existingVolunteer) {
-      return res.status(400).json({
-        success: false,
-        message: `志愿者ID ${req.body.id} 已存在`
-      });
+    const existing = await prisma.volunteer.findFirst({
+      where: { volunteerId: req.body.id },
+    });
+    if (existing) {
+      return res.status(400).json({ success: false, message: `志愿者ID ${req.body.id} 已存在` });
     }
 
-    const volunteer = await Volunteer.create(req.body);
-    
-    res.status(201).json({
-      success: true,
-      message: '志愿者创建成功',
-      data: volunteer
-    });
+    // Translate enum fields from Chinese to PG member names
+    const data = {
+      volunteerId: req.body.id,
+      chineseName: req.body.chineseName,
+      englishName: req.body.englishName,
+      avatar: req.body.avatar,
+      status: VOLUNTEER_STATUS_TO_PG[req.body.status] || 'ACTIVE',
+      region: REGION_TO_PG[req.body.region],
+      province: req.body.province,
+      subRegion: req.body.subRegion,
+      services: (req.body.services || []).map(s => SERVICE_TYPE_TO_PG[s]).filter(Boolean),
+      nonProjectHours: req.body.nonProjectHours || 0,
+      nonProjectCount: req.body.nonProjectCount || 0,
+      activityLevel: req.body.activityLevel === '高' ? 'HIGH'
+        : req.body.activityLevel === '低' ? 'LOW' : 'MEDIUM',
+      email: req.body.email,
+      phone: req.body.phone,
+      role: req.body.role || 'user',
+      joinDate: req.body.joinDate ? new Date(req.body.joinDate) : undefined,
+    };
+
+    const volunteer = await prisma.volunteer.create({ data });
+    res.status(201).json({ success: true, message: '志愿者创建成功', data: serializeVolunteer(volunteer) });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: '创建志愿者失败',
-      error: error.message
-    });
+    res.status(400).json({ success: false, message: '创建志愿者失败', error: error.message });
   }
 };
 
 // 更新志愿者
 export const updateVolunteer = async (req, res) => {
   try {
-    const volunteer = await Volunteer.findOneAndUpdate(
-      { id: req.params.id },
-      req.body,
-      {
-        new: true,
-        runValidators: true
-      }
-    );
-
+    const volunteer = await prisma.volunteer.findFirst({
+      where: { volunteerId: req.params.id },
+    });
     if (!volunteer) {
-      return res.status(404).json({
-        success: false,
-        message: `未找到ID为 ${req.params.id} 的志愿者`
-      });
+      return res.status(404).json({ success: false, message: `未找到ID为 ${req.params.id} 的志愿者` });
     }
 
-    res.status(200).json({
-      success: true,
-      message: '志愿者更新成功',
-      data: volunteer
+    // Build update data, only including fields that were provided
+    const body = req.body;
+    const data = {};
+    if (body.chineseName !== undefined) data.chineseName = body.chineseName;
+    if (body.englishName !== undefined) data.englishName = body.englishName;
+    if (body.avatar !== undefined) data.avatar = body.avatar;
+    if (body.status !== undefined) data.status = VOLUNTEER_STATUS_TO_PG[body.status] ?? body.status;
+    if (body.region !== undefined) data.region = REGION_TO_PG[body.region] ?? body.region;
+    if (body.province !== undefined) data.province = body.province;
+    if (body.subRegion !== undefined) data.subRegion = body.subRegion;
+    if (body.services !== undefined) data.services = (body.services || []).map(s => SERVICE_TYPE_TO_PG[s] ?? s).filter(Boolean);
+    if (body.nonProjectHours !== undefined) data.nonProjectHours = body.nonProjectHours;
+    if (body.nonProjectCount !== undefined) data.nonProjectCount = body.nonProjectCount;
+    if (body.activityLevel !== undefined) {
+      data.activityLevel = body.activityLevel === '高' ? 'HIGH'
+        : body.activityLevel === '低' ? 'LOW' : 'MEDIUM';
+    }
+    if (body.email !== undefined) data.email = body.email;
+    if (body.phone !== undefined) data.phone = body.phone;
+    if (body.role !== undefined) data.role = body.role;
+
+    const updated = await prisma.volunteer.update({
+      where: { id: volunteer.id },
+      data,
     });
+
+    res.status(200).json({ success: true, message: '志愿者更新成功', data: serializeVolunteer(updated) });
   } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: '更新志愿者失败',
-      error: error.message
-    });
+    res.status(400).json({ success: false, message: '更新志愿者失败', error: error.message });
   }
 };
 
 // 删除志愿者
 export const deleteVolunteer = async (req, res) => {
   try {
-    const volunteer = await Volunteer.findOneAndDelete({ id: req.params.id });
-
+    const volunteer = await prisma.volunteer.findFirst({
+      where: { volunteerId: req.params.id },
+    });
     if (!volunteer) {
-      return res.status(404).json({
-        success: false,
-        message: `未找到ID为 ${req.params.id} 的志愿者`
-      });
+      return res.status(404).json({ success: false, message: `未找到ID为 ${req.params.id} 的志愿者` });
     }
 
-    res.status(200).json({
-      success: true,
-      message: '志愿者删除成功',
-      data: volunteer
-    });
+    await prisma.volunteer.delete({ where: { id: volunteer.id } });
+
+    res.status(200).json({ success: true, message: '志愿者删除成功', data: serializeVolunteer(volunteer) });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: '删除志愿者失败',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: '删除志愿者失败', error: error.message });
   }
 };
 
 // 获取统计信息
 export const getVolunteerStats = async (req, res) => {
   try {
-    const query = buildVolunteerQuery(req.query);
-    const matchStage = Object.keys(query).length > 0 ? [{ $match: query }] : [];
+    const where = buildVolunteerWhere(req.query);
 
-    const stats = await Volunteer.aggregate([
-      ...matchStage,
-      {
-        $group: {
-          _id: null,
-          totalVolunteers: { $sum: 1 },
-          totalHours: { $sum: '$nonProjectHours' },
-          totalActive: {
-            $sum: { $cond: [{ $eq: ['$status', '在职'] }, 1, 0] }
-          },
-          totalInactive: {
-            $sum: { $cond: [{ $eq: ['$status', '不在职'] }, 1, 0] }
-          },
-          avgHours: { $avg: '$nonProjectHours' }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          totalVolunteers: 1,
-          totalHours: 1,
-          totalActive: 1,
-          totalInactive: 1,
-          avgHours: { $round: ['$avgHours', 2] }
-        }
+    const [summary, regionStats, serviceRows] = await Promise.all([
+      // Summary aggregation
+      prisma.volunteer.aggregate({
+        where,
+        _count: { id: true },
+        _sum: { nonProjectHours: true },
+        _avg: { nonProjectHours: true },
+      }),
+      // Group by region
+      prisma.volunteer.groupBy({
+        by: ['region'],
+        where,
+        _count: { id: true },
+        _sum: { nonProjectHours: true },
+        orderBy: { _count: { id: 'desc' } },
+      }),
+      // Services distribution
+      prisma.volunteer.findMany({
+        where,
+        select: { services: true },
+      }),
+    ]);
+
+    const serviceCounter = new Map();
+    for (const row of serviceRows) {
+      for (const service of row.services || []) {
+        serviceCounter.set(service, (serviceCounter.get(service) || 0) + 1);
       }
-    ]);
+    }
 
-    // 地区分布
-    const regionStats = await Volunteer.aggregate([
-      ...matchStage,
-      {
-        $group: {
-          _id: '$region',
-          count: { $sum: 1 },
-          totalHours: { $sum: '$nonProjectHours' }
-        }
-      },
-      {
-        $project: {
-          region: '$_id',
-          count: 1,
-          totalHours: 1,
-          _id: 0
-        }
-      },
-      { $sort: { count: -1 } }
-    ]);
+    const serviceStats = Array.from(serviceCounter.entries())
+      .map(([service, count]) => ({ service, count }))
+      .sort((a, b) => b.count - a.count);
 
-    // 服务方向分布
-    const serviceStats = await Volunteer.aggregate([
-      ...matchStage,
-      { $unwind: '$services' },
-      {
-        $group: {
-          _id: '$services',
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $project: {
-          _id: 0,
-          service: '$_id',
-          count: 1
-        }
-      },
-      { $sort: { count: -1 } }
+    // Count active/inactive
+    const [activeCount, inactiveCount] = await Promise.all([
+      prisma.volunteer.count({ where: { ...where, status: 'ACTIVE' } }),
+      prisma.volunteer.count({ where: { ...where, status: 'INACTIVE' } }),
     ]);
 
     res.status(200).json({
       success: true,
       data: {
-        summary: stats[0] || {
-          totalVolunteers: 0,
-          totalHours: 0,
-          totalActive: 0,
-          totalInactive: 0,
-          avgHours: 0
+        summary: {
+          totalVolunteers: summary._count.id ?? 0,
+          totalHours: summary._sum.nonProjectHours ?? 0,
+          totalActive: activeCount,
+          totalInactive: inactiveCount,
+          avgHours: summary._avg.nonProjectHours
+            ? Math.round(summary._avg.nonProjectHours * 100) / 100
+            : 0,
         },
-        regionDistribution: regionStats,
-        serviceDistribution: serviceStats
-      }
+        regionDistribution: regionStats.map(r => ({
+          region: r.region,
+          count: r._count.id,
+          totalHours: r._sum.nonProjectHours ?? 0,
+        })),
+        serviceDistribution: (serviceStats || []).map(s => ({
+          service: s.service,
+          count: s.count,
+        })),
+      },
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: '获取统计信息失败',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: '获取统计信息失败', error: error.message });
   }
 };

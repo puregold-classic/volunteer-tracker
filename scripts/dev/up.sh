@@ -16,8 +16,8 @@ if [ ! -d "backend/node_modules" ]; then
   npm --prefix backend install
 fi
 
-echo "==> Starting MongoDB + Backend"
-docker-compose up -d mongodb backend
+echo "==> Starting PostgreSQL + Backend (MongoDB 已废弃)"
+docker-compose up -d postgres backend
 
 echo "==> Waiting for backend health..."
 ATTEMPTS=40
@@ -34,7 +34,7 @@ for i in $(seq 1 "$ATTEMPTS"); do
     exit 1
   fi
 
-  sleep "$SLEEP_SECONDS"
+  sleep $SLEEP_SECONDS
 done
 
 echo "==> Starting frontend dev server"

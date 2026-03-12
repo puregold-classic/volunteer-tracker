@@ -1,4 +1,5 @@
 import React from 'react';
+import './MePage.scss';
 import AdminCenter from '@components/AdminCenter';
 import MeCenter from '@components/MeCenter';
 import type { Account, AdminAccountItem } from '@services/authService';

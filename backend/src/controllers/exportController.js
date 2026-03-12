@@ -1,6 +1,7 @@
 // src/controllers/exportController.js
+// Phase 5: Switched from Mongoose to Prisma. Shadow writes removed.
 import ExportService from '../services/ExportService.js';
-import NonProjectService from '../models/NonProjectService.js';
+import prisma from '../utils/prismaClient.js';
 
 const parsePositiveInt = (value, fallback) => {
   const parsed = Number.parseInt(value, 10);
@@ -191,65 +192,63 @@ class ExportController {
       );
       res.setHeader('Transfer-Encoding', 'chunked');
       
-      // 开始流式导出
-      const query = {
-        volunteerId: filters.volunteerId,
-        serviceType: filters.serviceType,
-        serviceDate: {
-          $gte: filters.serviceDateFrom ? new Date(filters.serviceDateFrom) : undefined,
-          $lte: filters.serviceDateTo ? new Date(filters.serviceDateTo) : undefined
-        },
-        isActive: true
-      };
-      
-      // 移除undefined字段
-      Object.keys(query).forEach(key => 
-        query[key] === undefined && delete query[key]
-      );
-      if (query.serviceDate && (!query.serviceDate.$gte || !query.serviceDate.$lte)) {
-        delete query.serviceDate;
+      // 构建 Prisma where clause
+      const where = { isActive: true };
+      if (filters.volunteerId) where.volunteerId = filters.volunteerId;
+      if (filters.serviceType) {
+        const { SERVICE_TYPE_TO_PG } = await import('../utils/pgSerializer.js');
+        where.serviceType = SERVICE_TYPE_TO_PG[filters.serviceType] || filters.serviceType;
       }
-      
+      if (filters.serviceDateFrom || filters.serviceDateTo) {
+        where.serviceDate = {};
+        if (filters.serviceDateFrom) where.serviceDate.gte = new Date(filters.serviceDateFrom);
+        if (filters.serviceDateTo) where.serviceDate.lte = new Date(filters.serviceDateTo);
+      }
+
       // 创建CSV头部
       const headers = [
-        '服务记录ID', '志愿者ID', '志愿者姓名', '地区', 
+        '服务记录ID', '志愿者ID', '志愿者姓名',
         '服务日期', '服务类型', '服务时长(小时)', '服务描述', '创建时间'
       ].join(',');
-      
+
       res.write(headers + '\n');
-      
-      // 使用游标流式读取数据
-      const cursor = NonProjectService.find(query)
-        .sort({ serviceDate: -1 })
-        .cursor();
-      
+
+      // 分页流式读取 (Prisma doesn't support cursors; use batched pagination)
+      const BATCH_SIZE = 1000;
+      let skip = 0;
       let count = 0;
-      
-      for (let doc = await cursor.next(); doc != null; doc = await cursor.next()) {
-        const row = [
-          doc.serviceId,
-          doc.volunteerId,
-          doc.volunteerName,
-          doc.volunteerRegion || '',
-          new Date(doc.serviceDate).toISOString().split('T')[0],
-          doc.serviceType,
-          doc.duration,
-          `"${(doc.description || '').replace(/"/g, '""')}"`,
-          new Date(doc.createdAt).toISOString()
-        ].join(',');
-        
-        res.write(row + '\n');
-        count++;
-        
-        // 每1000条记录刷新一次
-        if (count % 1000 === 0) {
-          console.log(`流式导出进度: ${count} 条记录`);
+
+      while (true) {
+        const batch = await prisma.nonProjectService.findMany({
+          where,
+          orderBy: { serviceDate: 'desc' },
+          skip,
+          take: BATCH_SIZE,
+        });
+
+        if (batch.length === 0) break;
+
+        for (const doc of batch) {
+          const row = [
+            doc.serviceId,
+            doc.volunteerId,
+            doc.volunteerName,
+            new Date(doc.serviceDate).toISOString().split('T')[0],
+            doc.serviceType,
+            doc.duration,
+            `"${(doc.description || '').replace(/"/g, '""')}"`,
+            new Date(doc.createdAt).toISOString()
+          ].join(',');
+          res.write(row + '\n');
+          count++;
         }
+
+        skip += BATCH_SIZE;
+        if (batch.length < BATCH_SIZE) break;
+        console.log(`流式导出进度: ${count} 条记录`);
       }
-      
-      cursor.close();
+
       console.log(`流式导出完成: ${count} 条记录`);
-      
       res.end();
       
     } catch (error) {
