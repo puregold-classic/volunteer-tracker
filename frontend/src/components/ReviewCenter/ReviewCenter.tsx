@@ -330,7 +330,7 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
             </div>
           </Card>
 
-          <div className="grid gap-6 xl:grid-cols-[1.45fr_0.85fr]">
+          <div className="space-y-6">
             <Card variant="elevated" className="p-6">
               <SectionHeader eyebrow="pending" title={`待审核列表 (${pendingReviews.length})`} description="左侧主列承载待审核列表与快速操作入口。" />
               <div className="mt-5 space-y-3">
@@ -340,9 +340,8 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
                   pendingReviews.map((item) => (
                     <article key={item.applicationId} className="review-item-card">
                       <p className="flex flex-wrap items-center gap-2"><strong>{item.volunteerName}</strong><Badge variant="outline">{item.applicationType}</Badge></p>
-                      <p>ID: {item.applicationId}</p>
-                      <p>志愿者ID: {item.volunteerId}</p>
-                      <p>提交时间: {new Date(item.createdAt).toLocaleString()}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300">{new Date(item.createdAt).toLocaleString()}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">ID: {item.applicationId}</p>
                     </article>
                   ))
                 )}

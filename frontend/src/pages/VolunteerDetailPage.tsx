@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { CalendarDays, ChevronLeft, Clock3, Mail, Phone, Send, User2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { CalendarDays, ChevronLeft, Clock3, Mail, MessageCircleMore, Phone, Send, User2 } from 'lucide-react';
 import type { Volunteer } from '@services/types';
 import type { NonProjectServiceRecord } from '@services/serviceRecordService';
 import { Badge } from '@/components/ui/badge';
@@ -100,11 +101,11 @@ function VolunteerDetailPage(props: VolunteerDetailPageProps) {
       <Button type="button" variant="ghost" onClick={onBackHome}><ChevronLeft className="h-4 w-4" />返回首页</Button>
 
       <Card variant="glass" className="overflow-hidden">
-        <div className="h-32 bg-[linear-gradient(135deg,rgba(14,165,233,0.22),rgba(59,130,246,0.12),rgba(168,85,247,0.18))]" />
-        <div className="relative -mt-12 p-6 md:p-8">
-          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+        <div className="h-28 bg-[linear-gradient(135deg,rgba(14,165,233,0.22),rgba(59,130,246,0.12),rgba(168,85,247,0.18))]" />
+        <div className="relative -mt-10 p-6 md:p-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex items-end gap-4">
-              <img src={volunteerDetail.avatar} alt={volunteerDetail.chineseName} className="h-24 w-24 rounded-[1.75rem] border-4 border-white object-cover shadow-lg dark:border-slate-950" />
+              <img src={volunteerDetail.avatar} alt={volunteerDetail.chineseName} className="h-20 w-20 rounded-[1.5rem] border-4 border-white object-cover shadow-lg dark:border-slate-950" />
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-3xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{volunteerDetail.chineseName}</h1>
@@ -114,34 +115,41 @@ function VolunteerDetailPage(props: VolunteerDetailPageProps) {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Badge variant="outline">ID：{volunteerDetail.id}</Badge>
                   <Badge variant="info">地区：{volunteerDetail.region || '-'}</Badge>
-                  {volunteerDetail.services.map((service) => <Badge key={service} variant="default">{service}</Badge>)}
+                  {volunteerDetail.services.slice(0, 3).map((service) => <Badge key={service} variant="default">{service}</Badge>)}
                 </div>
               </div>
             </div>
-            <Button type="button" onClick={onToggleApplicationForm}><Send className="h-4 w-4" />{showDetailApplicationForm ? '收起申请入口' : '提交 NPS 申请'}</Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline"><Phone className="h-4 w-4" />联系</Button>
+              <Button type="button" variant="outline"><MessageCircleMore className="h-4 w-4" />分配任务</Button>
+              <Button type="button" onClick={onToggleApplicationForm}><Send className="h-4 w-4" />{showDetailApplicationForm ? '收起申请入口' : '提交 NPS 申请'}</Button>
+            </div>
           </div>
         </div>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="非项目时长" value={`${volunteerDetail.nonProjectHours}h`} hint="累计非项目服务时间" icon={<Clock3 className="h-5 w-5" />} />
         <StatCard label="服务记录数" value={`${volunteerDetail.nonProjectCount} 次`} hint="历史记录总量" icon={<CalendarDays className="h-5 w-5" />} />
         <StatCard label="加入时间" value={volunteerDetail.joinDate ? formatDate(volunteerDetail.joinDate) : '-'} hint="成员进入系统时间" icon={<User2 className="h-5 w-5" />} />
+        <StatCard label="最近更新" value={formatDate(volunteerDetail.updatedAt)} hint="资料最后更新时间" icon={<User2 className="h-5 w-5" />} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <Card variant="elevated" className="p-6">
-          <SectionHeader eyebrow="profile" title="基本信息" description="按浏览优先级重组，先看身份、状态、联系方式，再看时间元信息。" />
+          <SectionHeader eyebrow="key info" title="关键信息" description="先看联系方式、账号状态、服务方向与时间元数据。" />
           <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900"><p className="text-sm text-slate-500 dark:text-slate-400">邮箱</p><p className="mt-2 flex items-center gap-2 font-medium"><Mail className="h-4 w-4 text-slate-400" />{volunteerDetail.email || '-'}</p></div>
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900"><p className="text-sm text-slate-500 dark:text-slate-400">电话</p><p className="mt-2 flex items-center gap-2 font-medium"><Phone className="h-4 w-4 text-slate-400" />{volunteerDetail.phone || '-'}</p></div>
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900"><p className="text-sm text-slate-500 dark:text-slate-400">创建时间</p><p className="mt-2 font-medium">{formatDateTime(volunteerDetail.createdAt)}</p></div>
-            <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900"><p className="text-sm text-slate-500 dark:text-slate-400">更新时间</p><p className="mt-2 font-medium">{formatDateTime(volunteerDetail.updatedAt)}</p></div>
+            <InfoBlock label="邮箱" value={volunteerDetail.email || '-'} icon={<Mail className="h-4 w-4 text-slate-400" />} />
+            <InfoBlock label="电话" value={volunteerDetail.phone || '-'} icon={<Phone className="h-4 w-4 text-slate-400" />} />
+            <InfoBlock label="创建时间" value={formatDateTime(volunteerDetail.createdAt)} />
+            <InfoBlock label="更新时间" value={formatDateTime(volunteerDetail.updatedAt)} />
+            <InfoBlock label="服务方向" value={volunteerDetail.services.length ? volunteerDetail.services.join('、') : '-'} />
+            <InfoBlock label="状态" value={volunteerDetail.status} />
           </div>
         </Card>
 
         <Card variant="elevated" className="p-6">
-          <SectionHeader eyebrow="records" title="非项目服务记录" description="保留原分页加载逻辑，统一成可扫读的时间线卡片。" />
+          <SectionHeader eyebrow="records" title="服务记录区" description="保留原分页加载逻辑，统一成可快速扫读的记录卡片。" />
           <div className="mt-5 space-y-3">
             {volunteerDetailServices.length === 0 ? (
               <EmptyState title="暂无非项目服务记录" description="该志愿者还没有可展示的非项目服务条目。" />
@@ -177,7 +185,7 @@ function VolunteerDetailPage(props: VolunteerDetailPageProps) {
       </div>
 
       <Card variant="glass" className="p-6">
-        <SectionHeader eyebrow="application" title="NPS 申请入口" description="保持既有申请参数与提交链路不变，只重做信息分区与确认体验。" />
+        <SectionHeader eyebrow="action" title="行动区 / NPS 申请入口" description="保持既有申请参数与提交链路不变，只重做信息分区与确认体验。" />
         {!showDetailApplicationForm ? (
           <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50/70 p-6 dark:border-slate-700 dark:bg-slate-900/50">
             <p className="text-sm text-slate-600 dark:text-slate-300">提交前请准备：服务日期、服务类型、时长、服务描述。表单开启后仍沿用现有申请接口和审核流程。</p>
@@ -189,11 +197,11 @@ function VolunteerDetailPage(props: VolunteerDetailPageProps) {
               <div className="space-y-2"><label className="text-sm font-medium text-slate-700 dark:text-slate-300">服务日期</label><Input type="date" value={detailApplicationDate} onChange={(e) => setDetailApplicationDate(e.target.value)} /></div>
               <div className="space-y-2"><label className="text-sm font-medium text-slate-700 dark:text-slate-300">服务类型</label><Select value={detailApplicationType} onChange={(e) => setDetailApplicationType(e.target.value as NpsServiceType)}>{NPS_SERVICE_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}</Select></div>
               <div className="space-y-2"><label className="text-sm font-medium text-slate-700 dark:text-slate-300">服务时长</label><Input type="number" step="0.5" min="0.5" value={detailApplicationDuration} onChange={(e) => setDetailApplicationDuration(e.target.value)} placeholder="时长(小时)" /></div>
-              <div className="space-y-2 md:col-span-2 xl:col-span-1"><label className="text-sm font-medium text-slate-700 dark:text-slate-300">服务描述</label><Input type="text" value={detailApplicationDescription} onChange={(e) => setDetailApplicationDescription(e.target.value)} placeholder="服务描述（至少5字）" /></div>
+              <div className="space-y-2 md:col-span-2 xl:col-span-1"><label className="text-sm font-medium text-slate-700 dark:text-slate-300">服务描述</label><textarea value={detailApplicationDescription} onChange={(e) => setDetailApplicationDescription(e.target.value)} placeholder="服务描述（至少5字）" className="min-h-[120px] w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base sm:text-sm text-slate-900 shadow-sm outline-none focus:border-sky-300 focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-50 dark:focus:border-sky-500/60 dark:focus:ring-sky-500/10" /></div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button type="button" disabled={detailApplicationSubmitting || !volunteerDetail} onClick={() => setConfirmOpen(true)}>{detailApplicationSubmitting ? '提交中...' : '确认提交申请'}</Button>
-              <Button type="button" variant="outline" onClick={onToggleApplicationForm}>收起表单</Button>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              <Button className="w-full sm:w-auto" type="button" disabled={detailApplicationSubmitting || !volunteerDetail} onClick={() => setConfirmOpen(true)}>{detailApplicationSubmitting ? '提交中...' : '确认提交申请'}</Button>
+              <Button className="w-full sm:w-auto" type="button" variant="outline" onClick={onToggleApplicationForm}>收起表单</Button>
             </div>
             {detailApplicationMessage && <p className="text-sm text-slate-600 dark:text-slate-300">{detailApplicationMessage}</p>}
           </div>
@@ -210,6 +218,10 @@ function VolunteerDetailPage(props: VolunteerDetailPageProps) {
       />
     </div>
   );
+}
+
+function InfoBlock({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+  return <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900"><p className="text-sm text-slate-500 dark:text-slate-400">{label}</p><p className="mt-2 flex items-center gap-2 font-medium">{icon}{value}</p></div>;
 }
 
 export default VolunteerDetailPage;

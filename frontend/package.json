@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
-    "format": "prettier --write \"src/**/*.{js,jsx,css,scss}\""
+    "format": "prettier --write \"src/**/*.{js,jsx,css,scss}\"",
+    "test:e2e": "playwright test e2e/home.spec.js"
   },
   "dependencies": {
     "@radix-ui/react-scroll-area": "^1.2.10",

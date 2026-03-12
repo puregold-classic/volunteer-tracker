@@ -14,6 +14,7 @@ import { StatCard } from '@/components/shared/stat-card';
 export interface VolunteerListProps {
   compact?: boolean;
   onVolunteerClick?: (id: string) => void;
+  onVolunteerSelect?: (volunteer: Volunteer) => void;
   showStats?: boolean;
   showPagination?: boolean;
   filterParams?: VolunteersParams;
@@ -23,6 +24,7 @@ export interface VolunteerListProps {
 const VolunteerList: React.FC<VolunteerListProps> = ({
   compact = false,
   onVolunteerClick,
+  onVolunteerSelect,
   showStats = true,
   showPagination = true,
   filterParams,
@@ -144,7 +146,9 @@ const VolunteerList: React.FC<VolunteerListProps> = ({
 
       <div className={`grid gap-4 ${compact ? 'md:grid-cols-2 xl:grid-cols-2' : 'md:grid-cols-2 xl:grid-cols-3'}`}>
         {volunteers.map((volunteer) => (
-          <VolunteerCard key={volunteer.id} volunteer={volunteer} compact={compact} onClick={handleVolunteerClick} />
+          <div key={volunteer.id} onClick={() => onVolunteerSelect?.(volunteer)}>
+            <VolunteerCard volunteer={volunteer} compact={compact} onClick={handleVolunteerClick} />
+          </div>
         ))}
       </div>
 

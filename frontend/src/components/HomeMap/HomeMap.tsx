@@ -97,6 +97,10 @@ const FocusRegion: React.FC<{ focusRegion: string }> = ({ focusRegion }) => {
       return;
     }
     const view = REGION_VIEW[focusRegion];
+    if (view?.bounds) {
+      map.fitBounds(view.bounds, { padding: [16, 16] });
+      return;
+    }
     if (view) {
       map.flyTo(view.center, view.zoom, { duration: 0.6 });
     }
@@ -132,14 +136,18 @@ const MapActionControls: React.FC<{
 }> = ({ quickFocusOptions, activeRegions, onQuickFocusSelect, onRefresh }) => {
   const map = useMap();
   const [showQuickFocus, setShowQuickFocus] = React.useState(false);
+  const stop = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
 
   return (
-    <div className="home-map__controls">
-      <button type="button" onClick={() => map.zoomIn()} aria-label="放大">+</button>
-      <button type="button" onClick={() => map.zoomOut()} aria-label="缩小">-</button>
+    <div className="home-map__controls" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+      <button type="button" onClick={(e) => { stop(e); map.zoomIn(); }} aria-label="放大">+</button>
+      <button type="button" onClick={(e) => { stop(e); map.zoomOut(); }} aria-label="缩小">-</button>
       <button
         type="button"
-        onClick={() => setShowQuickFocus((v) => !v)}
+        onClick={(e) => { stop(e); setShowQuickFocus((v) => !v); }}
         className={showQuickFocus ? 'is-active' : ''}
         aria-label="快速聚焦"
       >
@@ -147,7 +155,8 @@ const MapActionControls: React.FC<{
       </button>
       <button
         type="button"
-        onClick={() => {
+        onClick={(e) => {
+          stop(e);
           map.fitBounds(CHINA_BOUNDS, { padding: [6, 6] });
           onRefresh();
           setShowQuickFocus(false);
@@ -157,13 +166,13 @@ const MapActionControls: React.FC<{
         ↻
       </button>
       {showQuickFocus && (
-        <div className="home-map__focus-panel">
+        <div className="home-map__focus-panel" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
           {quickFocusOptions.map((item) => (
             <button
               key={item}
               type="button"
               className={activeRegions.includes(item) ? 'is-active' : ''}
-              onClick={() => onQuickFocusSelect(item)}
+              onClick={(e) => { stop(e); onQuickFocusSelect(item); }}
             >
               {item}
             </button>
@@ -298,6 +307,7 @@ const HomeMap: React.FC<HomeMapProps> = ({
               style={style}
               onEachFeature={(feature, layer) => {
                 const name = getFeatureName(feature as ProvinceFeature);
+                if (!name) return; // Skip features without names (e.g., USA, other non-China regions)
                 layer.on({
                   mouseover: () => {
                     if (name) setHoveredProvince(name);

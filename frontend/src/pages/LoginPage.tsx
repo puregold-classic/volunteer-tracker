@@ -28,8 +28,8 @@ function LoginPage({
   const passwordId = 'login-password';
 
   return (
-    <section className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-8 flex items-center justify-between gap-4">
+    <section className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8 dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">账号登录</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">登录后可访问个人中心、审核中心与服务申请。</p>
@@ -75,11 +75,11 @@ function LoginPage({
             {loginError}
           </p>
         )}
-        <div className="flex justify-end gap-3 pt-2">
-          <Button variant="outline" type="button" onClick={onBackHome} disabled={loginSubmitting}>
+        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-end">
+          <Button className="w-full sm:w-auto" variant="outline" type="button" onClick={onBackHome} disabled={loginSubmitting}>
             取消
           </Button>
-          <Button variant="default" type="submit" disabled={loginSubmitting}>
+          <Button className="w-full sm:w-auto" variant="default" type="submit" disabled={loginSubmitting}>
             {loginSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {loginSubmitting ? '登录中...' : '登录'}
           </Button>
