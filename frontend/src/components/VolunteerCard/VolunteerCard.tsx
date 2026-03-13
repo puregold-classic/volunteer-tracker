@@ -43,7 +43,7 @@ const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compa
               <h3 className={cn('truncate font-bold text-slate-900 dark:text-slate-50', compact ? 'text-base' : 'text-lg')}>
                 {volunteer.chineseName}
               </h3>
-              {!compact && <span className="text-xs text-slate-400">{volunteer.id}</span>}
+              <span className="text-xs text-slate-400">{volunteer.id}</span>
             </div>
             <Badge variant={statusVariant}>{volunteer.status}</Badge>
           </div>
