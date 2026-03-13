@@ -171,11 +171,6 @@ function HomePage(props: HomePageProps) {
 
       <div className="hidden sm:grid gap-4 xl:grid-cols-[1.6fr_1fr]">
         <div className="space-y-3">
-          <div className="px-1">
-            <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">志愿者分布地图</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">左侧优先保留地图完整可见，筛选栏压缩到单行工具条。</p>
-          </div>
-
           <Card variant="elevated" className="p-3 md:p-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex min-w-0 flex-1 flex-wrap gap-2">{filterPanel}</div>
