@@ -34,6 +34,7 @@ const HOT_PROVINCE_MAP: Record<HotProvinceFilter, string | undefined> = {
   上海: '上海市',
   深圳: '广东省'
 };
+const NON_PROVINCE_REGION_VALUES = new Set(['中国大陆', '中国台湾', '东南亚', '美国', '欧洲', '其他']);
 const NPS_PAGE_SIZE = 8;
 const NPS_SERVICE_TYPES = ['翻译', '校对', '管理', '技术'] as const;
 type NpsServiceType = (typeof NPS_SERVICE_TYPES)[number];
@@ -369,7 +370,8 @@ function App() {
 
   const toggleRegion = (region: string) => toggleLocationSelection({ type: 'region', value: region }, 'quick-focus');
   const toggleProvince = (province: string) => {
-    const normalized = province === '台湾' ? '台湾省' : province;
+    const normalized = (province === '台湾' ? '台湾省' : province).trim();
+    if (!normalized || NON_PROVINCE_REGION_VALUES.has(normalized)) return;
     toggleLocationSelection({ type: 'province', value: normalized }, 'map');
   };
 

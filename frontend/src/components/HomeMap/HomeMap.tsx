@@ -316,7 +316,8 @@ const HomeMap: React.FC<HomeMapProps> = ({
                     if (name) setHoveredProvince((current) => (current === name ? '' : current));
                   },
                   click: () => {
-                    if (name) onProvinceSelect(name);
+                    if (!name || REGION_VIEW[name]) return;
+                    onProvinceSelect(name);
                   }
                 });
                 if (name) {

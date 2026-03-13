@@ -153,6 +153,55 @@ JSONB 嵌套字段过滤（如 `operator->>'id'`、`submitter->>'id'`）使用 `
 
 ---
 
+## D010 - Frontend UI Refactor Uses Compatibility-First Primitives (2026-03-12)
+
+### Decision
+前端 UI 升级过程中，primitives 必须优先兼容现有调用方式，而不是强推新 API。
+
+### Why
+- 这轮 `Select` 曾被改成 `options` 风格，但现有页面大量使用 `<Select><option /></Select>`。
+- Vite dev/build 不一定先暴露出所有 TS 层问题，结果会变成运行时白屏或页面打不开。
+- 对现有系统做渐进升级时，兼容旧调用方式的成本远低于全量回改页面。
+
+### Consequences
+- primitives 的演进速度会慢一点，但换来更低回归风险。
+- 如果未来要切新 API，应该先双栈兼容，再逐页迁移，最后删旧接口。
+
+---
+
+## D011 - Mobile Home Uses Alternate Information Flow, Not Desktop Shrink (2026-03-12)
+
+### Decision
+移动端首页采用“搜索/筛选入口 + 地图/列表 tab + bottom sheet”的交替式信息流，而不是简单缩放桌面双栏布局。
+
+### Why
+- 桌面首页核心是大地图 + 右侧边栏；直接缩放到手机上会导致地图、筛选、列表同时拥挤，失去优先级。
+- 用户在手机上更适合一次只处理一个主任务：看地图，或看列表，再用 bottom sheet 承接详情预览。
+
+### Consequences
+- HomePage 在 mobile / tablet / desktop 三档上将继续保留差异化结构。
+- 后续新增首页模块时，必须先考虑移动端的信息流，不再默认“桌面优先复制”。
+
+---
+
+## D012 - Region-Level Map Actions Must Never Enter Province Selection Path (2026-03-12)
+
+### Decision
+地图上的区域级操作（中国大陆 / 中国台湾 / 东南亚 / 美国 / 欧洲）与省份点击是两条完全不同的交互链。区域名绝不能进入 `toggleProvince` / `onProvinceSelect` 的省份筛选路径。
+
+### Why
+- 用户反馈点击美国/欧洲报错，本质是区域级动作误入了省份链路。
+- 区域没有对应的中国省份 GeoJSON 数据，继续走 province filter 会产生错误状态或异常。
+- 地图浮层按钮又和 Leaflet 容器重叠，事件更容易串线。
+
+### Consequences
+- 需要双层防御：
+  1. 地图浮层按钮 stopPropagation，避免事件打到底层地图
+  2. `toggleProvince` 和 GeoJSON click handler 都要过滤区域级名称
+- 后续如果再加新的区域（例如加拿大/澳洲），也必须先注册为 region-level action，而不是复用 province path。
+
+---
+
 ## D003 - Phase 1 Backend Container Not Restarted (2026-03-08)
 
 ### Decision

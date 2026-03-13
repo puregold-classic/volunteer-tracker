@@ -209,3 +209,58 @@ Phase 3 Step 2 = 补全剩余 hook 路径（事务版本 + application submit + 
 - 启动验证：注入 DATABASE_URL，重启 backend 容器，检查 `/api/health`
 - 运行 `backend/scripts/verify-migration-complete.js` 确认 PG 数据完整性
 - 合并 `feature/Task1` → `main`，标记 Phase 5 里程碑
+
+---
+
+## [2026-03-12] Frontend UI Sprint — 三波 UI 升级 + 移动端修正 + 地图交互修 bug
+
+### 本轮完成
+
+这轮基本是前端连续冲刺，目标是先把体验拉起来，再一路修因为渐进重构引入的交互/布局问题。
+
+**已完成：**
+- 第一波 UI 升级
+  - 建统一 primitives：Button / Input / Select / Badge / Card variants / Dialog / AlertDialog / EmptyState / ErrorState / SectionHeader / StatCard
+  - ThemeProvider 接入根节点
+  - Toaster 接到根节点
+  - 首页、志愿者卡片/列表、详情页做第一轮视觉统一
+- 第二/三波升级
+  - Header / Footer 统一视觉并后续继续做紧凑化
+  - LoginPage 切到 primitives + toast
+  - MeCenter 改为更清晰的信息分区，后续再从 tabs 改成长屏双栏
+  - ReviewCenter 先统一交互控件，再重排成图表 / 待审核 / 已审核结构
+- 移动端适配
+  - 首页从“缩放桌面”改成“搜索/筛选入口 + 地图/列表 tab + bottom sheet”
+  - Button/Input/Select 补触控尺寸和 iOS 防缩放细节
+  - Login / Detail / Header / Review 做移动端布局修正
+- 信息架构升级
+  - VolunteerCard 改成 3 秒可判断是否值得点开的结构
+  - VolunteerDetailPage 改成：摘要区 / 行动区 / 关键信息区 / 记录区
+- 自动化测试骨架
+  - 补了 3 条 Playwright 主路径脚本骨架（首页加载 / 移动端 tab 切换 / 卡片进详情）
+- 运行时问题修复
+  - `Select` API 曾被改坏，恢复成兼容 `<Select><option /></Select>` 的旧调用方式
+  - 端口漂移导致“页面打不开”，清掉旧 Vite 进程并恢复到 3000
+  - 地图快速聚焦按钮点击美国/欧洲时报错，补了两层防御：
+    1. 地图浮层按钮 stopPropagation，避免事件打到 Leaflet 底层
+    2. `toggleProvince` / GeoJSON 点击链路防御，区域名（美国/欧洲/东南亚等）不会再误走省份选择逻辑
+
+### 待完成
+
+- Playwright E2E 目前只有脚本骨架，没做稳定运行和 CI 接线
+- ReviewCenter 还有继续压缩卡片信息、优化大屏空间分配的余地
+- HomePage 左侧筛选条还能进一步工具栏化，继续节省垂直空间
+- 一些老 SCSS/旧 class 仍在过渡期，后续可以继续收口
+
+### 关键学习
+
+- **渐进重构最容易出事的点不是视觉，而是组件 API 不兼容。** 这轮最典型就是 Select：build 不一定炸，但页面会白。
+- **地图控件上的按钮必须和 Leaflet 事件彻底隔离。** 不然看起来像“点地区报错”，其实是冒泡把交互链搞乱了。
+- **移动端不能照搬桌面栅格。** 首页改成 tab + bottom sheet 后，结构才真正成立。
+- **布局优化后，用户马上会盯信息密度。** 所以要持续做“压高度、提层级、减噪音”，而不是只做卡片变漂亮。
+
+### 当前状态
+
+- 前端无已知阻塞性问题
+- 最近一次改动后 `npm run build` 通过
+- 如果下一轮继续，建议先做真实 viewport smoke（320 / 375 / 390 / 768）再进细节 polish

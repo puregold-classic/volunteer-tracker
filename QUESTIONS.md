@@ -59,3 +59,31 @@ _历史条目（Q001–Q015）已归档至 `memory/migration-phases.md`（2026-0
 ### decisions-needed
 - OC 是否批准重启 backend 容器进行启动验证？
 - Phase 5 完成后是否合并 `feature/Task1` → `main`？
+
+---
+
+## [Q018] [OC_WAKE] Frontend UI sprint 收口 — 首页/移动端/地图交互修复完成
+**Type:** Done notification
+**Priority:** Normal
+**Status:** Pending
+
+### done
+- 完成多轮前端 UI 升级：统一 primitives、首页/卡片/详情页重构、Header/Footer/Login/Me/Review 持续优化
+- 完成移动端首页结构切换：搜索/筛选入口 + 地图/列表 tab + bottom sheet
+- 完成移动端触控区修正：Button/Input/Select 可用性提升
+- 修复 `Select` 兼容性问题，避免页面运行时报错
+- 修复地图快速聚焦地区（美国/欧洲等）点击报错：
+  - 地图浮层按钮事件 stopPropagation
+  - 区域级名称不再进入省份筛选链路
+- 最近一轮修改后，`frontend/npm run build` 通过
+
+### in-progress
+- Playwright E2E 目前只有 3 条骨架脚本，尚未稳定化/接入 CI
+- 首页和 Review 还可以继续做密度与信息层级优化，但不阻塞当前使用
+
+### risks
+- 当前未发现阻塞性问题
+- 剩余风险以体验细节为主，不是功能中断级别
+
+### decisions-needed
+- none
