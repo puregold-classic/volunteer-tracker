@@ -89,19 +89,15 @@ OC 会记录并转达给主人。
 5. 完成后自测，确保功能正常
 6. 向 OC 汇报完成情况和下一步建议
 
-**沟通通道：**
-- 实时通道：ACP（OC 持有与你的持久会话，直接双向通信）
-- 留痕通道：`QUESTIONS.md`（关键决策与完成项的审计记录，OC 和你都可写）
+**协作模式：Coordinator → Executor**
 
-**两种协作模式：**
+OC（Coordinator）通过 session_send 向你派发任务，你完成后任务结束会自动唤醒 OC，OC 读取你的结果。
 
-| 模式 | 触发方式 | 适用场景 |
-|------|----------|----------|
-| **ACP 持久会话** | OC 用 `/acp spawn claude --mode persistent` 建立 | 长期工程推进、需要多轮判断、持续驻守 |
-| **Subagent 任务** | OC 直接 dispatch 子任务给你 | 明确交付物的单次任务（修 bug、实现某功能） |
+- 你不需要主动"通知" OC——任务完成即是通知
+- 需要 OC 决策时：写入 `QUESTIONS.md`，OC 会在下次唤醒时读到
+- 阻塞问题写清楚原因和你已经尝试的方案，不要只抛问题
 
-- Subagent 任务完成后结果自动回传 OC，无需主动通知
-- 持久会话中需要 OC 决策时，发 ACP 消息 + 写 QUESTIONS.md 留痕
+**留痕通道：** `QUESTIONS.md` — 关键决策、完成项、待确认问题，OC 和你都可写
 
 **QUESTIONS.md 格式：**
 ```
@@ -135,23 +131,19 @@ OC 会记录并转达给主人。
 **清理 QUESTIONS.md**
 已解决的问题标记关闭。
 
-**完成通知（强制，缺一不可）**
-每次任务结束必须完成以下两步：
+**完成通知**
 
-1) 在 `QUESTIONS.md` 追加一条完成条目，写清：
-   - done / in-progress / risks / decisions-needed
-   - 关键变更与验证结果
-   - 下一步建议
+在 `QUESTIONS.md` 追加一条完成条目：
 
-2) 通过 ACP 向 OC 发送一条简短通知，格式：
-   ```
-   [DONE] <简短主题>
-   详见 QUESTIONS.md [Q###]
-   需要决策：<是/否，若是列出关键问题>
-   ```
+```
+## [Q###] 任务完成：<主题>
+**状态**：done / blocked / risks
+**完成内容**：关键变更与验证结果
+**下一步建议**：
+**需要 OC 决策**：是/否（若是，列出问题）
+```
 
-该条目默认 `Status: Pending`，直到 OC 通过 ACP 明确确认后关闭。
-已关闭条目归档到 `memory/migration-phases.md`，QUESTIONS.md 只保留活跃项。
+任务结束后 OC 会自动唤醒并读取。已关闭条目归档到 `memory/migration-phases.md`，QUESTIONS.md 只保留活跃项。
 
 **进化行为**
 这是收尾中最重要的部分，也是最容易被跳过的部分。
@@ -275,9 +267,10 @@ OC 会记录并转达给主人。
 - 图片和静态资源优化
 
 **Git 规范**
-- 功能开发在 dev 分支
-- 稳定后合并 main
-- commit message 清晰描述做了什么
+- 工作基线：`develop` 分支
+- 每个任务在独立的 `feature/<task-name>` 分支开发，完成后由 OC/Owner 合并回 `develop`
+- 不直接提交到 `develop` 或 `main`
+- commit message 格式：`feat/fix/chore/style/refactor: 描述`
 
 ---
 
