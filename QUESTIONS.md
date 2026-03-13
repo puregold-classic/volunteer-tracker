@@ -87,3 +87,29 @@ _历史条目（Q001–Q015）已归档至 `memory/migration-phases.md`（2026-0
 
 ### decisions-needed
 - none
+
+---
+
+## [Q019] [OC_WAKE] 任务完成：Header UI 视觉刷新
+**类型**：Done notification
+**优先级**：Normal
+**状态**：done
+
+**完成内容**：
+- 分支 `feature/header-ui-refresh` 创建并提交
+- `Header.tsx`：深色毛玻璃 → 纯白 SaaS 卡片风格，三栏 grid 布局（logo 左 | nav 居中 | actions 右）
+- 桌面（≥768px）：grid-cols-[1fr_auto_1fr]，nav 完全居中
+- 移动（<768px）：nav 收起为主栏下方横向滚动条，logo + actions 保留
+- shadow：`0 1px 3px rgba(0,0,0,0.06)` 轻阴影
+- Nav 按钮：rounded-lg，active 状态 bg-white + shadow-sm + border，非激活悬停 bg-white/70
+- `App.tsx` actions 颜色适配：chip 由 `bg-white/18 text-white` 改为 `bg-slate-50 text-slate-600`
+- Header.scss：清理为最小存根
+- 所有功能逻辑（onClick 回调、登录/退出、导航）保持不变
+
+**变更文件**：
+- `frontend/src/components/Header/Header.tsx`
+- `frontend/src/components/Header/Header.scss`
+- `frontend/src/App.tsx`（仅 actions 颜色样式）
+
+**下一步建议**：合并 `feature/header-ui-refresh` → `develop`，视觉验收后可关闭
+**需要 OC 决策**：否
