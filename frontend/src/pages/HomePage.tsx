@@ -169,7 +169,7 @@ function HomePage(props: HomePageProps) {
         )}
       </div>
 
-      <div className="hidden sm:grid gap-4 xl:grid-cols-[2fr_0.95fr]">
+      <div className="hidden sm:grid gap-4 xl:grid-cols-[1.6fr_1fr]">
         <div className="space-y-3">
           <div className="px-1">
             <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">志愿者分布地图</h2>
@@ -222,7 +222,7 @@ function HomePage(props: HomePageProps) {
               {homeSearch && <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" onClick={onClearSearch}><X className="h-4 w-4" /></button>}
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-1">
+            <div className="mt-4 grid gap-3 grid-cols-1 md:grid-cols-1 xl:grid-cols-3">
               <StatCard label="匹配志愿者" value={homeStatsLoading ? '...' : homeStats.totalVolunteers} />
               <StatCard label="在职占比" value={homeStatsLoading ? '...' : activeRatio} />
               <StatCard label="总服务时长" value={homeStatsLoading ? '...' : `${homeStats.totalHours}h`} />
