@@ -721,13 +721,13 @@ function App() {
         actions={
           isAuthenticated ? (
             <>
-              <span className="rounded-full bg-white/18 px-3 py-1.5 text-sm text-white">
+              <span className="hidden sm:inline-flex rounded-lg bg-slate-50 border border-slate-100 px-3 py-1.5 text-sm font-medium text-slate-600 shrink-0">
                 {account?.name} · {account?.role}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                className={cn('border-slate-200 bg-white/85 text-slate-700 hover:bg-white dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-100')}
+                className={cn('border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg shrink-0')}
                 onClick={() => {
                   navigateTo({ route: 'home' });
                   void logout();
@@ -740,7 +740,7 @@ function App() {
             <Button
               variant="default"
               size="sm"
-              className={cn('bg-sky-600 text-white hover:bg-sky-500')}
+              className={cn('bg-sky-600 text-white hover:bg-sky-500 rounded-lg shrink-0')}
               onClick={() => {
                 setLoginError('');
                 navigateTo({ route: 'login' });

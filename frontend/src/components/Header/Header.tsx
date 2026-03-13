@@ -1,6 +1,5 @@
 import React from 'react';
 import { Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface HeaderNavItem {
@@ -18,33 +17,72 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ title, navItems = [], actions }) => {
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/70 bg-white/82 backdrop-blur-xl dark:border-slate-800/70 dark:bg-slate-950/78">
-      <div className="mx-auto flex w-full max-w-[92rem] flex-col gap-3 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-500 text-sm text-white shadow-md shadow-sky-200/60 dark:shadow-sky-950/40">
-            🤝
+    <header className="sticky top-0 z-50 bg-white border-b border-slate-100 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]">
+      <div className="mx-auto max-w-[92rem] px-4 sm:px-6">
+        {/* Desktop / Tablet: 3-column grid — logo | nav | actions */}
+        <div className="grid items-center h-14 grid-cols-[auto_1fr_auto] md:grid-cols-[1fr_auto_1fr]">
+
+          {/* Logo — left */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-500 text-sm text-white shadow-sm shadow-sky-200/60">
+              🤝
+            </div>
+            <h1 className="truncate text-[0.875rem] font-semibold tracking-tight text-slate-800 sm:max-w-none max-w-[140px]">
+              {title}
+            </h1>
           </div>
-          <h1 className="truncate text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50 md:text-lg">{title}</h1>
+
+          {/* Nav — center, tablet+ only */}
+          {navItems.length > 0 && (
+            <nav className="hidden md:flex items-center justify-center gap-0.5 rounded-xl bg-slate-50 border border-slate-100 p-1">
+              {navItems.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={item.onClick}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-sm font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-sky-400',
+                    item.active
+                      ? 'bg-white text-slate-900 shadow-sm shadow-slate-200/80 border border-slate-100'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/70'
+                  )}
+                >
+                  {item.active && <Sparkles className="h-3 w-3 text-sky-500 shrink-0" />}
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          )}
+
+          {/* Actions — right */}
+          {actions && (
+            <div className="flex items-center justify-end gap-2">
+              {actions}
+            </div>
+          )}
         </div>
 
-        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
-          <nav className="flex flex-1 items-center gap-2 overflow-x-auto pb-1 sm:flex-initial sm:overflow-visible sm:pb-0">
+        {/* Mobile nav row — shown below main row on small screens */}
+        {navItems.length > 0 && (
+          <div className="flex md:hidden items-center gap-1 pb-2 overflow-x-auto scrollbar-none">
             {navItems.map((item) => (
-              <Button
+              <button
                 key={item.label}
                 type="button"
-                variant={item.active ? 'default' : 'ghost'}
-                size="sm"
-                className={cn('rounded-full px-3.5', !item.active && 'text-slate-600 dark:text-slate-300')}
                 onClick={item.onClick}
+                className={cn(
+                  'flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-sky-400',
+                  item.active
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                )}
               >
-                {item.active && <Sparkles className="h-3.5 w-3.5" />}
+                {item.active && <Sparkles className="h-3 w-3 text-sky-400 shrink-0" />}
                 {item.label}
-              </Button>
+              </button>
             ))}
-          </nav>
-          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-        </div>
+          </div>
+        )}
       </div>
     </header>
   );
