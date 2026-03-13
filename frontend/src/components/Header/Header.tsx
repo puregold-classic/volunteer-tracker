@@ -26,6 +26,14 @@ const Header: React.FC<HeaderProps> = ({ title, subtitle, navItems = [], actions
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-500 text-sm text-white shadow-sm shadow-sky-200/60">
               🤝
             </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-[0.875rem] font-semibold tracking-tight text-slate-800 sm:max-w-none max-w-[160px]">
+                纯金经典翻译计划
+              </h1>
+              <p className="truncate text-[0.75rem] text-slate-400 sm:max-w-none max-w-[180px]">
+                志愿者管理网站
+              </p>
+            </div>
           </div>
 
           {/* Nav — center, tablet+ only */}

@@ -203,10 +203,6 @@ function HomePage(props: HomePageProps) {
 
         <div className="space-y-4">
           <Card variant="elevated" className="p-4 md:p-5">
-            <div className="mb-4 text-center">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50">纯金经典翻译计划</h2>
-              <p className="text-xs text-slate-400 mt-0.5">志愿者管理网站</p>
-            </div>
             <div className="flex flex-wrap gap-2 text-xs">
               <Badge variant="outline">状态：{homeStatus === 'all' ? '全部' : homeStatus}</Badge>
               <Badge variant="outline">方向：{homeService === 'all' ? '全部' : homeService}</Badge>
