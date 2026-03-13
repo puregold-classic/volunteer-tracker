@@ -216,16 +216,16 @@ function HomePage(props: HomePageProps) {
               {debouncedSearch && <Badge variant="warning">搜索：{debouncedSearch}</Badge>}
             </div>
 
-            <div className="relative mt-3">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input value={homeSearch} onChange={(e) => onSearchChange(e.target.value)} placeholder="搜索姓名 / 英文名 / ID / 省份..." className="pl-10 pr-10" />
-              {homeSearch && <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" onClick={onClearSearch}><X className="h-4 w-4" /></button>}
-            </div>
-
             <div className="mt-4 grid gap-3 grid-cols-1 md:grid-cols-1 xl:grid-cols-3">
               <StatCard label="匹配志愿者" value={homeStatsLoading ? '...' : homeStats.totalVolunteers} />
               <StatCard label="在职占比" value={homeStatsLoading ? '...' : activeRatio} />
               <StatCard label="总服务时长" value={homeStatsLoading ? '...' : `${homeStats.totalHours}h`} />
+            </div>
+
+            <div className="relative mt-4">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input value={homeSearch} onChange={(e) => onSearchChange(e.target.value)} placeholder="搜索姓名 / 英文名 / ID / 省份..." className="pl-10 pr-10" />
+              {homeSearch && <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" onClick={onClearSearch}><X className="h-4 w-4" /></button>}
             </div>
           </Card>
 
