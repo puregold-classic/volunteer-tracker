@@ -6,6 +6,31 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // API版本
 const API_VERSION = 'v1';
+export const UNAUTHORIZED_EVENT = 'app:unauthorized';
+
+const normalizeApiPath = (url: string): string => {
+  if (url.startsWith('http')) {
+    return url;
+  }
+
+  let normalized = url.startsWith('/') ? url : `/${url}`;
+
+  if (normalized === '/api') {
+    normalized = '/';
+  } else if (normalized.startsWith('/api/')) {
+    normalized = normalized.replace('/api', '');
+  }
+
+  if (normalized === '/') {
+    return `/${API_VERSION}`;
+  }
+
+  if (normalized === `/${API_VERSION}` || normalized.startsWith(`/${API_VERSION}/`)) {
+    return normalized;
+  }
+
+  return `/${API_VERSION}${normalized}`;
+};
 
 // 请求配置
 const DEFAULT_CONFIG: AxiosRequestConfig = {
@@ -28,13 +53,8 @@ const createApiInstance = (config: AxiosRequestConfig = {}): AxiosInstance => {
   // 请求拦截器
   instance.interceptors.request.use(
     (config) => {
-      if (!config.url?.startsWith('/v1') && !config.url?.startsWith('http')) {
-        config.url = `/v1${config.url}`;  // 添加 /v1
-      }
-
-      // 添加API版本前缀
-      if (!config.url?.startsWith(`/${API_VERSION}`) && !config.url?.startsWith('http')) {
-        config.url = `/${API_VERSION}${config.url}`;
+      if (config.url) {
+        config.url = normalizeApiPath(config.url);
       }
 
       // 添加认证token（如果需要）
@@ -86,7 +106,14 @@ const createApiInstance = (config: AxiosRequestConfig = {}): AxiosInstance => {
         switch (error.response.status) {
           case 401:
             errorResponse.message = '未授权，请重新登录';
-            // 可以在这里触发登出逻辑
+            if (typeof window !== 'undefined') {
+              const hasToken = Boolean(localStorage.getItem('auth_token'));
+              const requestUrl = error.config?.url || '';
+              const isAuthEndpoint = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register');
+              if (hasToken && !isAuthEndpoint) {
+                window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT, { detail: errorResponse }));
+              }
+            }
             break;
           case 403:
             errorResponse.message = '拒绝访问';
@@ -98,7 +125,7 @@ const createApiInstance = (config: AxiosRequestConfig = {}): AxiosInstance => {
             errorResponse.message = '服务器内部错误';
             break;
           default:
-            errorResponse.message = error.response.data?.message || '请求失败';
+            errorResponse.message = error.response.data?.message || error.response.data?.error || '请求失败';
         }
       } else if (error.request) {
         errorResponse.message = '网络不可用，请检查网络连接';
@@ -158,7 +185,8 @@ export interface PaginationParams {
 // 筛选参数类型
 export interface FilterParams {
   status?: string;
-  region?: string;
+  region?: string | string[];
+  province?: string | string[];
   services?: string[];
   search?: string;
 }

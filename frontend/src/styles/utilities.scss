@@ -1,0 +1,24 @@
+@use "@styles/variables" as var;
+@use "@styles/animations.scss";
+
+// App.scss 遗留的少量工具/动画样式，集中收口到这里
+
+.align-center {
+  align-items: center !important;
+}
+
+.flex-column {
+  flex-direction: column !important;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -1,0 +1,68 @@
+@import "tailwindcss/theme";
+@import "tailwindcss/utilities";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* 
+ * CSS Variables for theming
+ * Uses system preference as default, with manual toggle support
+ */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 222 24% 13%;
+  --foreground: 210 40% 98%;
+  --card: 222 21% 18%;
+  --card-foreground: 210 40% 98%;
+  --popover: 222 21% 18%;
+  --popover-foreground: 210 40% 98%;
+  --primary: 211 100% 70%;
+  --primary-foreground: 222 47% 11%;
+  --secondary: 217 19% 24%;
+  --secondary-foreground: 210 40% 96%;
+  --muted: 217 18% 22%;
+  --muted-foreground: 214 20% 76%;
+  --accent: 217 19% 24%;
+  --accent-foreground: 210 40% 98%;
+  --destructive: 0 72% 42%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 217 18% 28%;
+  --input: 217 18% 24%;
+  --ring: 204 94% 72%;
+}
+
+/* Apply theme colors */
+body {
+  background:
+    radial-gradient(circle at top, rgba(96, 165, 250, 0.08), transparent 35%),
+    linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)));
+  color: hsl(var(--foreground));
+}
+
+/* Smooth transitions for theme changes */
+* {
+  transition-property: background-color, border-color, color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-in-out;
+}

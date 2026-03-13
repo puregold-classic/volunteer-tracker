@@ -1,12 +1,18 @@
+// src/server.js
+// Phase 5: Removed MongoDB/Mongoose dependency. PG via Prisma is now the sole database.
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import mongoose from 'mongoose';  // 导入 mongoose
 
-import database from './utils/database.js';
+import prisma from './utils/prismaClient.js';
 import volunteerRoutes from './routes/volunteerRoutes.js';
+import applicationRoutes from './routes/applicationRoutes.js'; // 新增
+import reviewRoutes from './routes/reviewRoutes.js'; // 新增
+import serviceRoutes from './routes/serviceRoutes.js'; // 新增
+import auditRoutes from './routes/auditRoutes.js'; // 新增
+import authRoutes from './routes/authRoutes.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 // 加载环境变量
@@ -15,9 +21,6 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 const HOST = '0.0.0.0';  // 必须监听所有接口
-
-// 连接数据库
-database;
 
 // 安全中间件
 app.use(helmet());
@@ -44,15 +47,27 @@ app.use(express.urlencoded({ extended: true }));
 
 // API路由
 app.use('/api/v1/volunteers', volunteerRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/applications', applicationRoutes); // 新增申请路由
+app.use('/api/v1/reviews', reviewRoutes); // 新增审核路由
+app.use('/api/v1/services', serviceRoutes); // 新增服务记录路由
+app.use('/api/v1/audit', auditRoutes); // 新增审计日志路由
 
-// 健康检查 - 修复这里
-app.get('/api/health', (req, res) => {
+// 健康检查
+app.get('/api/health', async (req, res) => {
+  let pgStatus = 'unknown';
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    pgStatus = 'connected';
+  } catch {
+    pgStatus = 'disconnected';
+  }
   res.json({
     status: 'ok',
     message: '志愿者管理系统API正常运行',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    postgresql: pgStatus,
   });
 });
 
@@ -72,7 +87,7 @@ app.get('/', (req, res) => {
     <body>
       <h1>🚀 Volunteer Tracker Backend API</h1>
       <p class="status">✅ Server running on port ${PORT}</p>
-      <p>MongoDB状态: ${mongoose.connection.readyState === 1 ? '已连接' : '未连接'}</p>
+      <p>数据库: PostgreSQL (Prisma)</p>
       <h2>📡 可用接口</h2>
       <div class="endpoint">
         <strong>GET /api/health</strong> - 健康检查
@@ -102,6 +117,11 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`🚀 服务器运行在端口 ${PORT}`);
   console.log(`📡 健康检查: http://localhost:${PORT}/api/health`);
-  console.log(`📊 志愿者API: http://localhost:${PORT}/api/v1/volunteers`);
-  console.log(`🌐 Web界面: http://localhost:${PORT}/`);
+  console.log(`👤 志愿者API: http://localhost:${PORT}/api/v1/volunteers`);
+  console.log(`📝 申请API: http://localhost:${PORT}/api/v1/applications`);
+  console.log(`👮 审核API: http://localhost:${PORT}/api/v1/reviews`);
+  console.log(`📊 服务记录API: http://localhost:${PORT}/api/v1/services`);
+  console.log(`📜 审计日志API: http://localhost:${PORT}/api/v1/audit`);
+  console.log(`📈 审计统计: http://localhost:${PORT}/api/v1/audit/stats/summary`);
+  console.log(`💾 审计导出: http://localhost:${PORT}/api/v1/audit/export`);
 });

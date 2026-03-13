@@ -1,0 +1,194 @@
+@use "@styles/variables" as var;
+
+// ============================================
+// 模态框基础样式
+// ============================================
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1002;
+  animation: fade-in 0.3s ease;
+}
+
+.modal {
+  background: white;
+  border-radius: var.$border-radius-lg;
+  box-shadow: var.$shadow-xl;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow: auto;
+  animation: scale-in 0.3s ease;
+
+  .modal-header {
+    padding: var.$spacing-4;
+    border-bottom: 1px solid var.$color-gray-200;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .modal-title {
+      margin: 0;
+      font-size: var.$font-size-lg;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var.$color-gray-500;
+
+      &:hover {
+        color: var.$color-gray-700;
+      }
+    }
+  }
+
+  .modal-body {
+    padding: var.$spacing-4;
+  }
+
+  .modal-footer {
+    padding: var.$spacing-4;
+    border-top: 1px solid var.$color-gray-200;
+    display: flex;
+    justify-content: flex-end;
+    gap: var.$spacing-2;
+  }
+}
+
+.auth-form-field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: var.$spacing-3;
+
+  label {
+    font-size: var.$font-size-sm;
+    color: var.$color-gray-700;
+  }
+}
+
+.auth-form-input {
+  width: 100%;
+  border: 1px solid var.$color-gray-300;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: var.$font-size-sm;
+}
+
+.auth-form-error {
+  color: #b91c1c;
+  margin: 0;
+  font-size: var.$font-size-sm;
+}
+
+.modal-action-btn {
+  border: 1px solid var.$color-gray-300;
+  border-radius: 6px;
+  background: white;
+  padding: 8px 12px;
+  font-size: var.$font-size-sm;
+  cursor: pointer;
+
+  &.is-primary {
+    border-color: var.$color-primary-500;
+    background: var.$color-primary-500;
+    color: white;
+  }
+}
+
+.volunteer-detail-modal {
+  max-width: 640px;
+}
+
+.volunteer-detail-grid {
+  display: grid;
+  gap: 8px;
+
+  p {
+    margin: 0;
+    color: var.$color-gray-700;
+    font-size: var.$font-size-sm;
+  }
+}
+
+.volunteer-detail-nps {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+
+  h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #0f172a;
+  }
+}
+
+.volunteer-detail-main {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 4px;
+
+  h3 {
+    margin: 0;
+  }
+
+  p {
+    margin: 0;
+  }
+}
+
+.volunteer-detail-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var.$color-gray-200;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 768px) {
+  .modal {
+    width: 95%;
+    margin: 20px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .modal {
+    background: var.$color-gray-800;
+    color: var.$color-gray-100;
+  }
+}
+
+@media print {
+  .modal-overlay {
+    display: none !important;
+  }
+}
