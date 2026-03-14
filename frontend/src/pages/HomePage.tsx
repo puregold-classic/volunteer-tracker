@@ -183,7 +183,6 @@ function HomePage(props: HomePageProps) {
 
           <Card variant="elevated" className="overflow-hidden p-3 md:p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">当前主焦点：{primaryFocusRegion || '未设置'}</span>
               <Badge variant="outline">地区 {selectedRegions.length} / 省份 {selectedProvinces.length}</Badge>
             </div>
             <div className="min-h-[620px] overflow-hidden rounded-[1.5rem] border border-slate-200/80 dark:border-slate-800">
