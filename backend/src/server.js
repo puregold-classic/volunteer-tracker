@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 
 import prisma from './utils/prismaClient.js';
+import { createInitialAdminIfMissing } from './startup/createInitialAdmin.js';
 import volunteerRoutes from './routes/volunteerRoutes.js';
 import applicationRoutes from './routes/applicationRoutes.js'; // 新增
 import reviewRoutes from './routes/reviewRoutes.js'; // 新增
@@ -114,14 +115,26 @@ app.use(notFound);
 app.use(errorHandler);
 
 // 启动服务器
-app.listen(PORT, () => {
-  console.log(`🚀 服务器运行在端口 ${PORT}`);
-  console.log(`📡 健康检查: http://localhost:${PORT}/api/health`);
-  console.log(`👤 志愿者API: http://localhost:${PORT}/api/v1/volunteers`);
-  console.log(`📝 申请API: http://localhost:${PORT}/api/v1/applications`);
-  console.log(`👮 审核API: http://localhost:${PORT}/api/v1/reviews`);
-  console.log(`📊 服务记录API: http://localhost:${PORT}/api/v1/services`);
-  console.log(`📜 审计日志API: http://localhost:${PORT}/api/v1/audit`);
-  console.log(`📈 审计统计: http://localhost:${PORT}/api/v1/audit/stats/summary`);
-  console.log(`💾 审计导出: http://localhost:${PORT}/api/v1/audit/export`);
-});
+const start = async () => {
+  // Ensure an admin account exists (no-op if one already does). Failures are
+  // logged but do not block startup — see createInitialAdmin.js for rationale.
+  try {
+    await createInitialAdminIfMissing();
+  } catch (err) {
+    console.error('[startup] admin bootstrap threw:', err);
+  }
+
+  app.listen(PORT, HOST, () => {
+    console.log(`🚀 服务器运行在端口 ${PORT}`);
+    console.log(`📡 健康检查: http://localhost:${PORT}/api/health`);
+    console.log(`👤 志愿者API: http://localhost:${PORT}/api/v1/volunteers`);
+    console.log(`📝 申请API: http://localhost:${PORT}/api/v1/applications`);
+    console.log(`👮 审核API: http://localhost:${PORT}/api/v1/reviews`);
+    console.log(`📊 服务记录API: http://localhost:${PORT}/api/v1/services`);
+    console.log(`📜 审计日志API: http://localhost:${PORT}/api/v1/audit`);
+    console.log(`📈 审计统计: http://localhost:${PORT}/api/v1/audit/stats/summary`);
+    console.log(`💾 审计导出: http://localhost:${PORT}/api/v1/audit/export`);
+  });
+};
+
+start();
