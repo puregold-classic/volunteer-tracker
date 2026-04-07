@@ -27,7 +27,7 @@ export function AlertDialog({ open, onOpenChange, title, description, confirmTex
         </>
       )}
     >
-      <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300">请确认当前操作，提交后将进入审核流程。</div>
+      <div className="rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300">请确认当前操作，提交后将进入审核流程。</div>
     </Dialog>
   )
 }

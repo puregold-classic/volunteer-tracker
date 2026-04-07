@@ -143,7 +143,7 @@ const MeCenter: React.FC<MeCenterProps> = ({
   const pendingCount = useMemo(() => myApplications.filter((item) => item.status === 'pending').length, [myApplications]);
 
   if (mePanelLoading) {
-    return <Card className="p-10 text-center text-sm text-slate-500 dark:text-slate-400">正在加载个人中心数据...</Card>;
+    return <Card className="p-10 text-center text-sm text-neutral-500 dark:text-neutral-400">正在加载个人中心数据...</Card>;
   }
 
   return (
@@ -157,12 +157,12 @@ const MeCenter: React.FC<MeCenterProps> = ({
               <img
                 src={meVolunteer?.avatar || 'https://ui-avatars.com/api/?name=User&background=random'}
                 alt={meVolunteer?.chineseName || account?.name || '用户头像'}
-                className="h-20 w-20 rounded-[1.5rem] border border-white/70 object-cover shadow-lg dark:border-slate-800"
+                className="h-20 w-20 rounded-[1.5rem] border border-white/70 object-cover shadow-lg dark:border-neutral-800"
               />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-600 dark:text-sky-300">personal center</p>
-                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-50">{meVolunteer?.chineseName || account?.name || '-'}</h2>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{meVolunteer?.englishName || account?.email || '-'}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-600 dark:text-teal-300">personal center</p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">{meVolunteer?.chineseName || account?.name || '-'}</h2>
+                <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{meVolunteer?.englishName || account?.email || '-'}</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">{meVolunteer?.id || account?.volunteerId || '未绑定ID'}</Badge>
@@ -210,7 +210,11 @@ const MeCenter: React.FC<MeCenterProps> = ({
               eyebrow="records"
               title="我的非项目服务记录"
               description="保持现有增删改申请逻辑，只调整成右侧主工作区。"
-              actions={<Button type="button" onClick={onToggleApplicationForm}>{showMeApplicationForm ? '收起申请表单' : '提交 NPS 申请'}</Button>}
+              actions={
+                <Button type="button" variant={showMeApplicationForm ? 'outline' : 'success'} onClick={onToggleApplicationForm}>
+                  {showMeApplicationForm ? '收起表单' : '+ 提交服务记录'}
+                </Button>
+              }
             />
 
             <div className="mt-5 space-y-3">
@@ -226,8 +230,8 @@ const MeCenter: React.FC<MeCenterProps> = ({
                           <Badge variant="outline">{record.serviceId}</Badge>
                           <Badge variant="warning">{record.duration}h</Badge>
                         </div>
-                        <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">{record.description || '-'}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">服务日期：{fmtDate(record.serviceDate)}</p>
+                        <p className="text-sm leading-6 text-neutral-600 dark:text-neutral-300">{record.description || '-'}</p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">服务日期：{fmtDate(record.serviceDate)}</p>
                       </div>
 
                       {meVolunteer?.id === record.volunteerId && (
@@ -239,7 +243,7 @@ const MeCenter: React.FC<MeCenterProps> = ({
                     </div>
 
                     {meEditingServiceId === record.serviceId && (
-                      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
+                      <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4 dark:border-neutral-800 dark:bg-neutral-900">
                         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                           <Input type="date" value={meEditDate} onChange={(e) => setMeEditDate(e.target.value)} />
                           <Select value={meEditType} onChange={(e) => setMeEditType(e.target.value as '翻译' | '校对' | '管理' | '技术')}>
@@ -263,9 +267,9 @@ const MeCenter: React.FC<MeCenterProps> = ({
               <div className="mt-4"><Button type="button" variant="outline" onClick={onLoadMore} disabled={meServicesLoadingMore}>{meServicesLoadingMore ? '加载中...' : '查看更多记录'}</Button></div>
             )}
 
-            <div className="mt-5 rounded-3xl border border-dashed border-slate-200 bg-slate-50/70 p-5 dark:border-slate-700 dark:bg-slate-900/60">
+            <div className="mt-5 rounded-3xl border border-dashed border-neutral-200 bg-neutral-50/70 p-5 dark:border-neutral-700 dark:bg-neutral-900/60">
               {!showMeApplicationForm ? (
-                <p className="text-sm text-slate-600 dark:text-slate-300">申请前需填写：服务日期、服务类型、时长、服务描述。现有审核链路保持不变。</p>
+                <p className="text-sm text-neutral-600 dark:text-neutral-300">申请前需填写：服务日期、服务类型、时长、服务描述。现有审核链路保持不变。</p>
               ) : (
                 <div className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -279,8 +283,8 @@ const MeCenter: React.FC<MeCenterProps> = ({
                   <Button type="button" onClick={onSubmitApplication} disabled={meApplicationSubmitting || !meVolunteer}>{meApplicationSubmitting ? '提交中...' : '确认提交'}</Button>
                 </div>
               )}
-              {meApplicationMessage && <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">{meApplicationMessage}</p>}
-              {meRecordActionMessage && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{meRecordActionMessage}</p>}
+              {meApplicationMessage && <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">{meApplicationMessage}</p>}
+              {meRecordActionMessage && <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{meRecordActionMessage}</p>}
             </div>
           </Card>
 
@@ -309,7 +313,7 @@ const MeCenter: React.FC<MeCenterProps> = ({
 
             <div className="mt-5 space-y-3">
               {myApplicationsLoading ? (
-                <Card className="p-6 text-sm text-slate-500 dark:text-slate-400">正在加载申请记录...</Card>
+                <Card className="p-6 text-sm text-neutral-500 dark:text-neutral-400">正在加载申请记录...</Card>
               ) : myApplications.length === 0 ? (
                 <EmptyState title="暂无申请记录" description="提交 NPS 申请后，会在这里查看审核状态。" />
               ) : (
@@ -319,16 +323,16 @@ const MeCenter: React.FC<MeCenterProps> = ({
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="outline">{item.applicationType}</Badge>
-                          <Badge variant={item.status === 'approved' ? 'success' : item.status === 'rejected' ? 'warning' : 'info'}>
+                          <Badge variant={item.status === 'approved' ? 'success' : item.status === 'rejected' ? 'destructive' : item.status === 'pending' ? 'pending' : 'outline'}>
                             {APPLICATION_STATUS_LABEL[item.status] || item.status}
                           </Badge>
                           <Badge variant="outline">{item.applicationId}</Badge>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">服务类型：{getServiceTypeLabel(item)} · 内容摘要：{getDescriptionSummary(item)}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">提交时间：{fmtDateTime(item.createdAt)}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">审核意见：{item.reviewNotes?.trim() || '-'}</p>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-300">服务类型：{getServiceTypeLabel(item)} · 内容摘要：{getDescriptionSummary(item)}</p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">提交时间：{fmtDateTime(item.createdAt)}</p>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">审核意见：{item.reviewNotes?.trim() || '-'}</p>
                         {item.submittedBy?.name && account?.name && item.submittedBy.name !== account.name && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400">代提交：{item.submittedBy.name}</p>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">代提交：{item.submittedBy.name}</p>
                         )}
                       </div>
                       {(item.status === 'pending' || item.status === 'rejected') && (
@@ -368,9 +372,9 @@ const MeCenter: React.FC<MeCenterProps> = ({
 
 function InfoItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
-      <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-2 text-sm font-medium text-slate-900 dark:text-slate-50">{value}</p>
+    <div className="rounded-2xl bg-neutral-50 p-4 dark:bg-neutral-900">
+      <p className="text-sm text-neutral-500 dark:text-neutral-400">{label}</p>
+      <p className="mt-2 text-sm font-medium text-neutral-900 dark:text-neutral-50">{value}</p>
     </div>
   );
 }

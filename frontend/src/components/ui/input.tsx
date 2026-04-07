@@ -18,12 +18,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           type={inputType}
           className={cn(
-            'flex h-11 w-full rounded-xl border bg-white px-4 py-2 text-base sm:text-sm text-slate-900 shadow-sm outline-none placeholder:text-slate-400',
-            'focus:ring-4 focus:ring-sky-100',
-            'dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-500 dark:focus:ring-sky-500/10',
+            'flex h-11 w-full rounded-xl border bg-white px-4 py-2 text-base sm:text-sm text-neutral-900 shadow-sm outline-none placeholder:text-neutral-400',
+            'focus:ring-4 focus:ring-teal-100',
+            'dark:bg-neutral-900 dark:text-neutral-50 dark:placeholder:text-neutral-500 dark:focus:ring-teal-500/10',
             error
               ? 'border-red-300 focus:border-red-400 focus:ring-red-100 dark:border-red-700 dark:focus:border-red-500 dark:focus:ring-red-500/10'
-              : 'border-slate-200 focus:border-sky-300 dark:border-slate-700 dark:focus:border-sky-500/60',
+              : 'border-neutral-200 focus:border-teal-300 dark:border-neutral-700 dark:focus:border-teal-500/60',
             className,
           )}
           {...props}
@@ -32,7 +32,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
           >
             {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
           </button>

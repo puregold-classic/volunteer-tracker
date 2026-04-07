@@ -5,12 +5,13 @@ import { cn } from '@/lib/utils'
 const badgeVariants = cva('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium', {
   variants: {
     variant: {
-      default: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+      default: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200',
       success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
       warning: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-      info: 'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
+      pending: 'bg-amber-50 text-amber-600 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/20',
+      info: 'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300',
       destructive: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
-      outline: 'border border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-transparent dark:text-slate-300'
+      outline: 'border border-neutral-200 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-transparent dark:text-neutral-300'
     }
   },
   defaultVariants: { variant: 'default' }

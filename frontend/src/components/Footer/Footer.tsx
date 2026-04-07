@@ -5,12 +5,12 @@ const Footer: React.FC = () => {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="mt-auto border-t border-slate-200/70 bg-white/90 dark:border-slate-800/70 dark:bg-slate-950/92">
+    <footer className="mt-auto border-t border-neutral-200/70 bg-white/90 dark:border-neutral-800/70 dark:bg-neutral-950/92">
       <div className="mx-auto w-full max-w-[92rem] px-4 py-3">
-        <p className="flex items-center justify-center gap-1 text-sm text-slate-500 dark:text-slate-400">
+        <p className="flex items-center justify-center gap-1 text-sm text-neutral-500 dark:text-neutral-400">
           © {currentYear} Volunteer Tracker ·{' '}
           <a
-            className="inline-flex items-center gap-1 text-slate-500 transition hover:text-sky-600 dark:text-slate-400 dark:hover:text-sky-300"
+            className="inline-flex items-center gap-1 text-neutral-500 transition hover:text-teal-600 dark:text-neutral-400 dark:hover:text-teal-300"
             href="https://github.com"
             target="_blank"
             rel="noopener noreferrer"

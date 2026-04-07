@@ -153,7 +153,7 @@ const VolunteerList: React.FC<VolunteerListProps> = ({
       </div>
 
       {showPagination && (
-        <Card className="flex flex-col gap-2 px-5 py-4 text-sm text-slate-500 dark:text-slate-400 md:flex-row md:items-center md:justify-between">
+        <Card className="flex flex-col gap-2 px-5 py-4 text-sm text-neutral-500 dark:text-neutral-400 md:flex-row md:items-center md:justify-between">
           <span>当前展示 {volunteers.length} 位志愿者</span>
           <span>全量统计 {stats.total} 位志愿者</span>
         </Card>

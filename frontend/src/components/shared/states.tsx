@@ -5,10 +5,10 @@ import { Card } from '@/components/ui/card'
 export function EmptyState({ title = '暂无数据', description, actionLabel, onAction }: { title?: string; description?: string; actionLabel?: string; onAction?: () => void }) {
   return (
     <Card className="flex min-h-[220px] flex-col items-center justify-center gap-4 border-dashed text-center">
-      <div className="rounded-2xl bg-slate-100 p-4 text-slate-500 dark:bg-slate-800 dark:text-slate-300"><Inbox className="h-6 w-6" /></div>
+      <div className="rounded-2xl bg-neutral-100 p-4 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-300"><Inbox className="h-6 w-6" /></div>
       <div className="space-y-1">
         <h3 className="text-lg font-semibold">{title}</h3>
-        {description && <p className="max-w-md text-sm text-slate-500 dark:text-slate-400">{description}</p>}
+        {description && <p className="max-w-md text-sm text-neutral-500 dark:text-neutral-400">{description}</p>}
       </div>
       {actionLabel && onAction && <Button variant="outline" onClick={onAction}>{actionLabel}</Button>}
     </Card>

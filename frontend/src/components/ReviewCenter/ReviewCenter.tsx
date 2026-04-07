@@ -229,7 +229,7 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
         <SectionHeader
           eyebrow="review"
           title="审核中心"
-          description="保持现有审核逻辑不变，优先统一按钮、输入框和状态标签反馈。"
+          description="待审核申请可在列表中直接通过或驳回，也可在图表中批量操作。"
           actions={<Button type="button" variant="outline" onClick={onRefresh}><RefreshCcw className="h-4 w-4" />刷新</Button>}
         />
       </Card>
@@ -242,7 +242,7 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
       ) : (
         <div className="space-y-6">
           <Card variant="elevated" className="p-6">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-50">待审核申请图表</h3>
+            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">待审核申请图表</h3>
             <div className="review-chart-card mt-4">
               <h4>{CHART_MODE_LABEL[chartMode]} 申请图</h4>
               <div className="review-chart-switch">
@@ -333,19 +333,53 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
           <div className="space-y-6">
             <Card variant="elevated" className="p-6">
               <SectionHeader eyebrow="pending" title={`待审核列表 (${pendingReviews.length})`} description="左侧主列承载待审核列表与快速操作入口。" />
-              <div className="mt-5 space-y-3">
+              <div className="mt-3 space-y-2">
                 {pendingReviews.length === 0 ? (
                   <p className="center-empty">暂无待审核记录</p>
                 ) : (
                   pendingReviews.map((item) => (
-                    <article key={item.applicationId} className="review-item-card">
-                      <p className="flex flex-wrap items-center gap-2"><strong>{item.volunteerName}</strong><Badge variant="outline">{item.applicationType}</Badge></p>
-                      <p className="text-sm text-slate-600 dark:text-slate-300">{new Date(item.createdAt).toLocaleString()}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">ID: {item.applicationId}</p>
-                    </article>
+                    <div key={item.applicationId} className="flex items-start justify-between gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 dark:border-neutral-700 dark:bg-neutral-900">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium text-neutral-900 dark:text-neutral-50">{item.volunteerName}</span>
+                          <Badge variant="outline">{item.applicationType}</Badge>
+                          <Badge variant="pending">{getServiceType(item)}</Badge>
+                        </div>
+                        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                          {getDuration(item) > 0 && `${getDuration(item).toFixed(1)}h · `}
+                          {getServiceDate(item) || new Date(item.createdAt).toLocaleDateString()} · {item.applicationId}
+                        </p>
+                        {getDescription(item) && (
+                          <p className="truncate text-xs text-neutral-600 dark:text-neutral-300">{getDescription(item)}</p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button
+                          type="button"
+                          variant="success"
+                          size="sm"
+                          disabled={reviewSubmittingId === item.applicationId}
+                          onClick={() => void handleReview(item.applicationId, 'approved')}
+                        >
+                          通过
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          disabled={reviewSubmittingId === item.applicationId}
+                          onClick={() => void handleReview(item.applicationId, 'rejected')}
+                        >
+                          驳回
+                        </Button>
+                      </div>
+                    </div>
                   ))
                 )}
               </div>
+              {reviewActionMessage && (
+                <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-300">{reviewActionMessage}</p>
+              )}
             </Card>
 
             <Card variant="elevated" className="p-6">
@@ -396,7 +430,7 @@ const ReviewCenter: React.FC<ReviewCenterProps> = ({
                 类型: <strong>{CHART_MODE_LABEL[chartMode]}</strong> · 分类: <strong>{selectedGroup.serviceType}</strong> · 志愿者ID: <strong>{selectedGroup.volunteerId}</strong>
               </p>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">审核备注（可选，留空将用默认备注）</label>
+                <label className="text-sm font-medium text-neutral-700 dark:text-neutral-300">审核备注（可选，留空将用默认备注）</label>
                 <Input
                   value={reviewNote}
                   onChange={(event) => setReviewNote(event.target.value)}

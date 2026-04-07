@@ -12,75 +12,103 @@ export interface VolunteerCardProps {
 }
 
 const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compact = false }) => {
-  const handleClick = () => {
-    onClick?.(volunteer.id);
-  };
-
-  const statusVariant = volunteer.status === '在职' ? 'success' : 'outline';
-  const primaryTag = volunteer.services[0] || '暂无方向';
+  const isActive = volunteer.status === '在职';
 
   return (
     <Card
       variant="interactive"
-      className={cn(
-        'group cursor-pointer overflow-hidden',
-        compact ? 'min-h-[184px] p-4' : 'min-h-[236px] p-5'
-      )}
-      onClick={handleClick}
+      className="group relative cursor-pointer overflow-hidden pl-4"
+      onClick={() => onClick?.(volunteer.id)}
     >
-      <div className="flex items-start justify-between gap-3">
-        {/* Avatar - left */}
-        <img
-          src={volunteer.avatar}
-          alt={volunteer.chineseName}
-          className={cn('rounded-2xl object-cover ring-1 ring-slate-200 dark:ring-slate-700', compact ? 'h-11 w-11' : 'h-14 w-14')}
-        />
-        
-        {/* Name + Status - right */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <h3 className={cn('truncate font-bold text-slate-900 dark:text-slate-50', compact ? 'text-base' : 'text-lg')}>
-                {volunteer.chineseName}
-              </h3>
-              <span className="text-xs text-slate-400">{volunteer.id}</span>
+      {/* Left accent bar */}
+      <span
+        className={cn(
+          'absolute inset-y-0 left-0 w-1 rounded-l-3xl',
+          isActive ? 'bg-emerald-400' : 'bg-neutral-200 dark:bg-neutral-700'
+        )}
+      />
+
+      <div className={compact ? 'p-4' : 'p-5'}>
+        {/* Top row: avatar + name block + status */}
+        <div className="flex items-start gap-3">
+          <img
+            src={volunteer.avatar}
+            alt={volunteer.chineseName}
+            className={cn(
+              'shrink-0 rounded-2xl object-cover ring-1 ring-neutral-200 dark:ring-neutral-700',
+              compact ? 'h-10 w-10' : 'h-12 w-12'
+            )}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-baseline gap-1.5">
+                <h3 className={cn(
+                  'truncate font-semibold text-neutral-900 dark:text-neutral-50',
+                  compact ? 'text-sm' : 'text-base'
+                )}>
+                  {volunteer.chineseName}
+                </h3>
+                <span className="shrink-0 text-xs text-neutral-400">{volunteer.id}</span>
+              </div>
+              <Badge variant={isActive ? 'success' : 'outline'} className="shrink-0">
+                {volunteer.status}
+              </Badge>
             </div>
-            <Badge variant={statusVariant}>{volunteer.status}</Badge>
+
+            {/* Region + primary service + compact stats */}
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-400">
+              <span className="inline-flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {volunteer.region || '未设置'}
+              </span>
+              {volunteer.services[0] && (
+                <Badge variant="outline" className="text-xs">{volunteer.services[0]}</Badge>
+              )}
+              {compact && (
+                <span className="ml-auto shrink-0 tabular-nums">
+                  {volunteer.nonProjectHours}h · {volunteer.nonProjectCount}次
+                </span>
+              )}
+            </div>
+
+            {!compact && (
+              <p className="mt-1 truncate text-xs text-neutral-400">{volunteer.englishName || '—'}</p>
+            )}
           </div>
-          
-          {/* Region + Service - smaller/lighter */}
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-            <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{volunteer.region || '未设置地区'}</span>
-            <Badge variant="outline" className="text-xs">{primaryTag}</Badge>
-          </div>
-          
-          {!compact && <p className="mt-1 truncate text-xs text-slate-400">{volunteer.englishName || '—'}</p>}
         </div>
+
+        {/* Full mode: stats + service tags */}
+        {!compact && (
+          <>
+            <div className="mt-4 grid grid-cols-2 gap-2.5">
+              <div className="rounded-2xl bg-neutral-50 px-3 py-2.5 dark:bg-neutral-900">
+                <p className="text-xs text-neutral-400">非项目时长</p>
+                <p className="mt-0.5 flex items-center gap-1 text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+                  <Clock3 className="h-3.5 w-3.5 text-teal-500" />
+                  {volunteer.nonProjectHours}h
+                </p>
+              </div>
+              <div className="rounded-2xl bg-neutral-50 px-3 py-2.5 dark:bg-neutral-900">
+                <p className="text-xs text-neutral-400">服务次数</p>
+                <p className="mt-0.5 text-sm font-semibold text-neutral-900 dark:text-neutral-50">
+                  {volunteer.nonProjectCount} 次
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {volunteer.services.slice(0, 4).map((service, i) => (
+                <Badge key={`${volunteer.id}-${service}-${i}`} variant="info" className="text-xs">
+                  {service}
+                </Badge>
+              ))}
+              {volunteer.services.length === 0 && (
+                <Badge variant="outline" className="text-xs">暂无标签</Badge>
+              )}
+            </div>
+          </>
+        )}
       </div>
-
-      {!compact && (
-        <>
-          {/* Stats - two columns */}
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
-              <p className="text-xs text-slate-400">最近活跃</p>
-              <p className="mt-1 font-semibold text-slate-900 dark:text-slate-50"><Clock3 className="mr-1 inline h-3.5 w-3.5 text-sky-500" />{volunteer.nonProjectHours}h</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
-              <p className="text-xs text-slate-400">服务次数</p>
-              <p className="mt-1 font-semibold text-slate-900 dark:text-slate-50">{volunteer.nonProjectCount}次</p>
-            </div>
-          </div>
-
-          {/* Service tags */}
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {volunteer.services.slice(0, 3).map((service, index) => (
-              <Badge key={`${volunteer.id}-${service}-${index}`} variant="info" className="text-xs">{service}</Badge>
-            ))}
-            {volunteer.services.length === 0 && <Badge variant="outline" className="text-xs">暂无标签</Badge>}
-          </div>
-        </>
-      )}
     </Card>
   );
 };

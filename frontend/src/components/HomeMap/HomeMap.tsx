@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { Crosshair, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
 import { GeoJSON, MapContainer, Rectangle, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import type { LatLngBoundsExpression, PathOptions } from 'leaflet';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
@@ -143,15 +144,15 @@ const MapActionControls: React.FC<{
 
   return (
     <div className="home-map__controls" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-      <button type="button" onClick={(e) => { stop(e); map.zoomIn(); }} aria-label="放大">+</button>
-      <button type="button" onClick={(e) => { stop(e); map.zoomOut(); }} aria-label="缩小">-</button>
+      <button type="button" onClick={(e) => { stop(e); map.zoomIn(); }} aria-label="放大"><ZoomIn className="h-4 w-4" /></button>
+      <button type="button" onClick={(e) => { stop(e); map.zoomOut(); }} aria-label="缩小"><ZoomOut className="h-4 w-4" /></button>
       <button
         type="button"
         onClick={(e) => { stop(e); setShowQuickFocus((v) => !v); }}
         className={showQuickFocus ? 'is-active' : ''}
         aria-label="快速聚焦"
       >
-        ◎
+        <Crosshair className="h-4 w-4" />
       </button>
       <button
         type="button"
@@ -163,7 +164,7 @@ const MapActionControls: React.FC<{
         }}
         aria-label="刷新"
       >
-        ↻
+        <RefreshCw className="h-4 w-4" />
       </button>
       {showQuickFocus && (
         <div className="home-map__focus-panel" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
