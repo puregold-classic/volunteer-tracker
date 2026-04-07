@@ -1,0 +1,81 @@
+# Deploy compose for Mac mini sandbox (and future paid prod).
+# Brings up postgres + backend + frontend behind a single nginx-served origin.
+# Only port 80 is exposed to the host — backend and postgres stay on the
+# internal docker network. cloudflared (running on the host) targets
+# http://localhost:80.
+#
+# Usage:
+#   cp .env.deploy.example .env.deploy
+#   # edit .env.deploy: set strong POSTGRES_PASSWORD, JWT_SECRET, BOOTSTRAP_ADMIN_*
+#   docker compose --env-file .env.deploy -f docker-compose.deploy.yml up -d --build
+#
+# This is intentionally a separate file from docker-compose.yml (the local dev
+# setup that mounts source for hot reload). Don't try to merge them — different
+# concerns.
+
+name: volunteer-tracker-deploy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks: [vt-deploy]
+    environment:
+      POSTGRES_DB: volunteer_tracker
+      POSTGRES_USER: volunteer_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U volunteer_user -d volunteer_tracker"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks: [vt-deploy]
+    environment:
+      NODE_ENV: production
+      PORT: "5000"
+      DATABASE_URL: postgresql://volunteer_user:${POSTGRES_PASSWORD}@postgres:5432/volunteer_tracker
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-10}
+      # Admin bootstrap — only used on first boot when DB has no admin
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?BOOTSTRAP_ADMIN_EMAIL is required}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?BOOTSTRAP_ADMIN_PASSWORD is required}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-Admin}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks: [vt-deploy]
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  vt-deploy:
+    driver: bridge
+
+volumes:
+  pg-data:
+    driver: local

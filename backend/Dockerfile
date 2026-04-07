@@ -1,45 +1,35 @@
-# 生产环境Dockerfile - 针对Render优化
-FROM node:18-alpine AS builder
+# Backend production-ish image used by docker-compose.deploy.yml
+# (Mac mini sandbox + future paid prod). The previous incarnation of this file
+# targeted Render.com and is gone — see git history if you need it back.
 
-# 安装必要的工具
-RUN apk add --no-cache python3 make g++ git
+FROM node:20-alpine
+
+# openssl is required by Prisma's query engine binary on alpine
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
-# 复制依赖文件
+# Install runtime deps only. Copy package files first for layer caching.
 COPY package*.json ./
+RUN npm ci --omit=dev
 
-# 清理npm缓存并安装依赖
-RUN npm cache clean --force && \
-    npm ci --only=production
+# Generate Prisma client. Schema is copied separately so changes to src/
+# below do not bust this layer.
+COPY prisma ./prisma
+RUN npx prisma generate
 
-# 复制源代码
-COPY . .
+# Application code
+COPY src ./src
 
-# 运行时阶段
-FROM node:18-alpine AS runner
-
-WORKDIR /app
-
-# 创建非root用户
+# Drop privileges
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001
-
-# 从构建阶段复制文件
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nodejs:nodejs /app/package.json ./package.json
-COPY --from=builder --chown=nodejs:nodejs /app/src ./src
-COPY --from=builder --chown=nodejs:nodejs /app/.env.example ./.env
-
-# 切换到非root用户
+    adduser -S nodejs -u 1001 && \
+    chown -R nodejs:nodejs /app
 USER nodejs
 
-# 暴露端口 - Render要求监听所有接口
-EXPOSE 10000
+EXPOSE 5000
 
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:10000/api/health', (r) => {if(r.statusCode===200)process.exit(0);process.exit(1)})"
-
-# 启动命令 - 重要：Render使用10000端口
-CMD ["node", "src/server.js"]
+# Apply pending migrations on every container start, then run the server.
+# `migrate deploy` is the production-safe variant — it never prompts and never
+# generates new migrations. Idempotent if the DB is already up-to-date.
+CMD ["sh", "-c", "npx prisma migrate deploy && node src/server.js"]

@@ -9,6 +9,9 @@ build/
 .env.development
 .env.test.local
 .env.production
+.env.deploy
+.env.deploy.*
+!.env.deploy.example
 
 # 日志
 logs/
