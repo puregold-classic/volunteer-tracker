@@ -19,9 +19,11 @@
 - **架构约定**：controller 只做 HTTP 适配（解析请求、调用 service、把结果映射成 HTTP 响应），业务逻辑全部放 `services/`，不要回退到把逻辑写进 controller
 
 **Infrastructure**
-- Docker Compose：postgres + backend 容器化，frontend 本地运行
+- 两套 Docker Compose：
+  - `docker-compose.yml`：本地开发用，只跑 postgres + backend，frontend 本地 `npm run dev`
+  - `docker-compose.deploy.yml`：完整 deploy 栈（postgres + backend + nginx-served frontend），单一 80 端口入口，给 Mac mini sandbox + 未来 prod 用
 - 仓库：`puregold-classic/volunteer-tracker`
-- 部署规划：Mac Mini 自托管 → 未来可能迁移云端
+- 部署拓扑：**WSL 开发 / Mac mini 跑 dev sandbox / 生产走付费云**（详见 `docs/deploy/mac-mini-setup.md`）
 
 ## 目录结构
 
@@ -40,16 +42,21 @@ volunteer-tracker/
 │   │   ├── controllers/  # 薄 controller，仅 HTTP 适配
 │   │   ├── routes/       # applicationRoutes, auditRoutes, authRoutes 等
 │   │   ├── services/     # 业务逻辑层（Auth/Admin/Application/Volunteer/Review/Service）
+│   │   ├── startup/      # 启动期任务（admin bootstrap 等）
 │   │   ├── __tests__/    # vitest 单元测试
 │   │   ├── middleware/
 │   │   └── utils/        # serializer, prismaClient 等
 │   └── prisma/
 │       └── schema.prisma # 数据模型，PostgreSQL + JSONB
 ├── docs/
+│   ├── deploy/           # 部署清单（mac-mini-setup.md 等）
+│   ├── design/           # 各页面设计文档
 │   ├── project/          # 技术规范（部分已过时，以本文件为准）
 │   ├── framework/        # 各阶段开发计划
 │   └── archive/          # 历史文档
-├── docker-compose.yml
+├── docker-compose.yml          # 本地开发栈
+├── docker-compose.deploy.yml   # 完整 deploy 栈（Mac mini sandbox / prod）
+├── .env.deploy.example         # deploy 栈的 env 模板
 └── Makefile
 ```
 
@@ -92,9 +99,10 @@ npx prisma studio          # 可视化查看数据
 ## 注意事项
 
 - `docs/` 中部分文档仍提及 MongoDB，**已过时**，以本文件和 `prisma/schema.prisma` 为准
-- 前端没有独立的 Docker 服务，本地 `npm run dev` 运行
-- `render.yaml` 是历史遗留，不再使用
-- `backend/.env` 包含真实密钥，不得提交
+- 前端有两种运行方式：本地开发 `npm run dev`（用 `docker-compose.yml`），完整部署用 nginx 容器（用 `docker-compose.deploy.yml`）
+- `render.yaml` 是历史遗留，不再使用；`backend/Dockerfile` 已重写为 deploy 用，不再针对 Render
+- `backend/.env`（开发）和 `.env.deploy`（部署）都包含真实密钥，不得提交；模板用 `.env.deploy.example`
+- Admin bootstrap：空库首次启动时，backend 会从 `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` env 创建初始 admin，见 `backend/src/startup/createInitialAdmin.js`
 - Prisma 部分 partial unique index 需手动修改迁移 SQL（见 `prisma/migrations/` 注释）
 
 ## 禁止事项
