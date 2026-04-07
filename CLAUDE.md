@@ -6,15 +6,17 @@
 
 **Frontend** (本地运行, port 3000)
 - React 18 + TypeScript + Vite
-- Tailwind CSS v4 + Radix UI
+- Tailwind CSS v4 + Radix UI（**已完成 SCSS → Tailwind 迁移**，不再使用 .scss）
 - Leaflet / react-leaflet（地图）
-- Playwright（E2E 测试）
+- 测试：vitest + @testing-library（单元/hook），Playwright（E2E）
 
 **Backend** (Docker, port 5000)
 - Node.js ESM + Express
 - Prisma ORM + PostgreSQL（已从 MongoDB 迁移完成）
 - JWT + bcrypt 认证
 - 角色体系：`user` / `b_admin` / `a_admin` / `admin`
+- 测试：vitest（service 层单元测试）
+- **架构约定**：controller 只做 HTTP 适配（解析请求、调用 service、把结果映射成 HTTP 响应），业务逻辑全部放 `services/`，不要回退到把逻辑写进 controller
 
 **Infrastructure**
 - Docker Compose：postgres + backend 容器化，frontend 本地运行
@@ -35,11 +37,12 @@ volunteer-tracker/
 │   └── e2e/              # Playwright 测试
 ├── backend/
 │   ├── src/
-│   │   ├── controllers/  # 每个路由对应一个 controller
+│   │   ├── controllers/  # 薄 controller，仅 HTTP 适配
 │   │   ├── routes/       # applicationRoutes, auditRoutes, authRoutes 等
-│   │   ├── services/
+│   │   ├── services/     # 业务逻辑层（Auth/Admin/Application/Volunteer/Review/Service）
+│   │   ├── __tests__/    # vitest 单元测试
 │   │   ├── middleware/
-│   │   └── utils/
+│   │   └── utils/        # serializer, prismaClient 等
 │   └── prisma/
 │       └── schema.prisma # 数据模型，PostgreSQL + JSONB
 ├── docs/
@@ -82,11 +85,9 @@ npx prisma studio          # 可视化查看数据
 
 ## Git 工作流
 
-- `main`：稳定版本
-- `develop`：开发主线
-- `feature/*`：功能分支，从 develop 切出，PR 合并回 develop
-
-当前活跃分支：`feature/header-ui-refresh`
+- `main`：稳定版本，**禁止直接 push**
+- `develop`：开发主线，solo dev 模式下可直接 push
+- `feature/*`：功能分支，从 develop 切出，完成后 fast-forward 合回 develop
 
 ## 注意事项
 
