@@ -190,11 +190,45 @@ cloudflared tunnel run vt-sandbox
 sudo cloudflared service install
 ```
 
-这会把 `~/.cloudflared/config.yml` 注册成 launchd 服务，开机自动启动。
+这会创建 `/Library/LaunchDaemons/com.cloudflare.cloudflared.plist`。**但 brew cloudflared 2026.x 在 macOS 上的 `service install` 有两个坑必须手动修**，否则服务起来后只会在日志里反复打印 `Use 'cloudflared tunnel run' to start tunnel ...` 然后 KeepAlive 死循环重启：
+
+**坑 1：config 没拷到系统位置。** launchd 以 root 跑，看不到 `~/.cloudflared/`。手动拷一份到 `/etc/cloudflared/`，并把 config 里的 `credentials-file` 路径同步改掉：
 
 ```bash
-# 验证服务在跑
+sudo bash -c '
+TUNNEL_ID=<从前面 cloudflared tunnel create 的输出抄过来>
+mkdir -p /etc/cloudflared
+cp ~/.cloudflared/config.yml /etc/cloudflared/config.yml
+cp ~/.cloudflared/${TUNNEL_ID}.json /etc/cloudflared/${TUNNEL_ID}.json
+sed -i "" "s|/Users/$(whoami)/.cloudflared/|/etc/cloudflared/|g" /etc/cloudflared/config.yml
+chmod 600 /etc/cloudflared/${TUNNEL_ID}.json
+chown root:wheel /etc/cloudflared/*
+'
+```
+
+> 如果上面的 sudo bash heredoc 在你的 shell 里被吞了 `~`，把 `~/.cloudflared/` 替换成绝对路径 `/Users/<你的mac用户名>/.cloudflared/`。
+
+**坑 2：plist 的 `ProgramArguments` 只有二进制路径，没有 `tunnel run` 子命令。** 用 PlistBuddy 加上：
+
+```bash
+sudo /usr/libexec/PlistBuddy \
+  -c "Add :ProgramArguments:1 string tunnel" \
+  -c "Add :ProgramArguments:2 string run" \
+  /Library/LaunchDaemons/com.cloudflare.cloudflared.plist
+
+sudo launchctl bootout system /Library/LaunchDaemons/com.cloudflare.cloudflared.plist 2>/dev/null
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.cloudflare.cloudflared.plist
+```
+
+验证服务跑起来 + tunnel 真的连了边缘：
+
+```bash
 sudo launchctl list | grep cloudflared
+# 应该看到非空 PID，第二列是 0（exit 0 = 正常运行中）
+
+tail /Library/Logs/com.cloudflare.cloudflared.err.log
+# 应该看到 4 条 "Registered tunnel connection ... protocol=quic"
+# 不应该看到 "Use 'cloudflared tunnel run' to start tunnel..."
 ```
 
 ---
@@ -238,5 +272,5 @@ docker compose --env-file .env.deploy -f docker-compose.deploy.yml up -d --build
 | `[bootstrap]` 没出现在日志里 | 检查 `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` 是否正确传入 backend |
 | 浏览器能打开页面但登录报 `CORS not allowed` | `CORS_ALLOWED_ORIGINS` 没填、值不对、或者改完没 `up -d` 重启 backend |
 | `https://dev.puregoldclassictranslation.com` 在外网打不开但 `localhost` 能 | (1) `cloudflared tunnel route dns` 没跑过 (2) tunnel 服务没在跑（`sudo launchctl list \| grep cloudflared`）(3) DNS 还没生效，等几分钟 |
-| Cloudflare 显示 `Error 1033` | tunnel 进程没在跑，检查 `cloudflared` 服务状态 |
+| Cloudflare 显示 `Error 1033` | tunnel 进程没在跑或没真连到边缘。看 `/Library/Logs/com.cloudflare.cloudflared.err.log`：如果在反复打印 `Use 'cloudflared tunnel run' to start tunnel ...`，说明阶段 4.6 的 plist `ProgramArguments` 没改对，回去补 |
 | 想重置 admin 密码 | 直接 `docker compose ... down -v` 清空，调整 `.env.deploy` 里的 `BOOTSTRAP_ADMIN_PASSWORD`，重新 up——记住这会清掉所有数据，sandbox 模式可以接受 |
