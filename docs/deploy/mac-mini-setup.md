@@ -6,16 +6,16 @@
 
 ---
 
-## 阶段 1｜买域名（在任意机器上做）
+## 阶段 1｜域名
 
-需要一个挂在 Cloudflare 的域名。Cloudflare Tunnel 必须配 Cloudflare 管理的 DNS。
+**当前使用的域名**：`puregoldclassictranslation.com`（Cloudflare Registrar 注册，DNS 已在 Cloudflare 托管）
 
-1. 打开 [cloudflare.com/products/registrar](https://www.cloudflare.com/products/registrar/)
-2. 搜一个便宜的 TLD：`.xyz` / `.online` / `.top` 一年大约 $10
-3. 注册流程结束后，域名自动接管在你的 Cloudflare 账号下，DNS 也是 Cloudflare 的
-4. **不需要**自己配 A 记录、CNAME 之类的——后面 `cloudflared tunnel route dns` 会自动帮你建
+- Sandbox 主机名：`dev.puregoldclassictranslation.com`
+- apex（`puregoldclassictranslation.com` 本身）暂时保留，未来给生产环境
 
-> 已经有 Cloudflare 上的域名就跳过这步。
+**不需要**自己配 A 记录、CNAME 之类的——后面 `cloudflared tunnel route dns` 会自动帮你建。
+
+> 如果以后要换域名或者新加一个：必须用 Cloudflare Registrar 注册，或者把现有域名的 nameserver 转到 Cloudflare（免费 plan 就够）。Cloudflare Tunnel 强依赖 Cloudflare 管 DNS。
 
 ---
 
@@ -147,7 +147,7 @@ tunnel: <TUNNEL_ID>
 credentials-file: /Users/<你的mac用户名>/.cloudflared/<TUNNEL_ID>.json
 
 ingress:
-  - hostname: dev.<你的域名>
+  - hostname: dev.puregoldclassictranslation.com
     service: http://localhost:80
   - service: http_status:404
 ```
@@ -155,7 +155,7 @@ ingress:
 ### 4.3 绑定 DNS
 
 ```bash
-cloudflared tunnel route dns vt-sandbox dev.<你的域名>
+cloudflared tunnel route dns vt-sandbox dev.puregoldclassictranslation.com
 # 这条命令会在 Cloudflare 自动创建一个 CNAME 指向 tunnel
 ```
 
@@ -164,7 +164,7 @@ cloudflared tunnel route dns vt-sandbox dev.<你的域名>
 编辑 `~/srv/volunteer-tracker/.env.deploy`，把刚才空着的 `CORS_ALLOWED_ORIGINS` 填上：
 
 ```bash
-CORS_ALLOWED_ORIGINS=https://dev.<你的域名>
+CORS_ALLOWED_ORIGINS=https://dev.puregoldclassictranslation.com
 ```
 
 让 backend 重读环境变量：
@@ -180,7 +180,7 @@ docker compose --env-file .env.deploy -f docker-compose.deploy.yml up -d
 cloudflared tunnel run vt-sandbox
 ```
 
-看到 `Connection registered` 之类的字样就说明通了。**用手机关 WiFi 走 4G** 访问 `https://dev.<你的域名>`，应该能看到登录页。试着登录一次（这一步会触发 CORS preflight，要确认能成功）。
+看到 `Connection registered` 之类的字样就说明通了。**用手机关 WiFi 走 4G** 访问 `https://dev.puregoldclassictranslation.com`，应该能看到登录页。试着登录一次（这一步会触发 CORS preflight，要确认能成功）。
 
 如果没问题，Ctrl+C 停掉前台 tunnel，下一步装成系统服务。
 
@@ -237,6 +237,6 @@ docker compose --env-file .env.deploy -f docker-compose.deploy.yml up -d --build
 | `migrate deploy` 失败 | 看 `docker compose logs postgres`，通常是密码不一致或 postgres 没起来 |
 | `[bootstrap]` 没出现在日志里 | 检查 `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` 是否正确传入 backend |
 | 浏览器能打开页面但登录报 `CORS not allowed` | `CORS_ALLOWED_ORIGINS` 没填、值不对、或者改完没 `up -d` 重启 backend |
-| `https://dev.<你的域名>` 在外网打不开但 `localhost` 能 | (1) `cloudflared tunnel route dns` 没跑过 (2) tunnel 服务没在跑（`sudo launchctl list \| grep cloudflared`）(3) DNS 还没生效，等几分钟 |
+| `https://dev.puregoldclassictranslation.com` 在外网打不开但 `localhost` 能 | (1) `cloudflared tunnel route dns` 没跑过 (2) tunnel 服务没在跑（`sudo launchctl list \| grep cloudflared`）(3) DNS 还没生效，等几分钟 |
 | Cloudflare 显示 `Error 1033` | tunnel 进程没在跑，检查 `cloudflared` 服务状态 |
 | 想重置 admin 密码 | 直接 `docker compose ... down -v` 清空，调整 `.env.deploy` 里的 `BOOTSTRAP_ADMIN_PASSWORD`，重新 up——记住这会清掉所有数据，sandbox 模式可以接受 |
