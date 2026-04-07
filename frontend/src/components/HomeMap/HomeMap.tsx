@@ -33,7 +33,9 @@ const CHINA_BOUNDS: LatLngBoundsExpression = [
   [54.0, 136.0]
 ];
 const CHINA_CENTER: [number, number] = [35.5, 104.5];
-const CHINA_GEOJSON_URL = 'https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json';
+// Self-hosted from frontend/public/. Avoids Aliyun DataV's Referer-based 403
+// when served from any non-aliyun origin.
+const CHINA_GEOJSON_URL = '/china-100000.json';
 const REGION_VIEW: Record<
   string,
   { center: [number, number]; zoom: number; bounds?: LatLngBoundsExpression; label?: string; borderColor?: string }
