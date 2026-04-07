@@ -25,19 +25,30 @@ const HOST = '0.0.0.0';  // 必须监听所有接口
 
 // 安全中间件
 app.use(helmet());
-app.use(cors({
-  origin: function (origin, callback) {
-    // 允许所有Netlify域名 + 本地开发
-    if (!origin || 
-        origin.endsWith('.netlify.app') || 
-        origin.includes('localhost') ||
-        origin.includes('127.0.0.1')) {
-      return callback(null, origin);
-    }
-    callback(new Error('CORS not allowed'));
-  },
-  credentials: true
-}));
+
+// CORS allowlist:
+// - No Origin header (curl, server-to-server, same-origin GET) → allow
+// - localhost / 127.0.0.1 → always allow (local dev)
+// - Anything explicitly listed in CORS_ALLOWED_ORIGINS env (comma-separated)
+//   → allow. This is how the Mac mini sandbox / paid prod tells the backend
+//   its public hostname (e.g. https://dev.example.com).
+const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error(`CORS not allowed: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 
 // 日志中间件
 app.use(morgan('dev'));
