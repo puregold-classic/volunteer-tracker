@@ -10,7 +10,11 @@
     "docker:dev": "docker-compose up backend",
     "docker:build": "docker build -t volunteer-backend .",
     "docker:build-dev": "docker build -f Dockerfile.dev -t volunteer-backend-dev .",
-    "test": "node scripts/test-simple.js",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:api": "node scripts/test-simple.js",
     "test:docker": "docker-compose exec backend npm test",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
@@ -31,12 +35,17 @@
     "jsonwebtoken": "^9.0.2",
     "jszip": "^3.10.1",
     "morgan": "^1.10.1",
-    "node-fetch": "^3.3.2",
     "prisma": "^6.19.2"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@vitest/coverage-v8": "^4.1.0",
     "eslint": "^8.45.0",
+    "jsdom": "^29.0.1",
     "nodemon": "^3.0.0",
-    "prettier": "^3.0.0"
+    "prettier": "^3.0.0",
+    "vitest": "^4.1.0"
   }
 }
