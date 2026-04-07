@@ -6,7 +6,7 @@
 
 import prisma from '../utils/prismaClient.js';
 import { IDGenerator } from '../utils/idUtils.js';
-import { SERVICE_TYPE_TO_PG } from '../utils/pgSerializer.js';
+import { SERVICE_TYPE_TO_PG } from '../utils/serializer.js';
 
 class ReviewService {
   /**

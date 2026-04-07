@@ -1,4 +1,4 @@
-// src/utils/pgSerializer.js
+// src/utils/serializer.js
 // Phase 5: Converts Prisma model results back to the "Chinese-string" format
 // that the frontend and existing API consumers expect.
 //

@@ -12,7 +12,7 @@ import {
   REGION_DISPLAY,
   REGION_TO_PG,
   ACTIVITY_LEVEL_DISPLAY,
-} from '../utils/pgSerializer.js';
+} from '../utils/serializer.js';
 
 /**
  * Build a Prisma `where` clause for NonProjectService from API filter params.
@@ -95,7 +95,7 @@ class ServiceService {
       if (region) {
         // Need to filter by volunteer region — use a subquery via volunteerId IN (...)
         const pgRegion = SERVICE_TYPE_TO_PG[region] || region; // region uses REGION_TO_PG actually
-        const { REGION_TO_PG } = await import('../utils/pgSerializer.js');
+        const { REGION_TO_PG } = await import('../utils/serializer.js');
         const pgRegionVal = REGION_TO_PG[region] || region;
         const matchedVolunteers = await prisma.volunteer.findMany({
           where: { region: pgRegionVal },

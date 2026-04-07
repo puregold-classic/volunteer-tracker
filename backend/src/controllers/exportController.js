@@ -196,7 +196,7 @@ class ExportController {
       const where = { isActive: true };
       if (filters.volunteerId) where.volunteerId = filters.volunteerId;
       if (filters.serviceType) {
-        const { SERVICE_TYPE_TO_PG } = await import('../utils/pgSerializer.js');
+        const { SERVICE_TYPE_TO_PG } = await import('../utils/serializer.js');
         where.serviceType = SERVICE_TYPE_TO_PG[filters.serviceType] || filters.serviceType;
       }
       if (filters.serviceDateFrom || filters.serviceDateTo) {

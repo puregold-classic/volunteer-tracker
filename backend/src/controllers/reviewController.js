@@ -4,7 +4,7 @@
 import prisma from '../utils/prismaClient.js';
 import ReviewService from '../services/ReviewService.js';
 import QueryUtils from '../utils/queryUtils.js';
-import { serializeApplication } from '../utils/pgSerializer.js';
+import { serializeApplication } from '../utils/serializer.js';
 
 class ReviewController {
   /**
