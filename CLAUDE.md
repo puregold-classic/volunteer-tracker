@@ -1,37 +1,104 @@
-# CLAUDE.md
+# 志愿者管理系统 — CLAUDE.md
 
-该文件已废弃，不再作为当前协作架构的真实入口。
+全球志愿者可视化管理系统。交互式地图展示志愿者分布，支持多维筛选、审核流程和权限管理。
 
-## Current Source of Truth
+## 技术栈（当前实际状态）
 
-当前有效规则迁移到 OpenClaw workspace：
+**Frontend** (本地运行, port 3000)
+- React 18 + TypeScript + Vite
+- Tailwind CSS v4 + Radix UI
+- Leaflet / react-leaflet（地图）
+- Playwright（E2E 测试）
 
-- `/home/zsy666/.openclaw/workspace/SOUL.md`
-- `/home/zsy666/.openclaw/workspace/AGENTS.md`
-- `/home/zsy666/.openclaw/workspace/USER.md`
-- `/home/zsy666/.openclaw/workspace/registry/agents.yaml`
-- `/home/zsy666/.openclaw/workspace/personas/coordinator/*`
-- `/home/zsy666/.openclaw/workspace/personas/builder/*`
+**Backend** (Docker, port 5000)
+- Node.js ESM + Express
+- Prisma ORM + PostgreSQL（已从 MongoDB 迁移完成）
+- JWT + bcrypt 认证
+- 角色体系：`user` / `b_admin` / `a_admin` / `admin`
 
-项目级共享事实仍以本仓库文件为准：
+**Infrastructure**
+- Docker Compose：postgres + backend 容器化，frontend 本地运行
+- 仓库：`puregold-classic/volunteer-tracker`
+- 部署规划：Mac Mini 自托管 → 未来可能迁移云端
 
-- `PROJECT.md`
-- `DEVLOG.md`
-- `DECISIONS.md`
+## 目录结构
 
-## Deprecated
+```
+volunteer-tracker/
+├── frontend/          # React + TS 前端
+│   ├── src/
+│   │   ├── components/   # AdminCenter, ReviewCenter, MeCenter, HomeMap 等
+│   │   ├── pages/
+│   │   ├── services/     # API 调用层
+│   │   ├── hooks/
+│   │   └── context/
+│   └── e2e/              # Playwright 测试
+├── backend/
+│   ├── src/
+│   │   ├── controllers/  # 每个路由对应一个 controller
+│   │   ├── routes/       # applicationRoutes, auditRoutes, authRoutes 等
+│   │   ├── services/
+│   │   ├── middleware/
+│   │   └── utils/
+│   └── prisma/
+│       └── schema.prisma # 数据模型，PostgreSQL + JSONB
+├── docs/
+│   ├── project/          # 技术规范（部分已过时，以本文件为准）
+│   ├── framework/        # 各阶段开发计划
+│   └── archive/          # 历史文档
+├── docker-compose.yml
+└── Makefile
+```
 
-以下内容不再有效：
+## 启动开发环境
 
-- “首席工程师 / 项目真正负责人” 这一单人格定义
-- 基于 `QUESTIONS.md` 的旧 OC <-> Claude 协作协议
-- `subagent / spawn / 自动唤醒 OC` 叙事
-- 以本文件作为 Builder 或其他固定人格的私有 soul
+```bash
+# 启动后端 + 数据库（Docker）
+make start
+# 或
+./scripts/dev/start.sh
 
-## Temporary Rule
+# 前端（本地）
+cd frontend && npm run dev
 
-如果任何人格读到这个文件：
+# 健康检查
+curl http://localhost:5000/api/health
+```
 
-1. 不要把它当成当前执行协议
-2. 返回 OpenClaw workspace 根目录读取最新规则
-3. 按 `sessionKey -> persona` 路由进入对应 persona 文件
+## 数据库
+
+- ORM: Prisma，schema 在 `backend/prisma/schema.prisma`
+- 模型：Account、Volunteer、ServiceApplication、NonProjectService、AuditLog
+- JSONB 字段：`changes`、`submittedBy`、`auditHistory`、`operator`、`submitter`
+- 枚举值用中文存储（通过 `@map()`）：在职/不在职、翻译/校对/管理/技术 等
+
+```bash
+# 数据库操作
+cd backend
+npx prisma migrate dev     # 新建迁移
+npx prisma generate        # 更新 client
+npx prisma studio          # 可视化查看数据
+```
+
+## Git 工作流
+
+- `main`：稳定版本
+- `develop`：开发主线
+- `feature/*`：功能分支，从 develop 切出，PR 合并回 develop
+
+当前活跃分支：`feature/header-ui-refresh`
+
+## 注意事项
+
+- `docs/` 中部分文档仍提及 MongoDB，**已过时**，以本文件和 `prisma/schema.prisma` 为准
+- 前端没有独立的 Docker 服务，本地 `npm run dev` 运行
+- `render.yaml` 是历史遗留，不再使用
+- `backend/.env` 包含真实密钥，不得提交
+- Prisma 部分 partial unique index 需手动修改迁移 SQL（见 `prisma/migrations/` 注释）
+
+## 禁止事项
+
+- 不得硬编码 JWT_SECRET、数据库密码等敏感信息
+- 不得直接操作数据库绕过 Prisma
+- 不得在 `main` 分支直接 push
+- 不得删除 `prisma/migrations/` 中已有的迁移文件
