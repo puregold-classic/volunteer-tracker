@@ -64,7 +64,7 @@ const VolunteerList: React.FC<VolunteerListProps> = ({
   const fetchStats = async () => {
     try {
       const response = await volunteerService.getStats();
-      if (response.success && response.data.summary) {
+      if (response.success && response.data?.summary) {
         const { summary } = response.data;
         setStats({ total: summary.totalVolunteers, active: summary.totalActive, totalHours: summary.totalHours });
       }

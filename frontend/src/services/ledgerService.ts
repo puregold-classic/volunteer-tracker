@@ -1,0 +1,115 @@
+// frontend/src/services/ledgerService.ts — v2.1
+//
+// Replaces v1's reviewService entirely. v2.1 has no approval queue — admins
+// see a read-only "项目支援台账" with stats and drill-down. All endpoints
+// require b_admin / a_admin / admin (the supportLedger router enforces this).
+
+import { api } from './api';
+import type { ApiResponse } from './types';
+
+export interface LedgerOverview {
+  summary: {
+    totalRecords: number;
+    totalHours: number;
+    avgDuration: number;
+    earliestDate: string | null;
+    latestDate: string | null;
+  };
+  byVolunteer: Array<{
+    volunteerCode: string;
+    chineseName: string;
+    departmentId: string;
+    count: number;
+    totalHours: number;
+    lastDate: string | null;
+  }>;
+  byDepartment: Array<{
+    departmentId: string;
+    departmentName: string;
+    count: number;
+    totalHours: number;
+  }>;
+  byServiceItem: Array<{
+    serviceItemId: string;
+    serviceItemName: string;
+    departmentName: string;
+    count: number;
+    totalHours: number;
+  }>;
+  generatedAt: string;
+}
+
+export interface LedgerTimeSeriesPoint {
+  period: string;
+  count: number;
+  totalHours: number;
+}
+
+export interface ProxyContribution {
+  volunteerCode: string;
+  chineseName: string;
+  proxyCount: number;
+}
+
+export interface VolunteerLedgerDetail {
+  volunteer: {
+    id: string;
+    volunteerCode: string;
+    chineseName: string;
+    department: { id: string; name: string } | null;
+  };
+  summary: {
+    totalRecords: number;
+    totalHours: number;
+    avgDuration: number;
+    earliestDate: string | null;
+    latestDate: string | null;
+    proxyContributions: number;
+  };
+  byServiceItem: Array<{
+    serviceItemName: string;
+    departmentName: string;
+    count: number;
+    totalHours: number;
+  }>;
+  byMonth: Array<{
+    period: string;
+    count: number;
+    totalHours: number;
+  }>;
+  recentRecords: unknown[];
+}
+
+export const ledgerService = {
+  overview: async (params: {
+    dateFrom?: string;
+    dateTo?: string;
+    departmentId?: string;
+  } = {}): Promise<ApiResponse<LedgerOverview>> => {
+    return api.get('/support-ledger/overview', { params });
+  },
+
+  timeSeries: async (months = 12): Promise<ApiResponse<LedgerTimeSeriesPoint[]>> => {
+    return api.get('/support-ledger/time-series', { params: { months } });
+  },
+
+  proxyContributions: async (params: {
+    dateFrom?: string;
+    dateTo?: string;
+  } = {}): Promise<ApiResponse<ProxyContribution[]>> => {
+    return api.get('/support-ledger/proxy-contributions', { params });
+  },
+
+  recentActivity: async (params: {
+    limit?: number;
+    action?: string;
+  } = {}): Promise<ApiResponse<unknown[]>> => {
+    return api.get('/support-ledger/recent-activity', { params });
+  },
+
+  volunteerDetail: async (volunteerId: string): Promise<ApiResponse<VolunteerLedgerDetail>> => {
+    return api.get(`/support-ledger/volunteers/${volunteerId}`);
+  },
+};
+
+export default ledgerService;

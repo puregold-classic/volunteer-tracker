@@ -203,7 +203,7 @@ function HomePage(props: HomePageProps) {
   const visibleChips = filtersExpanded ? allChips : allChips.slice(0, CHIPS_VISIBLE);
   const hiddenCount = allChips.length - CHIPS_VISIBLE;
 
-  const renderChip = (chip: ActiveChip, idx: number) => {
+  const renderChip = (chip: ActiveChip, _idx: number) => {
     switch (chip.kind) {
       case 'status':
         return (
@@ -422,8 +422,8 @@ function HomePage(props: HomePageProps) {
                 <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-50">{selectedVolunteer.chineseName}</h3>
                 <Badge variant={selectedVolunteer.status === '在职' ? 'success' : 'outline'}>{selectedVolunteer.status}</Badge>
               </div>
-              <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{selectedVolunteer.region || '未设置地区'} · {selectedVolunteer.services[0] || '暂无标签'}</p>
-              <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">最近活跃 {selectedVolunteer.nonProjectHours}h · 服务 {selectedVolunteer.nonProjectCount} 次</p>
+              <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">{selectedVolunteer.region || '未设置地区'} · {selectedVolunteer.department?.name || '暂无部门'}</p>
+              <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-300">{selectedVolunteer.volunteerCode}</p>
             </div>
             <button type="button" className="text-neutral-400" onClick={() => setSelectedVolunteer(null)}><X className="h-5 w-5" /></button>
           </div>

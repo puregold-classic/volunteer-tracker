@@ -1,18 +1,22 @@
-import { api, publicApi, ApiResponse } from './api';
+// frontend/src/services/authService.ts — v2.1
+//
+// Login / register / me / logout + admin account management.
+//
+// v2.1 changes:
+// - register requires volunteerCode (claim flow), not arbitrary registration
+// - createAccountByAdmin removed — admin uses adminCreateVolunteerAccount or adminCreateAdmin
+// - adminGenerateMissingAccounts removed (no longer makes sense; volunteer↔account is 1:1 by construction)
+// - Account.volunteerId is now a cuid; Account.volunteerCode is the human PG-XXXX
+// - admin role accounts may have null volunteerId
+
+import { api, publicApi } from './api';
+import type { Account, AdminAccountItem, ApiResponse, Role } from './types';
+
+// Re-export so existing component code that imports `Account` from this file
+// keeps working without touching every consumer.
+export type { Account, AdminAccountItem, Role } from './types';
 
 const AUTH_TOKEN_KEY = 'auth_token';
-
-export interface Account {
-  id: string;
-  email: string;
-  name: string;
-  role: 'user' | 'b_admin' | 'a_admin' | 'admin';
-  volunteerId?: string | null;
-  isActive: boolean;
-  lastLoginAt?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-}
 
 export interface LoginResponse {
   token: string;
@@ -23,60 +27,58 @@ export interface RegisterPayload {
   email: string;
   password: string;
   name: string;
-  volunteerId?: string;
+  /** Pre-existing volunteerCode (PG-XXXX) — admin must have created this volunteer first */
+  volunteerCode: string;
 }
 
-export interface AdminCreateAccountPayload extends RegisterPayload {
-  role: 'user' | 'b_admin' | 'a_admin' | 'admin';
+export interface AdminCreateVolunteerAccountPayload {
+  volunteer: {
+    chineseName: string;
+    englishName?: string;
+    status?: '在职' | '不在职';
+    region: '中国大陆' | '中国台湾' | '东南亚' | '美国' | '欧洲' | '其他';
+    province?: string;
+    subRegion?: string;
+    departmentId: string;
+    email?: string;
+    phone?: string;
+  };
+  account: {
+    email: string;
+    password: string;
+    name?: string;
+    role?: Exclude<Role, 'admin'>;
+  };
+}
+
+export interface AdminCreateAdminPayload {
+  email: string;
+  password: string;
+  name: string;
 }
 
 export interface AdminImportVolunteerPayload {
   csvText: string;
-  createAccounts?: boolean;
   defaultPassword?: string;
-}
-
-export interface AdminCreateVolunteerPayload {
-  chineseName: string;
-  englishName: string;
-  status: '在职' | '不在职';
-  region: '中国大陆' | '中国台湾' | '东南亚' | '美国' | '欧洲' | '其他';
-  province?: string;
-  subRegion?: string;
-  services: string[];
-  email?: string;
-  username?: string;
-  phone?: string;
-  role?: 'user' | 'b_admin' | 'a_admin' | 'admin';
-  createAccount?: boolean;
-  defaultPassword?: string;
-}
-
-export interface AdminAccountItem extends Account {
-  volunteer?: {
-    id: string;
-    chineseName: string;
-    region: string;
-  } | null;
 }
 
 export const authService = {
+  // ─── Token management ───────────────────────────────────────────────────
   getToken: (): string | null => localStorage.getItem(AUTH_TOKEN_KEY),
-
   setToken: (token: string): void => {
     localStorage.setItem(AUTH_TOKEN_KEY, token);
   },
-
   clearToken: (): void => {
     localStorage.removeItem(AUTH_TOKEN_KEY);
   },
 
+  // ─── Public auth ────────────────────────────────────────────────────────
   register: async (payload: RegisterPayload): Promise<ApiResponse<Account>> => {
     return publicApi.post('/auth/register', payload);
   },
 
   login: async (email: string, password: string): Promise<ApiResponse<LoginResponse>> => {
-    const response = await publicApi.post('/auth/login', { email, password });
+    const response = (await publicApi.post('/auth/login', { email, password })) as ApiResponse<LoginResponse>;
     if (response?.success && response?.data?.token) {
       localStorage.setItem(AUTH_TOKEN_KEY, response.data.token);
     }
@@ -88,24 +90,14 @@ export const authService = {
   },
 
   logout: async (): Promise<ApiResponse> => {
-    const response = await api.post('/auth/logout');
+    const response = (await api.post('/auth/logout')) as ApiResponse;
     localStorage.removeItem(AUTH_TOKEN_KEY);
     return response;
   },
 
-  createAccountByAdmin: async (payload: AdminCreateAccountPayload): Promise<ApiResponse<Account>> => {
-    return api.post('/auth/accounts', payload);
-  },
-
+  // ─── Admin: account / volunteer management ──────────────────────────────
   adminListAccounts: async (): Promise<ApiResponse<AdminAccountItem[]>> => {
     return api.get('/auth/admin/accounts');
-  },
-
-  adminUpdateAccountRole: async (
-    accountId: string,
-    payload: { role: 'user' | 'b_admin' | 'a_admin' | 'admin'; isActive?: boolean }
-  ): Promise<ApiResponse<Account>> => {
-    return api.patch(`/auth/admin/accounts/${accountId}/role`, payload);
   },
 
   adminUpdateAccount: async (
@@ -113,42 +105,39 @@ export const authService = {
     payload: {
       name?: string;
       email?: string;
-      role?: 'user' | 'b_admin' | 'a_admin' | 'admin';
+      role?: Role;
       isActive?: boolean;
-      volunteer?: {
-        chineseName?: string;
-        englishName?: string;
-        status?: '在职' | '不在职';
-        region?: '中国大陆' | '中国台湾' | '东南亚' | '美国' | '欧洲' | '其他';
-        province?: string;
-        services?: string[];
-        phone?: string;
-        email?: string;
-      };
     }
   ): Promise<ApiResponse<Account>> => {
     return api.patch(`/auth/admin/accounts/${accountId}`, payload);
   },
 
-  adminDeleteAccount: async (accountId: string): Promise<ApiResponse<any>> => {
+  adminDeleteAccount: async (accountId: string): Promise<ApiResponse<unknown>> => {
     return api.delete(`/auth/admin/accounts/${accountId}`);
   },
 
-  adminImportVolunteers: async (payload: AdminImportVolunteerPayload): Promise<ApiResponse<any>> => {
-    return api.post('/auth/admin/import-volunteers', payload);
-  },
-
-  adminCreateVolunteer: async (payload: AdminCreateVolunteerPayload): Promise<ApiResponse<any>> => {
+  /**
+   * Create a Volunteer + Account pair atomically. Replaces v1's
+   * adminCreateVolunteer + adminGenerateMissingAccounts.
+   */
+  adminCreateVolunteerAccount: async (
+    payload: AdminCreateVolunteerAccountPayload
+  ): Promise<ApiResponse<{ volunteer: unknown; account: Account }>> => {
     return api.post('/auth/admin/volunteers', payload);
   },
 
-  adminGenerateMissingAccounts: async (payload?: { defaultPassword?: string }): Promise<ApiResponse<any>> => {
-    return api.post('/auth/admin/generate-accounts', payload || {});
+  /** Create a new admin (no volunteer binding). Admin role only. */
+  adminCreateAdmin: async (payload: AdminCreateAdminPayload): Promise<ApiResponse<Account>> => {
+    return api.post('/auth/admin/admins', payload);
   },
 
-  adminResetSystem: async (): Promise<ApiResponse<any>> => {
+  adminImportVolunteers: async (payload: AdminImportVolunteerPayload): Promise<ApiResponse<unknown>> => {
+    return api.post('/auth/admin/import-volunteers', payload);
+  },
+
+  adminResetSystem: async (): Promise<ApiResponse<unknown>> => {
     return api.post('/auth/admin/reset-system', { confirm: 'RESET' });
-  }
+  },
 };
 
 export default authService;

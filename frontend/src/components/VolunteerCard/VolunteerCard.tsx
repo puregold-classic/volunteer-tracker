@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock3, MapPin } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Volunteer } from '@services/types';
@@ -20,7 +20,6 @@ const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compa
       className="group relative cursor-pointer overflow-hidden pl-4"
       onClick={() => onClick?.(volunteer.id)}
     >
-      {/* Left accent bar */}
       <span
         className={cn(
           'absolute inset-y-0 left-0 w-1 rounded-l-3xl',
@@ -29,7 +28,6 @@ const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compa
       />
 
       <div className={compact ? 'p-4' : 'p-5'}>
-        {/* Top row: avatar + name block + status */}
         <div className="flex items-start gap-3">
           <img
             src={volunteer.avatar}
@@ -48,26 +46,20 @@ const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compa
                 )}>
                   {volunteer.chineseName}
                 </h3>
-                <span className="shrink-0 text-xs text-neutral-400">{volunteer.id}</span>
+                <span className="shrink-0 text-xs text-neutral-400">{volunteer.volunteerCode}</span>
               </div>
               <Badge variant={isActive ? 'success' : 'outline'} className="shrink-0">
                 {volunteer.status}
               </Badge>
             </div>
 
-            {/* Region + primary service + compact stats */}
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-400">
               <span className="inline-flex items-center gap-1">
                 <MapPin className="h-3 w-3" />
                 {volunteer.region || '未设置'}
               </span>
-              {volunteer.services[0] && (
-                <Badge variant="outline" className="text-xs">{volunteer.services[0]}</Badge>
-              )}
-              {compact && (
-                <span className="ml-auto shrink-0 tabular-nums">
-                  {volunteer.nonProjectHours}h · {volunteer.nonProjectCount}次
-                </span>
+              {volunteer.department && (
+                <Badge variant="outline" className="text-xs">{volunteer.department.name}</Badge>
               )}
             </div>
 
@@ -77,36 +69,10 @@ const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compa
           </div>
         </div>
 
-        {/* Full mode: stats + service tags */}
         {!compact && (
-          <>
-            <div className="mt-4 grid grid-cols-2 gap-2.5">
-              <div className="rounded-2xl bg-neutral-50 px-3 py-2.5 dark:bg-neutral-900">
-                <p className="text-xs text-neutral-400">非项目时长</p>
-                <p className="mt-0.5 flex items-center gap-1 text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-                  <Clock3 className="h-3.5 w-3.5 text-teal-500" />
-                  {volunteer.nonProjectHours}h
-                </p>
-              </div>
-              <div className="rounded-2xl bg-neutral-50 px-3 py-2.5 dark:bg-neutral-900">
-                <p className="text-xs text-neutral-400">服务次数</p>
-                <p className="mt-0.5 text-sm font-semibold text-neutral-900 dark:text-neutral-50">
-                  {volunteer.nonProjectCount} 次
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {volunteer.services.slice(0, 4).map((service, i) => (
-                <Badge key={`${volunteer.id}-${service}-${i}`} variant="info" className="text-xs">
-                  {service}
-                </Badge>
-              ))}
-              {volunteer.services.length === 0 && (
-                <Badge variant="outline" className="text-xs">暂无标签</Badge>
-              )}
-            </div>
-          </>
+          <div className="mt-4 rounded-2xl bg-neutral-50 px-3 py-2.5 text-xs text-neutral-500 dark:bg-neutral-900">
+            服务时长统计已迁移到「项目支援台账」（chunk 6 重做后会回到这里）
+          </div>
         )}
       </div>
     </Card>

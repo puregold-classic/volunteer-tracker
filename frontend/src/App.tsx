@@ -8,7 +8,6 @@ import MePage from './pages/MePage';
 import ReviewPage from './pages/ReviewPage';
 import LoginPage from './pages/LoginPage';
 import VolunteerDetailPage from './pages/VolunteerDetailPage';
-import useReviewCenter from './hooks/useReviewCenter';
 import { useHomeState, QUICK_FOCUS_OPTIONS } from './hooks/useHomeState';
 import { useAuth } from './context/AuthContext';
 
@@ -77,11 +76,6 @@ function App() {
   const { account, isAuthenticated, isLoading, logout } = useAuth();
   const isReviewer = Boolean(account && ['b_admin', 'a_admin', 'admin'].includes(account.role));
   const currentPage = routeState.route;
-  const { pendingReviews, processedReviews, reviewLoading, reviewError, refreshReview } = useReviewCenter(
-    currentPage === 'review' ? 'review' : 'home',
-    isAuthenticated,
-    isReviewer
-  );
 
   const navigateTo = (nextRoute: RouteState) => {
     const nextHash = toHash(nextRoute);
@@ -217,14 +211,7 @@ function App() {
           )}
 
           {currentPage === 'review' && (
-            <ReviewPage
-              isReviewer={isReviewer}
-              reviewLoading={reviewLoading}
-              reviewError={reviewError}
-              pendingReviews={pendingReviews}
-              processedReviews={processedReviews}
-              onRefresh={refreshReview}
-            />
+            <ReviewPage isReviewer={isReviewer} />
           )}
 
           {currentPage === 'volunteer' && routeState.volunteerId && (

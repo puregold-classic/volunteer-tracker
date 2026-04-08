@@ -27,7 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const result = await authService.me();
-      if (result?.success) {
+      if (result?.success && result.data) {
         setAccount(result.data);
       } else {
         setAccount(null);
@@ -72,8 +72,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string) => {
     const result = await authService.login(email, password);
-    if (!result?.success) {
-      throw new Error(result?.message || result?.error || '登录失败');
+    if (!result?.success || !result.data) {
+      throw new Error(result?.message || (result as any)?.error || '登录失败');
     }
     setAccount(result.data.account);
   };
