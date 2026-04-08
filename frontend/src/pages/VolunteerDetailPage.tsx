@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import volunteerService from '@services/volunteerService';
 import projectSupportService from '@services/projectSupportService';
 import type { Volunteer, ProjectSupport } from '@services/types';
+import { useAuth } from '@/context/AuthContext';
 
 interface VolunteerDetailPageProps {
   volunteerId: string;
@@ -17,6 +18,7 @@ interface VolunteerDetailPageProps {
 }
 
 function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPageProps) {
+  const { isAuthenticated } = useAuth();
   const [volunteer, setVolunteer] = useState<Volunteer | null>(null);
   const [supports, setSupports] = useState<ProjectSupport[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,10 +40,14 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
         }
         setVolunteer(vRes.data);
 
-        // Now fetch supports using the cuid (vRes.data.id)
-        const sRes = await projectSupportService.list({ volunteerId: vRes.data.id, limit: 50 });
-        if (cancelled) return;
-        if (sRes?.success && sRes.data?.records) setSupports(sRes.data.records);
+        // ProjectSupport list requires login. Skip silently for anonymous viewers.
+        if (isAuthenticated) {
+          const sRes = await projectSupportService.list({ volunteerId: vRes.data.id, limit: 50 });
+          if (cancelled) return;
+          if (sRes?.success && sRes.data?.records) setSupports(sRes.data.records);
+        } else {
+          setSupports([]);
+        }
       } catch (err: any) {
         if (!cancelled) setError(err?.message || '加载失败');
       } finally {
@@ -49,7 +55,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
       }
     })();
     return () => { cancelled = true; };
-  }, [volunteerId]);
+  }, [volunteerId, isAuthenticated]);
 
   if (loading) return <p className="center-empty">加载中…</p>;
   if (error) return <p className="auth-form-error">{error}</p>;
@@ -90,8 +96,10 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
       </Card>
 
       <Card variant="elevated" className="p-6">
-        <h2 className="text-lg font-semibold">项目支援记录（{supports.length}）</h2>
-        {supports.length === 0 ? (
+        <h2 className="text-lg font-semibold">项目支援记录{isAuthenticated ? `（${supports.length}）` : ''}</h2>
+        {!isAuthenticated ? (
+          <p className="mt-3 text-sm text-neutral-500">登录后可查看该志愿者的项目支援记录</p>
+        ) : supports.length === 0 ? (
           <p className="mt-3 text-sm text-neutral-500">暂无记录</p>
         ) : (
           <div className="mt-3 space-y-3">
