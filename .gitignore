@@ -30,6 +30,7 @@ yarn-error.log*
 *.sqlite
 *.sqlite3
 data/db/
+data/backups/
 
 # 覆盖率
 coverage/

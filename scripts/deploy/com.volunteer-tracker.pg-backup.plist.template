@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  launchd plist for daily PostgreSQL backups on the Mac mini sandbox.
+
+  This is a TEMPLATE — the {{PROJECT_ROOT}} placeholder is filled in
+  during install (see docs/deploy/backup-strategy.md). Do NOT install
+  this file directly; copy it through `sed` so the path is absolute.
+
+  Schedule: every day at 03:00 local time. If the Mac is asleep at 03:00,
+  launchd will run the job at the next wake (StartCalendarInterval semantics).
+
+  Logs: /tmp/volunteer-tracker-pg-backup.{out,err}.log
+
+  Install:
+    sed "s|{{PROJECT_ROOT}}|/Users/zsy666/srv/volunteer-tracker|g" \
+      scripts/deploy/com.volunteer-tracker.pg-backup.plist.template \
+      > ~/Library/LaunchAgents/com.volunteer-tracker.pg-backup.plist
+    launchctl load -w ~/Library/LaunchAgents/com.volunteer-tracker.pg-backup.plist
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.volunteer-tracker.pg-backup.plist
+    rm ~/Library/LaunchAgents/com.volunteer-tracker.pg-backup.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.volunteer-tracker.pg-backup</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>{{PROJECT_ROOT}}/scripts/deploy/pg-backup.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>{{PROJECT_ROOT}}</string>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>3</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/volunteer-tracker-pg-backup.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/volunteer-tracker-pg-backup.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>

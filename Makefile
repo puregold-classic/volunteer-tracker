@@ -1,6 +1,9 @@
 # Volunteer Tracker 开发命令
+#
+# ⚠️ 部分目标过时（v1 残留），不要直接信任 — 需要单独清理。
+# v2.1 已经整理过的目标：backup / backup-list / restore (见末尾)
 
-.PHONY: help dev start stop restart logs seed test clean recover
+.PHONY: help dev start stop restart logs seed test clean recover backup backup-list restore
 
 help:
 	@echo "📋 志愿者管理系统开发命令"
@@ -98,3 +101,15 @@ recover:
 	@docker-compose exec -u root backend npm install
 	@docker-compose restart backend
 	@docker-compose logs --tail=80 backend
+
+# ─── v2.1 备份 / 恢复 ─────────────────────────────────────────────────────────
+# 详见 docs/deploy/backup-strategy.md。这些目标在 Mac mini sandbox 上跑。
+
+backup:
+	@./scripts/deploy/pg-backup.sh
+
+backup-list:
+	@ls -lht data/backups/ 2>/dev/null || echo "尚无备份目录"
+
+restore:
+	@./scripts/deploy/pg-restore.sh latest
