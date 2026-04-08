@@ -121,10 +121,15 @@ rm ~/Library/LaunchAgents/com.volunteer-tracker.pg-backup.plist
 
 ## 演练记录
 
-| 日期 | 操作 | 结果 | 备份大小 | 恢复用时 |
-|---|---|---|---|---|
-| 2026-04-08 | 首次手动备份 | ✓ | 待填 | — |
-| 2026-04-08 | 首次 restore 演练（pre-prod 验证） | 待填 | — | 待填 |
+| 日期 | 操作 | 结果 | 备注 |
+|---|---|---|---|
+| 2026-04-08 | 首次手动 backup | ✓ 6.0KB dump，含 v2.1 schema + 全部 seed 数据 | — |
+| 2026-04-08 | 首次 restore 演练 | ❌ → ✓ | 第 1 次失败：DROP DATABASE 被 backend pool 挡住。改用 `WITH (FORCE)` 修复 |
+| 2026-04-08 | 第 2 次 restore 演练 | ✓ | 10/50/4/5/2 行精确还原。但 backend 502，因 Prisma pool 被强杀 |
+| 2026-04-08 | restore 后 backend 自动 restart | ✓ | 加进 pg-restore.sh 末尾。SKIP_BACKEND_RESTART=1 可跳过 |
+| 2026-04-08 | launchd 装载 + 手动 trigger | ✓ | `launchctl start com.volunteer-tracker.pg-backup` → 新 dump 生成，stderr 干净 |
+
+每次重要 schema 变更后，**应当跑一次 restore 演练**（用 sandbox 当 staging），确保 dump 真的能恢复。
 
 每次重要 schema 变更后，**应当跑一次 restore 演练**（用 sandbox 当 staging），确保 dump 真的能恢复。
 
