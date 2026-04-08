@@ -1,70 +1,61 @@
-// src/utils/IDGenerator.js
-// Phase 5: Switched from Mongoose model lookups to Prisma.
-// ID format is unchanged: {PREFIX}-{relatedId}-{seq3}
-// e.g. APP-PG-0001-001, NPS-PG-0001-001, AUDIT-PG-9001-001
+// src/utils/IDGenerator.js — v2.1
+//
+// Human-readable IDs:
+// - Volunteer.volunteerCode: "PG-0001" — sequential per system
+// - ProjectSupport.supportId: "PS-{volunteerCode}-{seq3}" — sequential per owner
+// - AuditLog.auditId: "AUDIT-{8-char hex}" — non-sequential, race-free
+//
+// Removed in v2.1: generateApplicationId (ServiceApplication deleted)
+// Renamed: generateServiceId → generateSupportId
+// Changed: generateAuditId returns a hex-suffix ID (no sequence query)
 
+import crypto from 'crypto';
 import prisma from './prismaClient.js';
 
 class IDGenerator {
-
-  static async generateApplicationId(submitterId) {
-    if (!this.isValidVolunteerId(submitterId)) {
-      throw new Error(`无效的提交人ID格式: ${submitterId}`);
-    }
-    const nextSeq = await this.getNextApplicationSequence(submitterId);
-    return `APP-${submitterId}-${this.formatSequence(nextSeq)}`;
+  /**
+   * Generate the next "PG-NNNN" code for a new Volunteer.
+   * Scans existing volunteerCode values and increments.
+   */
+  static async generateVolunteerCode() {
+    const last = await prisma.volunteer.findFirst({
+      where: { volunteerCode: { startsWith: 'PG-' } },
+      orderBy: { volunteerCode: 'desc' },
+      select: { volunteerCode: true },
+    });
+    const lastNum = last?.volunteerCode
+      ? parseInt(String(last.volunteerCode).split('-')[1] || '0', 10)
+      : 0;
+    return `PG-${String(lastNum + 1).padStart(4, '0')}`;
   }
 
-  static async generateServiceId(volunteerId) {
-    if (!this.isValidVolunteerId(volunteerId)) {
-      throw new Error(`无效的志愿者ID格式: ${volunteerId}`);
+  /**
+   * Generate the next "PS-{volunteerCode}-{NNN}" supportId for a given owner.
+   */
+  static async generateSupportId(volunteerCode) {
+    if (!this.isValidVolunteerCode(volunteerCode)) {
+      throw new Error(`无效的志愿者 code 格式: ${volunteerCode}`);
     }
-    const nextSeq = await this.getNextServiceSequence(volunteerId);
-    return `NPS-${volunteerId}-${this.formatSequence(nextSeq)}`;
-  }
-
-  static async generateAuditId(reviewerId) {
-    if (!this.isValidVolunteerId(reviewerId)) {
-      throw new Error(`无效的审核人ID格式: ${reviewerId}`);
-    }
-    const nextSeq = await this.getNextAuditSequence(reviewerId);
-    return `AUDIT-${reviewerId}-${this.formatSequence(nextSeq)}`;
-  }
-
-  // ─── private ──────────────────────────────────────────────────────────────
-
-  static async getNextApplicationSequence(submitterId) {
-    const prefix = `APP-${submitterId}-`;
-    const latest = await prisma.serviceApplication.findFirst({
-      where: { applicationId: { startsWith: prefix } },
+    const prefix = `PS-${volunteerCode}-`;
+    const latest = await prisma.projectSupport.findFirst({
+      where: { supportId: { startsWith: prefix } },
       orderBy: { createdAt: 'desc' },
-      select: { applicationId: true },
+      select: { supportId: true },
     });
-    if (!latest) return 1;
-    return this.extractSequenceFromId(latest.applicationId) + 1;
+    if (!latest) return `${prefix}001`;
+    const next = this.extractSequenceFromId(latest.supportId) + 1;
+    return `${prefix}${this.formatSequence(next)}`;
   }
 
-  static async getNextServiceSequence(volunteerId) {
-    const prefix = `NPS-${volunteerId}-`;
-    const latest = await prisma.nonProjectService.findFirst({
-      where: { serviceId: { startsWith: prefix } },
-      orderBy: { createdAt: 'desc' },
-      select: { serviceId: true },
-    });
-    if (!latest) return 1;
-    return this.extractSequenceFromId(latest.serviceId) + 1;
+  /**
+   * Generate a globally-unique audit ID. No sequence query, race-free.
+   * Format: "AUDIT-{8 hex chars}".
+   */
+  static generateAuditId() {
+    return `AUDIT-${crypto.randomBytes(4).toString('hex')}`;
   }
 
-  static async getNextAuditSequence(reviewerId) {
-    const prefix = `AUDIT-${reviewerId}-`;
-    const latest = await prisma.auditLog.findFirst({
-      where: { auditId: { startsWith: prefix } },
-      orderBy: { timestamp: 'desc' },
-      select: { auditId: true },
-    });
-    if (!latest) return 1;
-    return this.extractSequenceFromId(latest.auditId) + 1;
-  }
+  // ─── helpers ──────────────────────────────────────────────────────────────
 
   static extractSequenceFromId(id) {
     const match = id.match(/-(\d+)$/);
@@ -76,15 +67,15 @@ class IDGenerator {
     return seq.toString().padStart(3, '0');
   }
 
-  static isValidVolunteerId(id) {
-    return /^[A-Z]+-\d{3,}$/.test(id);
+  static isValidVolunteerCode(code) {
+    return /^PG-\d{4}$/.test(code);
   }
 
   static validateIdFormat(id, expectedType = null) {
     const patterns = {
-      application: /^APP-[A-Z]+-\d{3,}-\d{3}$/,
-      service: /^NPS-[A-Z]+-\d{3,}-\d{3}$/,
-      audit: /^AUDIT-[A-Z]+-\d{3,}-\d{3}$/,
+      volunteer: /^PG-\d{4}$/,
+      support: /^PS-PG-\d{4}-\d{3}$/,
+      audit: /^AUDIT-[a-f0-9]{8}$/,
     };
     if (!expectedType) {
       for (const [type, pattern] of Object.entries(patterns)) {
@@ -95,7 +86,7 @@ class IDGenerator {
     const pattern = patterns[expectedType];
     if (!pattern) return { isValid: false, error: `未知的类型: ${expectedType}` };
     const isValid = pattern.test(id);
-    return { isValid, type: expectedType, error: isValid ? null : `ID格式不正确` };
+    return { isValid, type: expectedType, error: isValid ? null : 'ID格式不正确' };
   }
 }
 

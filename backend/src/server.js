@@ -1,5 +1,19 @@
-// src/server.js
-// Phase 5: Removed MongoDB/Mongoose dependency. PG via Prisma is now the sole database.
+// src/server.js — v2.1
+//
+// API surface (all under /api/v1):
+//   /auth                — login / register / me / logout / admin account management
+//   /volunteers          — read + update (creation goes through /auth/admin/volunteers)
+//   /departments         — 10 fixed organizational units (read public, mutate admin)
+//   /service-items       — ~50 service categories scoped to departments
+//   /system-settings     — singleton config (lockedBefore for monthly seal)
+//   /project-supports    — CRUD + confirm/reject for support records
+//   /support-ledger      — read-only admin ledger (replaces v1 /reviews)
+//   /audit               — audit log query (admin only)
+//   /exports             — CSV/Excel/JSON export (admin only)
+//
+// Phase 5: Removed MongoDB/Mongoose. Phase v2.1: removed ServiceApplication
+// pipeline; reference data (Department/ServiceItem) added; review flow simplified.
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -8,30 +22,30 @@ import morgan from 'morgan';
 
 import prisma from './utils/prismaClient.js';
 import { createInitialAdminIfMissing } from './startup/createInitialAdmin.js';
-import volunteerRoutes from './routes/volunteerRoutes.js';
-import applicationRoutes from './routes/applicationRoutes.js'; // 新增
-import reviewRoutes from './routes/reviewRoutes.js'; // 新增
-import serviceRoutes from './routes/serviceRoutes.js'; // 新增
-import auditRoutes from './routes/auditRoutes.js'; // 新增
 import authRoutes from './routes/authRoutes.js';
+import volunteerRoutes from './routes/volunteerRoutes.js';
+import departmentRoutes from './routes/departmentRoutes.js';
+import serviceItemRoutes from './routes/serviceItemRoutes.js';
+import systemSettingsRoutes from './routes/systemSettingsRoutes.js';
+import projectSupportRoutes from './routes/projectSupportRoutes.js';
+import supportLedgerRoutes from './routes/supportLedgerRoutes.js';
+import auditRoutes from './routes/auditRoutes.js';
+import exportRoutes from './routes/exportRoutes.js';
 import { notFound, errorHandler } from './middleware/errorHandler.js';
 
-// 加载环境变量
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const HOST = '0.0.0.0';  // 必须监听所有接口
+const HOST = '0.0.0.0';
 
-// 安全中间件
+// 安全 / 日志 / body 解析
 app.use(helmet());
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// CORS allowlist:
-// - No Origin header (curl, server-to-server, same-origin GET) → allow
-// - localhost / 127.0.0.1 → always allow (local dev)
-// - Anything explicitly listed in CORS_ALLOWED_ORIGINS env (comma-separated)
-//   → allow. This is how the Mac mini sandbox / paid prod tells the backend
-//   its public hostname (e.g. https://dev.example.com).
+// CORS
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
   .split(',')
   .map((s) => s.trim())
@@ -47,25 +61,21 @@ app.use(
       return callback(new Error(`CORS not allowed: ${origin}`));
     },
     credentials: true,
-  })
+  }),
 );
 
-// 日志中间件
-app.use(morgan('dev'));
-
-// 解析请求体
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// API路由
-app.use('/api/v1/volunteers', volunteerRoutes);
+// API routes
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/applications', applicationRoutes); // 新增申请路由
-app.use('/api/v1/reviews', reviewRoutes); // 新增审核路由
-app.use('/api/v1/services', serviceRoutes); // 新增服务记录路由
-app.use('/api/v1/audit', auditRoutes); // 新增审计日志路由
+app.use('/api/v1/volunteers', volunteerRoutes);
+app.use('/api/v1/departments', departmentRoutes);
+app.use('/api/v1/service-items', serviceItemRoutes);
+app.use('/api/v1/system-settings', systemSettingsRoutes);
+app.use('/api/v1/project-supports', projectSupportRoutes);
+app.use('/api/v1/support-ledger', supportLedgerRoutes);
+app.use('/api/v1/audit', auditRoutes);
+app.use('/api/v1/exports', exportRoutes);
 
-// 健康检查
+// Health check
 app.get('/api/health', async (req, res) => {
   let pgStatus = 'unknown';
   try {
@@ -76,59 +86,33 @@ app.get('/api/health', async (req, res) => {
   }
   res.json({
     status: 'ok',
-    message: '志愿者管理系统API正常运行',
+    message: '志愿者管理系统 API 正常运行',
+    schemaVersion: '2.1',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
     postgresql: pgStatus,
   });
 });
 
-// 根路由
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html>
-    <head>
-      <title>Volunteer Tracker API</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
-        .status { color: green; font-weight: bold; }
-        .endpoint { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
-      </style>
-    </head>
-    <body>
-      <h1>🚀 Volunteer Tracker Backend API</h1>
-      <p class="status">✅ Server running on port ${PORT}</p>
+    <head><title>Volunteer Tracker API</title></head>
+    <body style="font-family:sans-serif;padding:40px;max-width:800px;margin:auto">
+      <h1>🚀 Volunteer Tracker Backend API (schema v2.1)</h1>
+      <p>✅ Server running on port ${PORT}</p>
       <p>数据库: PostgreSQL (Prisma)</p>
-      <h2>📡 可用接口</h2>
-      <div class="endpoint">
-        <strong>GET /api/health</strong> - 健康检查
-      </div>
-      <div class="endpoint">
-        <strong>GET /api/v1/volunteers</strong> - 获取所有志愿者
-        <br><small>参数: ?status=在职&region=中国大陆&page=1&limit=20</small>
-      </div>
-      <div class="endpoint">
-        <strong>GET /api/v1/volunteers/stats</strong> - 获取统计信息
-      </div>
-      <div class="endpoint">
-        <strong>GET /api/v1/volunteers/:id</strong> - 获取单个志愿者
-      </div>
+      <p>请通过 <code>GET /api/health</code> 检查运行状态。</p>
     </body>
     </html>
   `);
 });
 
-// 404处理
 app.use(notFound);
-
-// 错误处理
 app.use(errorHandler);
 
-// 启动服务器
 const start = async () => {
-  // Ensure an admin account exists (no-op if one already does). Failures are
-  // logged but do not block startup — see createInitialAdmin.js for rationale.
   try {
     await createInitialAdminIfMissing();
   } catch (err) {
@@ -138,13 +122,13 @@ const start = async () => {
   app.listen(PORT, HOST, () => {
     console.log(`🚀 服务器运行在端口 ${PORT}`);
     console.log(`📡 健康检查: http://localhost:${PORT}/api/health`);
-    console.log(`👤 志愿者API: http://localhost:${PORT}/api/v1/volunteers`);
-    console.log(`📝 申请API: http://localhost:${PORT}/api/v1/applications`);
-    console.log(`👮 审核API: http://localhost:${PORT}/api/v1/reviews`);
-    console.log(`📊 服务记录API: http://localhost:${PORT}/api/v1/services`);
-    console.log(`📜 审计日志API: http://localhost:${PORT}/api/v1/audit`);
-    console.log(`📈 审计统计: http://localhost:${PORT}/api/v1/audit/stats/summary`);
-    console.log(`💾 审计导出: http://localhost:${PORT}/api/v1/audit/export`);
+    console.log(`👤 志愿者: /api/v1/volunteers`);
+    console.log(`🏢 部门: /api/v1/departments`);
+    console.log(`📋 服务项: /api/v1/service-items`);
+    console.log(`📝 项目支援: /api/v1/project-supports`);
+    console.log(`📊 项目支援台账: /api/v1/support-ledger`);
+    console.log(`📜 审计日志: /api/v1/audit`);
+    console.log(`💾 导出: /api/v1/exports`);
   });
 };
 

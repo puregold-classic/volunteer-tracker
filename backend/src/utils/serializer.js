@@ -1,13 +1,19 @@
-// src/utils/serializer.js
-// Phase 5: Converts Prisma model results back to the "Chinese-string" format
-// that the frontend and existing API consumers expect.
+// src/utils/serializer.js — v2.1
 //
-// Prisma stores enum values using the DB @map() values (中文) but returns the
-// enum *member* names (ACTIVE, MAINLAND, etc.) at the JavaScript layer.
-// These maps translate member names → display strings for API responses,
-// and provide reverse maps for building Prisma WHERE clauses from Chinese inputs.
+// Translates Prisma model results to API-facing format.
+// Prisma stores enum values using DB @map() values (中文) but returns the
+// member names (ACTIVE, MAINLAND, etc.) in JS. These maps translate
+// member → display string and provide reverse maps for building WHERE clauses.
+//
+// Removed in v2.1:
+// - SERVICE_TYPE_DISPLAY / SERVICE_TYPE_TO_PG (replaced by Department + ServiceItem)
+// - serializeApplication (ServiceApplication model deleted)
+// - serializeNonProjectService → serializeProjectSupport
+// - Volunteer.services array
+// - Volunteer.role (truth source moved to Account.role)
+// - Volunteer.nonProjectHours / nonProjectCount (now derived via aggregation)
 
-// ─── Display maps (Prisma enum member → Chinese display string) ───────────────
+// ─── Display maps ─────────────────────────────────────────────────────────────
 
 export const VOLUNTEER_STATUS_DISPLAY = {
   ACTIVE: '在职',
@@ -29,14 +35,14 @@ export const ACTIVITY_LEVEL_DISPLAY = {
   LOW: '低',
 };
 
-export const SERVICE_TYPE_DISPLAY = {
-  TRANSLATION: '翻译',
-  PROOFREADING: '校对',
-  MANAGEMENT: '管理',
-  TECHNICAL: '技术',
+export const PROJECT_SUPPORT_STATUS_DISPLAY = {
+  ACTIVE: '已生效',
+  PENDING_CONFIRMATION: '待本人确认',
+  REJECTED_BY_OWNER: '本人已拒绝',
+  DELETED: '已删除',
 };
 
-// ─── Reverse maps (Chinese input → Prisma enum member) ────────────────────────
+// ─── Reverse maps ─────────────────────────────────────────────────────────────
 
 export const VOLUNTEER_STATUS_TO_PG = Object.fromEntries(
   Object.entries(VOLUNTEER_STATUS_DISPLAY).map(([k, v]) => [v, k])
@@ -50,15 +56,12 @@ export const ACTIVITY_LEVEL_TO_PG = Object.fromEntries(
   Object.entries(ACTIVITY_LEVEL_DISPLAY).map(([k, v]) => [v, k])
 );
 
-export const SERVICE_TYPE_TO_PG = Object.fromEntries(
-  Object.entries(SERVICE_TYPE_DISPLAY).map(([k, v]) => [v, k])
-);
-
 // ─── Serializers ──────────────────────────────────────────────────────────────
 
 /**
- * Serialize a Prisma Account row to API format.
- * Exposes `id` (PG cuid) as the account identifier.
+ * Serialize a Prisma Account row.
+ * Note: volunteerId here is the FK (cuid) to Volunteer.id, not the human code.
+ * The human-readable code comes from the joined volunteer.volunteerCode.
  */
 export function serializeAccount(a) {
   if (!a) return null;
@@ -67,7 +70,8 @@ export function serializeAccount(a) {
     email: a.email,
     name: a.name,
     role: a.role,
-    volunteerId: a.volunteerId,
+    volunteerId: a.volunteerId,                                // FK (cuid) or null
+    volunteerCode: a.volunteer?.volunteerCode ?? null,         // human code if joined
     isActive: a.isActive,
     lastLoginAt: a.lastLoginAt,
     createdAt: a.createdAt,
@@ -76,16 +80,16 @@ export function serializeAccount(a) {
 }
 
 /**
- * Serialize a Prisma Volunteer row to API format.
- * - `id` is the domain volunteerId (e.g. "PG-0001") for backward compat
- * - Enum fields are translated back to Chinese strings
+ * Serialize a Prisma Volunteer row.
+ * - id is the cuid (PK)
+ * - volunteerCode is the human-readable identifier (e.g. "PG-0001")
+ * - department info included if joined
  */
 export function serializeVolunteer(v) {
   if (!v) return null;
   return {
-    // Expose volunteerId as 'id' to match the old Mongoose document shape
-    id: v.volunteerId,
-    volunteerId: v.volunteerId,
+    id: v.id,
+    volunteerCode: v.volunteerCode,
     chineseName: v.chineseName,
     englishName: v.englishName,
     avatar: v.avatar,
@@ -93,46 +97,88 @@ export function serializeVolunteer(v) {
     region: REGION_DISPLAY[v.region] ?? v.region,
     province: v.province,
     subRegion: v.subRegion,
-    services: (v.services || []).map(s => SERVICE_TYPE_DISPLAY[s] ?? s),
-    nonProjectHours: v.nonProjectHours,
-    nonProjectCount: v.nonProjectCount,
+    departmentId: v.departmentId,
+    department: v.department
+      ? { id: v.department.id, name: v.department.name }
+      : null,
     activityLevel: ACTIVITY_LEVEL_DISPLAY[v.activityLevel] ?? v.activityLevel,
     email: v.email,
     phone: v.phone,
-    role: v.role,
     joinDate: v.joinDate,
     createdAt: v.createdAt,
     updatedAt: v.updatedAt,
   };
 }
 
-/**
- * Serialize a Prisma ServiceApplication row to API format.
- * No enum translation needed — status values are already lowercase English.
- */
-export function serializeApplication(app) {
-  if (!app) return null;
-  // changes and submittedBy are JSONB — already parsed by Prisma
-  return { ...app };
+export function serializeDepartment(d) {
+  if (!d) return null;
+  return {
+    id: d.id,
+    name: d.name,
+    displayOrder: d.displayOrder,
+    createdAt: d.createdAt,
+  };
 }
 
-/**
- * Serialize a Prisma NonProjectService row to API format.
- * serviceType enum is translated back to Chinese.
- */
-export function serializeNonProjectService(svc) {
-  if (!svc) return null;
+export function serializeServiceItem(s) {
+  if (!s) return null;
   return {
-    ...svc,
-    serviceType: SERVICE_TYPE_DISPLAY[svc.serviceType] ?? svc.serviceType,
-    auditHistory: svc.auditHistory ?? [],
+    id: s.id,
+    departmentId: s.departmentId,
+    departmentName: s.department?.name ?? null,
+    name: s.name,
+    displayOrder: s.displayOrder,
+    isActive: s.isActive,
+    createdAt: s.createdAt,
   };
 }
 
 /**
- * Serialize a Prisma AuditLog row to API format.
- * actionDetails, operator, submitter, changes are JSONB — already parsed.
+ * Serialize a Prisma ProjectSupport row.
+ * Includes joined volunteer / submittedBy / serviceItem if available.
  */
+export function serializeProjectSupport(p) {
+  if (!p) return null;
+  return {
+    id: p.id,
+    supportId: p.supportId,
+    volunteerId: p.volunteerId,
+    volunteer: p.volunteer
+      ? {
+          id: p.volunteer.id,
+          volunteerCode: p.volunteer.volunteerCode,
+          chineseName: p.volunteer.chineseName,
+        }
+      : null,
+    submittedById: p.submittedById,
+    submittedBy: p.submittedBy
+      ? {
+          id: p.submittedBy.id,
+          volunteerCode: p.submittedBy.volunteerCode,
+          chineseName: p.submittedBy.chineseName,
+        }
+      : null,
+    serviceItemId: p.serviceItemId,
+    serviceItem: p.serviceItem
+      ? {
+          id: p.serviceItem.id,
+          name: p.serviceItem.name,
+          departmentId: p.serviceItem.departmentId,
+          departmentName: p.serviceItem.department?.name ?? null,
+        }
+      : null,
+    serviceDate: p.serviceDate,
+    duration: p.duration,
+    description: p.description,
+    status: p.status,
+    statusDisplay: PROJECT_SUPPORT_STATUS_DISPLAY[p.status] ?? p.status,
+    confirmedAt: p.confirmedAt,
+    isProxy: p.submittedById !== p.volunteerId,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+  };
+}
+
 export function serializeAuditLog(log) {
   if (!log) return null;
   return { ...log };

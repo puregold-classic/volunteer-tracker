@@ -1,3 +1,11 @@
+// src/services/AuthService.js — v2.1
+//
+// Login + JWT issuance + self-register-by-claiming-existing-volunteer.
+// Account creation goes through AccountService (createVolunteerAccount /
+// createAdminAccount), not here. The PG-0000 / PG-9000..9999 reserved-id
+// hacks from v1 are gone — v2.1's CHECK constraint enforces 1:1 binding
+// at the DB level, so the workarounds are unnecessary.
+
 import jwt from 'jsonwebtoken';
 import prisma from '../utils/prismaClient.js';
 import { hashPassword, verifyPassword } from '../utils/passwordUtils.js';
@@ -8,75 +16,55 @@ export const signToken = (account) => {
   if (!jwtSecret) throw new Error('JWT_SECRET is not configured');
   const expiresIn = process.env.JWT_EXPIRES_IN || '8h';
   return jwt.sign(
-    { sub: account.id, role: account.role, email: account.email, volunteerId: account.volunteerId || null, name: account.name },
+    {
+      sub: account.id,
+      role: account.role,
+      email: account.email,
+      // volunteerId is the FK (cuid). Middleware joins to get the volunteerCode.
+      volunteerId: account.volunteerId || null,
+      name: account.name,
+    },
     jwtSecret,
-    { expiresIn }
+    { expiresIn },
   );
 };
 
-const getNextReservedReviewerId = async () => {
-  const used = await prisma.account.findMany({
-    where: { volunteerId: { startsWith: 'PG-9' } },
-    select: { volunteerId: true },
-  });
-  const usedSet = new Set(used.map(a => a.volunteerId?.toUpperCase()));
-  for (let n = 9999; n >= 9000; n -= 1) {
-    const candidate = `PG-${String(n).padStart(4, '0')}`;
-    if (!usedSet.has(candidate)) return candidate;
+/**
+ * Self-register: claim a pre-existing Volunteer by its volunteerCode + email match.
+ * The Volunteer must already exist (admin-created or CSV-imported) and have no
+ * Account bound yet. This replaces v1's "register without volunteer" path which
+ * is no longer possible under the v2.1 CHECK constraint.
+ */
+export const register = async ({ email, password, name, volunteerCode }) => {
+  if (!email || !password || !name || !volunteerCode) {
+    return { missingFields: true };
   }
-  throw new Error('无可用的保留审核员ID（PG-9999..PG-9000已用尽）');
-};
-
-const resolveReservedVolunteerId = async (role, requestedVolunteerId) => {
-  if (requestedVolunteerId) return requestedVolunteerId;
-  if (role === 'admin') return 'PG-0000';
-  if (role === 'a_admin') return getNextReservedReviewerId();
-  return null;
-};
-
-export const register = async ({ email, password, name, volunteerId }) => {
-  if (!email || !password || !name) return { missingFields: true };
   if (password.length < 8) return { weakPassword: true };
 
-  const existing = await prisma.account.findUnique({ where: { email: email.toLowerCase() } });
+  const normalizedEmail = String(email).trim().toLowerCase();
+
+  const existing = await prisma.account.findUnique({ where: { email: normalizedEmail } });
   if (existing) return { emailTaken: true };
 
-  if (volunteerId) {
-    const volunteer = await prisma.volunteer.findFirst({ where: { volunteerId }, select: { volunteerId: true } });
-    if (!volunteer) return { volunteerNotFound: true };
-    const bound = await prisma.account.findUnique({ where: { volunteerId }, select: { id: true, email: true } });
-    if (bound) return { volunteerBound: bound.email };
-  }
+  const volunteer = await prisma.volunteer.findUnique({ where: { volunteerCode } });
+  if (!volunteer) return { volunteerNotFound: true };
+
+  const bound = await prisma.account.findUnique({
+    where: { volunteerId: volunteer.id },
+    select: { id: true, email: true },
+  });
+  if (bound) return { volunteerBound: bound.email };
 
   const passwordHash = await hashPassword(password);
   const account = await prisma.account.create({
-    data: { email: email.toLowerCase(), passwordHash, name, role: 'user', volunteerId: volunteerId || null },
-  });
-  return { account: serializeAccount(account) };
-};
-
-const ALLOWED_ROLES = ['user', 'b_admin', 'a_admin', 'admin'];
-
-export const createAccountByAdmin = async ({ email, password, name, role = 'user', volunteerId: requestedVolunteerId = null }) => {
-  if (!email || !password || !name) return { missingFields: true };
-  if (password.length < 8) return { weakPassword: true };
-  if (!ALLOWED_ROLES.includes(role)) return { invalidRole: true };
-
-  const existing = await prisma.account.findUnique({ where: { email: email.toLowerCase() } });
-  if (existing) return { emailTaken: true };
-
-  const volunteerId = await resolveReservedVolunteerId(role, requestedVolunteerId);
-
-  if (volunteerId && !['admin', 'a_admin'].includes(role)) {
-    const volunteer = await prisma.volunteer.findFirst({ where: { volunteerId }, select: { volunteerId: true } });
-    if (!volunteer) return { volunteerNotFound: true };
-    const bound = await prisma.account.findUnique({ where: { volunteerId }, select: { id: true, email: true } });
-    if (bound) return { volunteerBound: bound.email };
-  }
-
-  const passwordHash = await hashPassword(password);
-  const account = await prisma.account.create({
-    data: { email: email.toLowerCase(), passwordHash, name, role, volunteerId },
+    data: {
+      email: normalizedEmail,
+      passwordHash,
+      name: String(name).trim(),
+      role: 'user',
+      volunteerId: volunteer.id,
+    },
+    include: { volunteer: { include: { department: true } } },
   });
   return { account: serializeAccount(account) };
 };
@@ -84,19 +72,29 @@ export const createAccountByAdmin = async ({ email, password, name, role = 'user
 export const login = async ({ email, password }) => {
   if (!email || !password) return { missingFields: true };
 
-  const account = await prisma.account.findUnique({ where: { email: email.toLowerCase() } });
+  const account = await prisma.account.findUnique({
+    where: { email: String(email).trim().toLowerCase() },
+    include: { volunteer: { include: { department: true } } },
+  });
   if (!account || !account.isActive) return { invalidCredentials: true };
 
   const valid = await verifyPassword(password, account.passwordHash);
   if (!valid) return { invalidCredentials: true };
 
-  const updated = await prisma.account.update({ where: { id: account.id }, data: { lastLoginAt: new Date() } });
+  const updated = await prisma.account.update({
+    where: { id: account.id },
+    data: { lastLoginAt: new Date() },
+    include: { volunteer: { include: { department: true } } },
+  });
   const token = signToken(updated);
   return { token, account: serializeAccount(updated) };
 };
 
 export const getMe = async (accountId) => {
-  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  const account = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { volunteer: { include: { department: true } } },
+  });
   if (!account || !account.isActive) return null;
   return serializeAccount(account);
 };

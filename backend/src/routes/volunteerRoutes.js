@@ -1,26 +1,25 @@
+// src/routes/volunteerRoutes.js — v2.1
+//
+// Read + update only here. Volunteer creation lives under /admin/volunteers
+// (delegates to AccountService.createVolunteerAccount). Volunteer deletion
+// happens via the account-cascade flow.
+
 import express from 'express';
 import {
   getAllVolunteers,
   getVolunteerById,
-  createVolunteer,
   updateVolunteer,
-  deleteVolunteer,
-  getVolunteerStats
+  getVolunteerStats,
+  getVolunteerDerivedStats,
 } from '../controllers/volunteerController.js';
+import { authenticate, authorizeRoles } from '../middleware/authenticate.js';
 
 const router = express.Router();
 
-// 志愿者路由
-router.route('/')
-  .get(getAllVolunteers)    // 获取所有志愿者
-  .post(createVolunteer);   // 创建志愿者
-
-router.route('/stats')
-  .get(getVolunteerStats);  // 获取统计信息
-
-router.route('/:id')
-  .get(getVolunteerById)    // 获取单个志愿者
-  .put(updateVolunteer)     // 更新志愿者
-  .delete(deleteVolunteer); // 删除志愿者
+router.get('/', getAllVolunteers);
+router.get('/stats', getVolunteerStats);
+router.get('/:id', getVolunteerById);
+router.get('/:id/derived-stats', getVolunteerDerivedStats);
+router.put('/:id', authenticate, authorizeRoles('admin', 'a_admin', 'b_admin'), updateVolunteer);
 
 export default router;

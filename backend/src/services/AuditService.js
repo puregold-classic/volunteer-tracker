@@ -1,36 +1,42 @@
-// src/services/AuditService.js
-// Phase 5: Switched from Mongoose to Prisma. Shadow writes removed.
-// Complex $facet/$lookup aggregations replaced with parallel Prisma queries
-// and prisma.$queryRaw for date-based groupings.
+// src/services/AuditService.js — v2.1
+//
+// Read-only access to AuditLog. The write side lives inside each service that
+// produces an action (ProjectSupportService, AccountService, SystemSettings...).
+//
+// Updated for v2.1 actions: support_create / support_update / support_delete /
+// support_confirm / support_reject / volunteer_create / volunteer_update /
+// volunteer_deactivate / account_create / account_update / month_lock /
+// system_cleanup / seed_import.
 
 import prisma from '../utils/prismaClient.js';
 import QueryUtils from '../utils/queryUtils.js';
 
-/**
- * Build a Prisma `where` clause for AuditLog from API filter params.
- * AuditLog has JSONB fields (operator, submitter, actionDetails) —
- * Prisma cannot filter on nested JSONB keys natively, so those require $queryRaw.
- * For the most common filters we use top-level fields; JSONB filters degrade gracefully.
- */
-const buildAuditWhere = (filters = {}) => {
-  const {
-    targetType,
-    targetId,
-    modifiedId,
-    action,
-    dateFrom,
-    dateTo,
-  } = filters;
+const ACTION_DESCRIPTIONS = {
+  support_create:       (log) => `创建项目支援记录 ${log.modifiedId || ''}`,
+  support_update:       (log) => `修改项目支援记录 ${log.modifiedId || ''}`,
+  support_delete:       (log) => `删除项目支援记录 ${log.modifiedId || ''}`,
+  support_confirm:      (log) => `确认了代提交的项目支援 ${log.modifiedId || ''}`,
+  support_reject:       (log) => `拒绝了代提交的项目支援 ${log.modifiedId || ''}`,
+  volunteer_create:     ()    => `创建了志愿者档案`,
+  volunteer_update:     ()    => `修改了志愿者档案`,
+  volunteer_deactivate: ()    => `停用了志愿者`,
+  account_create:       ()    => `创建了账号`,
+  account_update:       ()    => `修改了账号`,
+  month_lock:           (log) => `执行月结封档（lockedBefore=${log.actionDetails?.lockedBefore || ''}）`,
+  system_cleanup:       ()    => `执行系统清理`,
+  seed_import:          ()    => `执行 seed 数据导入`,
+};
 
+const buildAuditWhere = (filters = {}) => {
+  const { targetType, targetId, modifiedId, action, dateFrom, dateTo } = filters;
   const where = {};
 
   if (targetType) where.targetType = targetType;
   if (targetId) where.targetId = targetId;
-  if (modifiedId) {
-    where.modifiedId = modifiedId === 'null' ? null : modifiedId;
-  }
+  if (modifiedId) where.modifiedId = modifiedId === 'null' ? null : modifiedId;
+
   if (action) {
-    const actions = String(action).split(',').map(a => a.trim()).filter(Boolean);
+    const actions = String(action).split(',').map((a) => a.trim()).filter(Boolean);
     if (actions.length === 1) where.action = actions[0];
     else if (actions.length > 1) where.action = { in: actions };
   }
@@ -43,411 +49,163 @@ const buildAuditWhere = (filters = {}) => {
       where.timestamp.lte = end;
     }
   }
-
   return where;
 };
 
 class AuditService {
-  /**
-   * 获取审计日志列表
-   */
   static async getAuditLogs(filters = {}, pagination = {}, sortOptions = {}) {
-    try {
-      const { page = 1, limit = 20 } = pagination;
-      const { sortBy = 'timestamp', order = 'desc' } = sortOptions;
-      const pg = QueryUtils.buildPaginationOptions(page, limit);
+    const { page = 1, limit = 20 } = pagination;
+    const { sortBy = 'timestamp', order = 'desc' } = sortOptions;
+    const pg = QueryUtils.buildPaginationOptions(page, limit);
 
-      const allowedSortFields = ['timestamp', 'auditId', 'targetId', 'modifiedId'];
-      const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'timestamp';
-      const sortOrder = order.toLowerCase() === 'asc' ? 'asc' : 'desc';
+    const allowedSortFields = ['timestamp', 'auditId', 'targetId', 'modifiedId'];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'timestamp';
+    const sortOrder = order.toLowerCase() === 'asc' ? 'asc' : 'desc';
 
-      const where = buildAuditWhere(filters);
+    const where = buildAuditWhere(filters);
 
-      const [auditLogs, total] = await Promise.all([
-        prisma.auditLog.findMany({
-          where,
-          orderBy: { [sortField]: sortOrder },
-          skip: pg.skip,
-          take: pg.limit,
-        }),
-        prisma.auditLog.count({ where }),
-      ]);
+    const [auditLogs, total] = await Promise.all([
+      prisma.auditLog.findMany({ where, orderBy: { [sortField]: sortOrder }, skip: pg.skip, take: pg.limit }),
+      prisma.auditLog.count({ where }),
+    ]);
 
-      return {
-        auditLogs: auditLogs.map(log => this.serializeLog(log)),
-        pagination: {
-          page: pg.page,
-          limit: pg.limit,
-          total,
-          totalPages: Math.ceil(total / pg.limit),
-          hasNext: pg.page * pg.limit < total,
-          hasPrev: pg.page > 1,
-        },
-      };
-    } catch (error) {
-      console.error('获取审计日志列表失败:', error);
-      throw error;
-    }
+    return {
+      auditLogs: auditLogs.map((log) => this.serializeLog(log)),
+      pagination: {
+        page: pg.page,
+        limit: pg.limit,
+        total,
+        totalPages: Math.ceil(total / pg.limit),
+        hasNext: pg.page * pg.limit < total,
+        hasPrev: pg.page > 1,
+      },
+    };
   }
 
-  /**
-   * 获取审计日志详情（含关联申请和服务记录）
-   */
   static async getAuditLogById(auditId) {
-    try {
-      const log = await prisma.auditLog.findFirst({ where: { auditId } });
-      if (!log) {
-        throw new Error(`审计日志不存在: ${auditId}`);
-      }
+    const log = await prisma.auditLog.findUnique({ where: { auditId } });
+    if (!log) throw new Error(`审计日志不存在: ${auditId}`);
 
-      const operator = log.operator || {};
-      const submitter = log.submitter || {};
+    const operator = log.operator || {};
+    const submitter = log.submitter || {};
 
-      const [operatorVolunteer, submitterVolunteer, relatedApplication, relatedService] = await Promise.all([
-        operator.id ? prisma.volunteer.findFirst({
-          where: { volunteerId: operator.id },
-          select: { volunteerId: true, chineseName: true, englishName: true, role: true, region: true, status: true },
-        }) : null,
-        submitter.id ? prisma.volunteer.findFirst({
-          where: { volunteerId: submitter.id },
-          select: { volunteerId: true, chineseName: true, englishName: true, role: true, region: true, status: true },
-        }) : null,
-        log.targetId ? prisma.serviceApplication.findFirst({
-          where: { applicationId: log.targetId },
-          select: { applicationId: true, applicationType: true, volunteerId: true, volunteerName: true, status: true, createdAt: true },
-        }) : null,
-        log.modifiedId ? prisma.nonProjectService.findFirst({
-          where: { serviceId: log.modifiedId },
-          select: { serviceId: true, serviceDate: true, serviceType: true, duration: true, description: true, isActive: true },
-        }) : null,
-      ]);
+    // Best-effort enrichment with the related volunteer / support row.
+    const [operatorVolunteer, submitterVolunteer, relatedSupport] = await Promise.all([
+      operator.volunteerId
+        ? prisma.volunteer.findUnique({
+            where: { id: operator.volunteerId },
+            select: { id: true, volunteerCode: true, chineseName: true, departmentId: true },
+          })
+        : null,
+      submitter.volunteerId
+        ? prisma.volunteer.findUnique({
+            where: { id: submitter.volunteerId },
+            select: { id: true, volunteerCode: true, chineseName: true, departmentId: true },
+          })
+        : null,
+      log.modifiedId
+        ? prisma.projectSupport.findUnique({
+            where: { supportId: log.modifiedId },
+            select: { supportId: true, serviceDate: true, duration: true, description: true, status: true },
+          })
+        : null,
+    ]);
 
-      const changes = Array.isArray(log.changes) ? log.changes : [];
-
-      return {
-        ...this.serializeLog(log),
-        operator: {
-          id: operator.id,
-          name: operator.name,
-          role: operator.role,
-          details: operatorVolunteer,
-        },
-        submitter: {
-          id: submitter.id,
-          name: submitter.name,
-          role: submitter.role,
-          details: submitterVolunteer,
-        },
-        relatedApplication: relatedApplication || null,
-        relatedService: relatedService || null,
-        changeAnalysis: changes.length > 0 ? {
-          fields: changes.map(c => c.field),
-          fromValues: changes.map(c => c.from),
-          toValues: changes.map(c => c.to),
-        } : null,
-      };
-    } catch (error) {
-      console.error('获取审计日志详情失败:', error);
-      throw error;
-    }
+    return {
+      ...this.serializeLog(log),
+      operator: { ...operator, details: operatorVolunteer },
+      submitter: { ...submitter, details: submitterVolunteer },
+      relatedSupport,
+    };
   }
 
-  /**
-   * 获取目标的审计历史
-   */
+  /** Audit history for a specific target (e.g. one ProjectSupport row). */
   static async getTargetAuditHistory(targetType, targetId) {
-    try {
-      const validTargetTypes = ['ServiceApplication', 'NonProjectService', 'Volunteer'];
-      if (!validTargetTypes.includes(targetType)) {
-        throw new Error(`无效的目标类型: ${targetType}`);
-      }
-
-      const auditHistory = await prisma.auditLog.findMany({
-        where: {
-          OR: [
-            { targetType, targetId },
-            { modifiedId: targetId },
-          ],
-        },
-        orderBy: { timestamp: 'desc' },
-      });
-
-      // Enrich with operator volunteer info
-      const enriched = await Promise.all(auditHistory.map(async (log) => {
-        const operator = log.operator || {};
-        const operatorInfo = operator.id ? await prisma.volunteer.findFirst({
-          where: { volunteerId: operator.id },
-          select: { volunteerId: true, chineseName: true, role: true },
-        }) : null;
-
-        const actionDescriptions = {
-          application_review: `审核了申请 ${log.targetId}，结果: ${(log.actionDetails || {}).reviewResult || ''}`,
-          application_withdraw: `撤销了申请 ${log.targetId}`,
-          application_reopen: `重新开启了申请 ${log.targetId}`,
-          review_withdraw: `撤回了审核 ${log.targetId}`,
-        };
-        const description = actionDescriptions[log.action] || `执行了操作: ${log.action}`;
-
-        return {
-          ...this.serializeLog(log),
-          operator: { id: operator.id, name: operator.name, role: operator.role, details: operatorInfo },
-          description,
-        };
-      }));
-
-      return {
-        targetType,
-        targetId,
-        history: enriched,
-        count: enriched.length,
-        latest: enriched.length > 0 ? enriched[0].timestamp : null,
-        earliest: enriched.length > 0 ? enriched[enriched.length - 1].timestamp : null,
-      };
-    } catch (error) {
-      console.error('获取目标审计历史失败:', error);
-      throw error;
+    const validTargetTypes = ['ProjectSupport', 'Volunteer', 'Account', 'SystemSettings'];
+    if (!validTargetTypes.includes(targetType)) {
+      throw new Error(`无效的目标类型: ${targetType}`);
     }
+
+    const auditHistory = await prisma.auditLog.findMany({
+      where: {
+        OR: [
+          { targetType, targetId },
+          { modifiedId: targetId },
+        ],
+      },
+      orderBy: { timestamp: 'desc' },
+    });
+
+    const enriched = auditHistory.map((log) => ({
+      ...this.serializeLog(log),
+      description: (ACTION_DESCRIPTIONS[log.action] || ((l) => `操作: ${l.action}`))(log),
+    }));
+
+    return {
+      targetType,
+      targetId,
+      history: enriched,
+      count: enriched.length,
+      latest: enriched[0]?.timestamp ?? null,
+      earliest: enriched.at(-1)?.timestamp ?? null,
+    };
   }
 
-  /**
-   * 获取审计统计总览
-   */
+  /** Aggregate stats over the audit log. Used by admin dashboards. */
   static async getAuditStatistics(filters = {}) {
-    try {
-      const where = buildAuditWhere(filters);
+    const where = buildAuditWhere(filters);
 
-      const [total, byAction, byTargetType, byDay, byMonth] = await Promise.all([
-        prisma.auditLog.count({ where }),
-        prisma.auditLog.groupBy({
-          by: ['action'],
-          where,
-          _count: { id: true },
-          _max: { timestamp: true },
-          orderBy: { _count: { id: 'desc' } },
-        }),
-        prisma.auditLog.groupBy({
-          by: ['targetType'],
-          where,
-          _count: { id: true },
-          orderBy: { _count: { id: 'desc' } },
-        }),
-        // by day (last 30)
-        prisma.$queryRaw`
-          SELECT TO_CHAR(timestamp, 'YYYY-MM-DD') AS period,
-                 COUNT(*)::int AS count
-          FROM audit_logs
-          GROUP BY period
-          ORDER BY period DESC
-          LIMIT 30
-        `,
-        // by month (last 12)
-        prisma.$queryRaw`
-          SELECT TO_CHAR(timestamp, 'YYYY-MM') AS period,
-                 EXTRACT(YEAR FROM timestamp)::int AS year,
-                 EXTRACT(MONTH FROM timestamp)::int AS month,
-                 COUNT(*)::int AS count
-          FROM audit_logs
-          GROUP BY period, year, month
-          ORDER BY period ASC
-          LIMIT 12
-        `,
-      ]);
-
-      const [minMax] = await Promise.all([
-        prisma.auditLog.aggregate({
-          where,
-          _min: { timestamp: true },
-          _max: { timestamp: true },
-        }),
-      ]);
-
-      return {
-        summary: {
-          totalLogs: total,
-          earliestDate: minMax._min.timestamp,
-          latestDate: minMax._max.timestamp,
-        },
-        byAction: byAction.reduce((acc, r) => {
-          acc[r.action] = { count: r._count.id, lastActivity: r._max.timestamp };
-          return acc;
-        }, {}),
-        byTargetType: byTargetType.reduce((acc, r) => {
-          acc[r.targetType] = { count: r._count.id };
-          return acc;
-        }, {}),
-        byDay,
-        byMonth,
-        generatedAt: new Date().toISOString(),
-        filters,
-      };
-    } catch (error) {
-      console.error('获取审计统计失败:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 获取操作人审计统计
-   */
-  static async getOperatorAuditStatistics(operatorId) {
-    try {
-      const volunteer = await prisma.volunteer.findFirst({ where: { volunteerId: operatorId } });
-      if (!volunteer) {
-        throw new Error(`操作人不存在: ${operatorId}`);
-      }
-
-      // Filter by operator.id in JSONB — requires raw query
-      const [summary, byAction, recentActivity] = await Promise.all([
-        prisma.$queryRaw`
-          SELECT COUNT(*)::int AS "totalLogs",
-                 MIN(timestamp) AS "firstActivity",
-                 MAX(timestamp) AS "lastActivity"
-          FROM audit_logs
-          WHERE operator->>'id' = ${operatorId}
-        `,
-        prisma.$queryRaw`
-          SELECT action,
-                 COUNT(*)::int AS count,
-                 MAX(timestamp) AS "lastPerformed"
-          FROM audit_logs
-          WHERE operator->>'id' = ${operatorId}
-          GROUP BY action
-          ORDER BY count DESC
-        `,
-        prisma.$queryRaw`
-          SELECT TO_CHAR(timestamp, 'YYYY-MM-DD') AS period,
-                 COUNT(*)::int AS count
-          FROM audit_logs
-          WHERE operator->>'id' = ${operatorId}
-            AND timestamp >= NOW() - INTERVAL '30 days'
-          GROUP BY period
-          ORDER BY period DESC
-        `,
-      ]);
-
-      return {
-        operator: {
-          id: volunteer.volunteerId,
-          name: volunteer.chineseName,
-          role: volunteer.role,
-          region: volunteer.region,
-        },
-        summary: summary[0] || {},
-        byAction: (byAction || []).reduce((acc, r) => {
-          acc[r.action] = { count: r.count, lastPerformed: r.lastPerformed };
-          return acc;
-        }, {}),
-        recentActivity,
-        generatedAt: new Date().toISOString(),
-      };
-    } catch (error) {
-      console.error('获取操作人审计统计失败:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * 获取审计时间线分析
-   */
-  static async getAuditTimelineAnalysis(filters = {}) {
-    try {
-      const timelineData = await prisma.$queryRaw`
-        SELECT TO_CHAR(timestamp, 'YYYY-MM-DD') AS date,
-               EXTRACT(HOUR FROM timestamp)::int AS hour,
+    const [total, byAction, byTargetType, byDay] = await Promise.all([
+      prisma.auditLog.count({ where }),
+      prisma.auditLog.groupBy({
+        by: ['action'],
+        where,
+        _count: { id: true },
+        _max: { timestamp: true },
+        orderBy: { _count: { id: 'desc' } },
+      }),
+      prisma.auditLog.groupBy({
+        by: ['targetType'],
+        where,
+        _count: { id: true },
+        orderBy: { _count: { id: 'desc' } },
+      }),
+      prisma.$queryRaw`
+        SELECT TO_CHAR(timestamp, 'YYYY-MM-DD') AS period,
                COUNT(*)::int AS count
         FROM audit_logs
-        GROUP BY date, hour
-        ORDER BY date ASC, hour ASC
-        LIMIT 720
-      `;
+        GROUP BY period
+        ORDER BY period DESC
+        LIMIT 30
+      `,
+    ]);
 
-      // Group by date
-      const byDate = {};
-      for (const row of timelineData) {
-        if (!byDate[row.date]) {
-          byDate[row.date] = { date: row.date, dailyCount: 0, hourlyData: [] };
-        }
-        byDate[row.date].dailyCount += row.count;
-        byDate[row.date].hourlyData.push({ hour: row.hour, count: row.count });
-      }
+    const minMax = await prisma.auditLog.aggregate({
+      where,
+      _min: { timestamp: true },
+      _max: { timestamp: true },
+    });
 
-      const timeline = Object.values(byDate).slice(-30);
-      const total = timeline.reduce((sum, d) => sum + d.dailyCount, 0);
-
-      return {
-        timeline,
-        statistics: {
-          totalDays: timeline.length,
-          totalLogs: total,
-          avgLogsPerDay: timeline.length > 0 ? Math.round(total / timeline.length * 100) / 100 : 0,
-          busiestDay: timeline.length > 0 ? timeline.reduce((max, d) => d.dailyCount > max.dailyCount ? d : max, timeline[0]) : null,
-        },
-        generatedAt: new Date().toISOString(),
-        filters,
-      };
-    } catch (error) {
-      console.error('获取审计时间线分析失败:', error);
-      throw error;
-    }
+    return {
+      summary: {
+        totalLogs: total,
+        earliestDate: minMax._min.timestamp,
+        latestDate: minMax._max.timestamp,
+      },
+      byAction: byAction.reduce((acc, r) => {
+        acc[r.action] = { count: r._count.id, lastActivity: r._max.timestamp };
+        return acc;
+      }, {}),
+      byTargetType: byTargetType.reduce((acc, r) => {
+        acc[r.targetType] = { count: r._count.id };
+        return acc;
+      }, {}),
+      byDay,
+      generatedAt: new Date().toISOString(),
+      filters,
+    };
   }
 
-  /**
-   * 导出审计日志
-   */
-  static async exportAuditLogs(filters = {}) {
-    try {
-      const where = buildAuditWhere(filters);
-      const auditLogs = await prisma.auditLog.findMany({
-        where,
-        orderBy: { timestamp: 'desc' },
-      });
-
-      const exportData = auditLogs.map(log => {
-        const operator = log.operator || {};
-        const submitter = log.submitter || {};
-        const actionDetails = log.actionDetails || {};
-        const changes = Array.isArray(log.changes) ? log.changes : [];
-        return {
-          '审计ID': log.auditId,
-          '目标类型': log.targetType,
-          '目标ID': log.targetId,
-          '操作类型': log.action,
-          '申请类型': actionDetails.applicationType || '',
-          '审核结果': actionDetails.reviewResult || '',
-          '审核意见': actionDetails.reviewNote || '',
-          '修改记录ID': log.modifiedId || '',
-          '变更数量': changes.length,
-          '操作人ID': operator.id || '',
-          '操作人姓名': operator.name || '',
-          '操作人角色': operator.role || '',
-          '提交人ID': submitter.id || '',
-          '提交人姓名': submitter.name || '',
-          '提交人角色': submitter.role || '',
-          '操作时间': new Date(log.timestamp).toLocaleString('zh-CN'),
-          '变更摘要': changes.length > 0 ? `变更了 ${changes.length} 个字段` : '无数据变更',
-          '导出时间': new Date().toLocaleString('zh-CN'),
-        };
-      });
-
-      return {
-        data: exportData,
-        count: exportData.length,
-        generatedAt: new Date().toISOString(),
-        filters,
-        format: 'CSV-ready',
-      };
-    } catch (error) {
-      console.error('导出审计日志失败:', error);
-      throw error;
-    }
-  }
-
-  // ========== 辅助方法 ==========
-
-  /**
-   * Serialize a Prisma AuditLog record for API response.
-   * @private
-   */
   static serializeLog(log) {
     if (!log) return null;
     const changes = Array.isArray(log.changes) ? log.changes : [];
@@ -464,7 +222,6 @@ class AuditService {
       timestamp: log.timestamp,
       hasChanges: changes.length > 0,
       changeCount: changes.length,
-      changeSummary: changes.length > 0 ? `变更了 ${changes.length} 个字段` : '无数据变更',
     };
   }
 }
