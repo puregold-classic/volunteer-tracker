@@ -56,8 +56,11 @@ echo "→ saving current state to $SAFETY_FILE (safety net)"
 docker exec "$CONTAINER_NAME" pg_dump -U "$DB_USER" --clean --if-exists --no-owner --no-privileges "$DB_NAME" \
   | gzip > "$SAFETY_FILE"
 
-echo "→ dropping and recreating $DB_NAME"
-docker exec "$CONTAINER_NAME" psql -U "$DB_USER" -d postgres -c "DROP DATABASE IF EXISTS $DB_NAME;"
+echo "→ dropping and recreating $DB_NAME (WITH FORCE — kills active connections)"
+# DROP DATABASE ... WITH (FORCE) is PG 13+ and terminates other sessions
+# automatically. Without it, the backend container's open pool would block
+# the DROP. We're on PG 16 so this works.
+docker exec "$CONTAINER_NAME" psql -U "$DB_USER" -d postgres -c "DROP DATABASE IF EXISTS $DB_NAME WITH (FORCE);"
 docker exec "$CONTAINER_NAME" psql -U "$DB_USER" -d postgres -c "CREATE DATABASE $DB_NAME OWNER $DB_USER;"
 
 echo "→ piping $DUMP_FILE into the new database"
