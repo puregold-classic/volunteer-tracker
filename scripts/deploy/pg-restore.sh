@@ -12,8 +12,10 @@
 set -euo pipefail
 
 CONTAINER_NAME="${PG_CONTAINER_NAME:-volunteer-tracker-deploy-postgres-1}"
+BACKEND_CONTAINER="${BACKEND_CONTAINER:-volunteer-tracker-deploy-backend-1}"
 DB_NAME="${PG_DB_NAME:-volunteer_tracker}"
 DB_USER="${PG_DB_USER:-volunteer_user}"
+SKIP_BACKEND_RESTART="${SKIP_BACKEND_RESTART:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -69,3 +71,11 @@ gunzip -c "$DUMP_FILE" | docker exec -i "$CONTAINER_NAME" psql -U "$DB_USER" -d 
 echo
 echo "✓ restore complete. Safety net: $SAFETY_FILE"
 echo "  If something is wrong, run: $0 $SAFETY_FILE"
+
+# Backend's Prisma pool was killed by DROP DATABASE WITH (FORCE) and won't
+# self-recover. Restart it so requests stop 502'ing.
+if [[ -z "$SKIP_BACKEND_RESTART" ]] && docker inspect -f '{{.State.Running}}' "$BACKEND_CONTAINER" >/dev/null 2>&1; then
+  echo "→ restarting backend container ($BACKEND_CONTAINER) so Prisma reconnects"
+  docker restart "$BACKEND_CONTAINER" >/dev/null
+  echo "  set SKIP_BACKEND_RESTART=1 to skip this step next time"
+fi
