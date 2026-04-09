@@ -45,6 +45,16 @@ NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
 NTFY_TOPIC="${NTFY_TOPIC:-}"
 TUNNEL_LABEL="system/com.cloudflare.cloudflared"
 
+# State file semantics:
+#   0          - healthy
+#   1..N       - N consecutive probe failures; kickstart fires when N >= FAILURE_THRESHOLD
+#   K          - sentinel: just kickstarted, awaiting recovery confirmation
+#                next 200 -> recovery notification + reset to 0
+#                next FAIL -> reset count to 1 (fresh failure window, no immediate
+#                            re-kickstart) — avoids tight kickstart loops if cloudflared
+#                            is hopeless
+KICKSTART_SENTINEL="K"
+
 log() {
   printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*" >> "$LOG_FILE" 2>/dev/null || true
 }
@@ -84,19 +94,38 @@ write_count() {
 http_code=$(curl -sS -o /dev/null -w '%{http_code}' \
   --max-time "$PROBE_TIMEOUT" "$PROBE_URL" 2>/dev/null || echo 000)
 
+prev=$(read_count)
+
+# Success branch
 if [ "$http_code" = "200" ]; then
-  prev=$(read_count)
-  if [ "$prev" -gt 0 ]; then
-    log "OK (recovered after $prev failure(s)): $PROBE_URL -> 200"
-    write_count 0
-    notify "Tunnel recovered" "default" "white_check_mark" \
-      "Public URL is back to 200 after $prev failed probe(s). $PROBE_URL"
-  fi
+  case "$prev" in
+    0|"")
+      : ;;  # healthy → still healthy, nothing to do
+    "$KICKSTART_SENTINEL")
+      log "OK (recovered after watchdog kickstart): $PROBE_URL -> 200"
+      notify "Tunnel recovered" "default" "white_check_mark" \
+        "Public URL is back to 200 after watchdog-triggered kickstart. $PROBE_URL"
+      write_count 0
+      ;;
+    *)
+      # transient failure(s) that resolved on their own without crossing threshold
+      log "OK (transient: $prev failure(s), no kickstart needed): $PROBE_URL -> 200"
+      write_count 0
+      ;;
+  esac
   exit 0
 fi
 
-# Failure path
-count=$(($(read_count) + 1))
+# Failure branch
+if [ "$prev" = "$KICKSTART_SENTINEL" ]; then
+  # Last cycle just kickstarted; give cloudflared a fresh failure window
+  # before re-kickstarting. Reset to count 1.
+  log "FAIL (1/$FAILURE_THRESHOLD, post-kickstart fresh window): $PROBE_URL -> $http_code"
+  write_count 1
+  exit 0
+fi
+
+count=$((prev + 1))
 write_count "$count"
 log "FAIL ($count/$FAILURE_THRESHOLD): $PROBE_URL -> $http_code"
 
@@ -106,8 +135,7 @@ if [ "$count" -ge "$FAILURE_THRESHOLD" ]; then
     log "kickstart issued OK"
     notify "Tunnel down — kickstart fired" "high" "rotating_light" \
       "Watchdog detected $count consecutive failed probes (HTTP $http_code) and forced restart of cloudflared. Next probe in 2 min will confirm recovery."
-    # Reset counter — next probe (in 2 min) will report whether recovery worked
-    write_count 0
+    write_count "$KICKSTART_SENTINEL"
     exit 0
   else
     log "kickstart FAILED (uid=$(id -u); needs root)"
