@@ -1,3 +1,6 @@
+// chunk 6 phase C: retokenized for Warm Editorial. v1 hardcoded
+// emerald/amber/teal/red colors gone in favor of semantic tokens.
+
 import { cva, type VariantProps } from 'class-variance-authority'
 import type { HTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
@@ -5,18 +8,20 @@ import { cn } from '@/lib/utils'
 const badgeVariants = cva('inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium', {
   variants: {
     variant: {
-      default: 'bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-200',
-      success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
-      warning: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
-      pending: 'bg-amber-50 text-amber-600 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:ring-amber-500/20',
-      info: 'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300',
-      destructive: 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300',
-      outline: 'border border-neutral-200 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-transparent dark:text-neutral-300'
-    }
+      default: 'bg-muted text-foreground',
+      success: 'bg-primary/15 text-primary ring-1 ring-primary/25',
+      warning: 'bg-chart-4/15 text-chart-4 ring-1 ring-chart-4/25',
+      pending: 'bg-chart-4/10 text-chart-4 ring-1 ring-chart-4/20',
+      info: 'bg-accent/15 text-accent ring-1 ring-accent/25',
+      destructive: 'bg-destructive/15 text-destructive ring-1 ring-destructive/25',
+      department: 'bg-accent/10 text-accent ring-1 ring-accent/20',
+      outline: 'border border-border bg-background text-muted-foreground',
+    },
   },
-  defaultVariants: { variant: 'default' }
+  defaultVariants: { variant: 'default' },
 })
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement>, VariantProps<typeof badgeVariants> {}
 export function Badge({ className, variant, ...props }: BadgeProps) {
-  return <span className={cn(badgeVariants({ variant }), className)} {...props} />}
+  return <span className={cn(badgeVariants({ variant }), className)} {...props} />
+}

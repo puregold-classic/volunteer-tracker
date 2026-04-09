@@ -16,16 +16,29 @@ export const QUICK_FOCUS_OPTIONS = ['中国大陆', '中国台湾', '东南亚',
 
 const NON_PROVINCE_REGION_VALUES = new Set(['中国大陆', '中国台湾', '东南亚', '美国', '欧洲', '其他']);
 
+export interface DistributionEntry {
+  key: string;
+  count: number;
+}
+
 export function useHomeState() {
   const [homeStatus, setHomeStatus] = useState<'all' | '在职' | '不在职'>('all');
   const [homeServices, setHomeServices] = useState<string[]>([]);
   const [homeSelections, setHomeSelections] = useState<HomeSelection[]>([]);
   const [homeSearch, setHomeSearch] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
-  const [homeStats, setHomeStats] = useState({
+  const [homeStats, setHomeStats] = useState<{
+    totalVolunteers: number;
+    totalActive: number;
+    totalHours: number;
+    departmentDistribution: DistributionEntry[];
+    regionDistribution: DistributionEntry[];
+  }>({
     totalVolunteers: 0,
     totalActive: 0,
-    totalHours: 0
+    totalHours: 0,
+    departmentDistribution: [],
+    regionDistribution: [],
   });
   const [homeStatsLoading, setHomeStatsLoading] = useState(false);
 
@@ -75,13 +88,21 @@ export function useHomeState() {
           setHomeStats({
             totalVolunteers: result.data.summary.totalVolunteers || 0,
             totalActive: result.data.summary.totalActive || 0,
-            totalHours: result.data.summary.totalHours || 0
+            totalHours: result.data.summary.totalHours || 0,
+            departmentDistribution: (result.data.departmentDistribution || []).map((d) => ({
+              key: d.departmentId,
+              count: d.count,
+            })),
+            regionDistribution: (result.data.regionDistribution || []).map((r) => ({
+              key: r.region,
+              count: r.count,
+            })),
           });
         } else {
-          setHomeStats({ totalVolunteers: 0, totalActive: 0, totalHours: 0 });
+          setHomeStats({ totalVolunteers: 0, totalActive: 0, totalHours: 0, departmentDistribution: [], regionDistribution: [] });
         }
       } catch {
-        setHomeStats({ totalVolunteers: 0, totalActive: 0, totalHours: 0 });
+        setHomeStats({ totalVolunteers: 0, totalActive: 0, totalHours: 0, departmentDistribution: [], regionDistribution: [] });
       } finally {
         setHomeStatsLoading(false);
       }

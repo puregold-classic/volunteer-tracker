@@ -371,15 +371,20 @@
   }
 
   .home-map__focus-panel {
-    @apply absolute top-16 right-3 z-[400] rounded-xl border border-border bg-card/95 p-2 shadow-md backdrop-blur;
+    @apply absolute top-16 right-3 z-[400] rounded-xl border border-border bg-card/95 p-1.5 shadow-md backdrop-blur;
+    /* horizontal flex; chips wrap on narrow widths instead of stacking vertically */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    max-width: 18rem;
   }
 
   .home-map__focus-panel button {
-    @apply block w-full rounded-md px-3 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
+    @apply rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground whitespace-nowrap;
   }
 
   .home-map__focus-panel button.is-active {
-    @apply bg-primary/10 text-primary;
+    @apply bg-primary text-primary-foreground;
   }
 
   .home-map__toolbar {
