@@ -44,8 +44,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import {
+  FormField,
+  FormInput,
+  FormSelect,
+  FormTextarea,
+} from '@/components/shared/form-fields';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -173,69 +177,69 @@ const CreateVolunteerDialog: React.FC<{
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Name row */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="中文姓名" required error={errors.chineseName?.message}>
-            <Input {...register('chineseName')} placeholder="如 张三" />
-          </Field>
-          <Field label="英文姓名" error={errors.englishName?.message}>
-            <Input {...register('englishName')} placeholder="如 Zhang San" />
-          </Field>
+          <FormField label="中文姓名" required error={errors.chineseName?.message}>
+            <FormInput {...register('chineseName')} placeholder="如 张三" />
+          </FormField>
+          <FormField label="英文姓名" error={errors.englishName?.message}>
+            <FormInput {...register('englishName')} placeholder="如 Zhang San" />
+          </FormField>
         </div>
 
         {/* Status + Department row */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="状态" required>
-            <Select {...register('status')}>
+          <FormField label="状态" required>
+            <FormSelect {...register('status')}>
               <option value="在职">在职</option>
               <option value="不在职">不在职</option>
-            </Select>
-          </Field>
-          <Field label="部门" required error={errors.departmentId?.message}>
-            <Select {...register('departmentId')}>
+            </FormSelect>
+          </FormField>
+          <FormField label="部门" required error={errors.departmentId?.message}>
+            <FormSelect {...register('departmentId')}>
               <option value="">— 选择部门 —</option>
               {departments.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
-            </Select>
-          </Field>
+            </FormSelect>
+          </FormField>
         </div>
 
         {/* Region + Province row */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="地区" required>
-            <Select {...register('region')}>
+          <FormField label="地区" required>
+            <FormSelect {...register('region')}>
               {REGION_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-            </Select>
-          </Field>
-          <Field label={showProvince ? '省份 *' : '省份'} error={errors.province?.message}>
-            <Input
+            </FormSelect>
+          </FormField>
+          <FormField label={showProvince ? '省份 *' : '省份'} error={errors.province?.message}>
+            <FormInput
               {...register('province')}
               placeholder={showProvince ? '大陆 / 台湾必填' : '可选'}
             />
-          </Field>
+          </FormField>
         </div>
 
         {/* Email + Phone row */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="邮箱" required error={errors.email?.message}>
-            <Input type="email" {...register('email')} placeholder="user@example.com" />
-          </Field>
-          <Field label="电话" error={errors.phone?.message}>
-            <Input {...register('phone')} placeholder="可选" />
-          </Field>
+          <FormField label="邮箱" required error={errors.email?.message}>
+            <FormInput type="email" {...register('email')} placeholder="user@example.com" />
+          </FormField>
+          <FormField label="电话" error={errors.phone?.message}>
+            <FormInput {...register('phone')} placeholder="可选" />
+          </FormField>
         </div>
 
         {/* Password + Role row */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="账号密码" required error={errors.password?.message}>
-            <Input type="text" {...register('password')} />
-          </Field>
-          <Field label="角色" required>
-            <Select {...register('role')}>
+          <FormField label="账号密码" required error={errors.password?.message}>
+            <FormInput type="text" {...register('password')} />
+          </FormField>
+          <FormField label="角色" required>
+            <FormSelect {...register('role')}>
               <option value="user">user</option>
               <option value="b_admin">b_admin</option>
               <option value="a_admin">a_admin</option>
-            </Select>
-          </Field>
+            </FormSelect>
+          </FormField>
         </div>
 
         <div className="flex gap-3 pt-2">
@@ -289,15 +293,15 @@ const CreateAdminDialog: React.FC<{
       description="admin 角色不绑定 volunteer，仅用于系统管理"
     >
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <Field label="姓名" required error={errors.name?.message}>
-          <Input {...register('name')} placeholder="如 系统管理员" />
-        </Field>
-        <Field label="邮箱" required error={errors.email?.message}>
-          <Input type="email" {...register('email')} placeholder="admin@example.com" />
-        </Field>
-        <Field label="密码" required error={errors.password?.message}>
-          <Input type="text" {...register('password')} placeholder="≥ 8 位" />
-        </Field>
+        <FormField label="姓名" required error={errors.name?.message}>
+          <FormInput {...register('name')} placeholder="如 系统管理员" />
+        </FormField>
+        <FormField label="邮箱" required error={errors.email?.message}>
+          <FormInput type="email" {...register('email')} placeholder="admin@example.com" />
+        </FormField>
+        <FormField label="密码" required error={errors.password?.message}>
+          <FormInput type="text" {...register('password')} placeholder="≥ 8 位" />
+        </FormField>
 
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
@@ -361,20 +365,18 @@ const CsvImportDialog: React.FC<{
       className="sm:max-w-2xl"
     >
       <div className="space-y-4">
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">CSV 数据</label>
-          <textarea
+        <FormField label="CSV 数据" required hint="字段顺序见 dialog 标题，第一行可省略表头">
+          <FormTextarea
             rows={8}
             value={csvText}
             onChange={(e) => setCsvText(e.target.value)}
             placeholder={'chineseName,englishName,status,region,province,departmentId,email,role\n张三,Zhang San,在职,中国大陆,上海市,TECH,zhangsan@vt.local,user'}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-xs leading-relaxed text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+            className="font-mono text-xs leading-relaxed"
           />
-        </div>
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">默认密码（可被 CSV 中的 password 列覆盖）</label>
-          <Input value={defaultPassword} onChange={(e) => setDefaultPassword(e.target.value)} />
-        </div>
+        </FormField>
+        <FormField label="默认密码" hint="可被 CSV 中的 password 列覆盖">
+          <FormInput value={defaultPassword} onChange={(e) => setDefaultPassword(e.target.value)} />
+        </FormField>
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             取消
@@ -437,16 +439,20 @@ const SystemResetDialog: React.FC<{
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium text-foreground">
-            请输入 <span className="font-mono font-bold">RESET</span> 确认
-          </label>
-          <Input
+        <FormField
+          label={
+            <>
+              请输入 <span className="font-mono font-bold text-destructive">RESET</span> 确认
+            </>
+          }
+          required
+        >
+          <FormInput
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder="RESET"
           />
-        </div>
+        </FormField>
 
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
@@ -613,22 +619,22 @@ const EditAccountDialog: React.FC<{
             账号信息
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="登录姓名" required error={errors.name?.message}>
-              <Input {...register('name')} />
-            </Field>
-            <Field label="邮箱" required error={errors.email?.message}>
-              <Input type="email" {...register('email')} />
-            </Field>
-            <Field label="角色" required>
-              <Select {...register('role')} disabled={isSelf}>
+            <FormField label="登录姓名" required error={errors.name?.message}>
+              <FormInput {...register('name')} />
+            </FormField>
+            <FormField label="邮箱" required error={errors.email?.message}>
+              <FormInput type="email" {...register('email')} />
+            </FormField>
+            <FormField label="角色" required>
+              <FormSelect {...register('role')} disabled={isSelf}>
                 <option value="user">user</option>
                 <option value="b_admin">b_admin</option>
                 <option value="a_admin">a_admin</option>
                 <option value="admin">admin</option>
-              </Select>
-            </Field>
-            <Field label="状态">
-              <label className="flex h-8 items-center gap-2 px-1">
+              </FormSelect>
+            </FormField>
+            <FormField label="账号状态">
+              <label className="flex h-11 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 transition-colors hover:border-primary/40 sm:h-10">
                 <input
                   type="checkbox"
                   {...register('isActive')}
@@ -637,7 +643,7 @@ const EditAccountDialog: React.FC<{
                 />
                 <span className="text-sm text-foreground">激活账号</span>
               </label>
-            </Field>
+            </FormField>
           </div>
         </div>
 
@@ -649,37 +655,37 @@ const EditAccountDialog: React.FC<{
               志愿者档案 · {account?.volunteerCode}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="中文姓名" error={errors.chineseName?.message}>
-                <Input {...register('chineseName')} />
-              </Field>
-              <Field label="英文姓名" error={errors.englishName?.message}>
-                <Input {...register('englishName')} placeholder="可选" />
-              </Field>
-              <Field label="在职状态">
-                <Select {...register('status')}>
+              <FormField label="中文姓名" error={errors.chineseName?.message}>
+                <FormInput {...register('chineseName')} />
+              </FormField>
+              <FormField label="英文姓名" error={errors.englishName?.message}>
+                <FormInput {...register('englishName')} placeholder="可选" />
+              </FormField>
+              <FormField label="在职状态">
+                <FormSelect {...register('status')}>
                   <option value="在职">在职</option>
                   <option value="不在职">不在职</option>
-                </Select>
-              </Field>
-              <Field label="部门" error={errors.departmentId?.message}>
-                <Select {...register('departmentId')}>
+                </FormSelect>
+              </FormField>
+              <FormField label="部门" error={errors.departmentId?.message}>
+                <FormSelect {...register('departmentId')}>
                   <option value="">— 选择部门 —</option>
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
-                </Select>
-              </Field>
-              <Field label="地区">
-                <Select {...register('region')}>
+                </FormSelect>
+              </FormField>
+              <FormField label="地区">
+                <FormSelect {...register('region')}>
                   {REGION_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                </Select>
-              </Field>
-              <Field label={showProvince ? '省份 *' : '省份'} error={errors.province?.message}>
-                <Input {...register('province')} placeholder={showProvince ? '大陆 / 台湾必填' : '可选'} />
-              </Field>
-              <Field label="电话">
-                <Input {...register('phone')} placeholder="可选" />
-              </Field>
+                </FormSelect>
+              </FormField>
+              <FormField label={showProvince ? '省份 *' : '省份'} error={errors.province?.message}>
+                <FormInput {...register('province')} placeholder={showProvince ? '大陆 / 台湾必填' : '可选'} />
+              </FormField>
+              <FormField label="电话">
+                <FormInput {...register('phone')} placeholder="可选" />
+              </FormField>
             </div>
           </div>
         )}
@@ -697,23 +703,7 @@ const EditAccountDialog: React.FC<{
   );
 };
 
-// ─── Field wrapper (label + error) ──────────────────────────────────────────
-
-const Field: React.FC<{
-  label: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}> = ({ label, required, error, children }) => (
-  <div className="space-y-1.5">
-    <label className="text-sm font-medium text-foreground">
-      {label}
-      {required && <span className="text-destructive">*</span>}
-    </label>
-    {children}
-    {error && <p className="text-xs text-destructive">{error}</p>}
-  </div>
-);
+// Field is now imported from components/shared/form-fields as FormField.
 
 // ─── Main AdminCenter ───────────────────────────────────────────────────────
 
@@ -865,7 +855,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
         <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
           <div className="relative min-w-[16rem] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
+            <FormInput
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索姓名 / 邮箱 / Code"
@@ -890,7 +880,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
                 type="button"
                 onClick={() => setRoleFilter(r)}
                 className={cn(
-                  'inline-flex h-8 items-center rounded-full px-3 text-xs font-medium transition-colors border',
+                  'inline-flex h-10 items-center rounded-lg border px-3 text-sm font-medium transition-colors',
                   roleFilter === r
                     ? 'bg-primary text-primary-foreground border-primary shadow-sm'
                     : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground',
@@ -903,10 +893,10 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
 
           {/* Department filter */}
           <div className="w-44">
-            <Select value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
+            <FormSelect value={departmentFilter} onChange={(e) => setDepartmentFilter(e.target.value)}>
               <option value="">全部部门</option>
               {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </Select>
+            </FormSelect>
           </div>
         </div>
 
