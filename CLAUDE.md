@@ -20,9 +20,11 @@
 
 **Frontend** (本地开发 port 3000)
 - React 18 + TypeScript + Vite
-- Tailwind CSS v4 + Radix UI（Slot/Toast 自包，**没有** shadcn/ui，没有表单库，没有路由库——hash routing 手卷）
+- Tailwind CSS v4 + Radix UI（Slot/Toast 自包，**没有** shadcn/ui）
+- 表单：react-hook-form + zod（chunk 6 phase D 起）
+- 路由：react-router-dom v7（`BrowserRouter`，2026-04 chunk 3 替代了 v1 手卷的 hash routing）
 - Leaflet / react-leaflet（地图）
-- ⚠️ **SCSS 残留**：`MePage.scss / ReviewPage.scss / HomeMap.scss / global.scss / variables.scss / modal.scss` 共 6 个文件 1000+ 行还在用。CLAUDE.md v1 版本曾撒谎说"已迁移完"——**没有**。chunk 6 视觉重做时一次性删
+- 样式：纯 Tailwind。SCSS 已全部删除，sass 依赖已 uninstall。残留：`tailwind.css` 里还有几个旧 CSS class（`.review-page` / `.nps-panel` / `.center-empty` / `.admin-simple-*` / `.auth-form-error`）等台账页 ReviewPage 重做时一起清
 - 测试：vitest（单元/hook），Playwright（E2E）
 
 **Backend** (Docker port 5000)

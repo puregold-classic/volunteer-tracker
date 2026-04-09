@@ -220,13 +220,7 @@ function VolunteerDetailPageWrapper() {
 
 function MePageWrapper() {
   const navigate = useNavigate();
-  return (
-    <MePage
-      homeTotalVolunteers={0}
-      onVolunteerDetail={(id) => navigate(`/volunteers/${id}`)}
-      onBackHome={() => navigate('/')}
-    />
-  );
+  return <MePage onBackHome={() => navigate('/')} />;
 }
 
 function ReviewPageWrapper() {

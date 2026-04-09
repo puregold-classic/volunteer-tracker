@@ -53,8 +53,6 @@ import { SupportRecordCard } from '@/components/shared/support-record-card';
 import { SubmitFormDialog } from '@/components/shared/submit-form-dialog';
 
 interface MePageProps {
-  homeTotalVolunteers: number;
-  onVolunteerDetail: (id: string) => void;
   onBackHome: () => void;
 }
 

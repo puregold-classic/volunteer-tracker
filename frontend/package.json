@@ -49,7 +49,6 @@
     "jsdom": "^29.0.1",
     "playwright": "^1.58.2",
     "prettier": "^3.7.4",
-    "sass": "^1.97.1",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.0.0",
     "vite": "^7.3.1",
