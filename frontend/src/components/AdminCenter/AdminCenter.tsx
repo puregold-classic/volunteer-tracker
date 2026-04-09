@@ -792,7 +792,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
       {/* Header row */}
       <div className="flex flex-wrap items-end justify-between gap-3 px-1">
         <div>
-          <h2 className="font-serif text-2xl font-semibold text-foreground">系统管理中心</h2>
+          <h1 className="font-serif text-2xl font-semibold text-foreground">系统管理员中心</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">志愿者 / 账号 / 系统配置</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

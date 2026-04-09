@@ -280,21 +280,20 @@ function MePage({ onBackHome }: MePageProps) {
     );
   }
 
-  // Admin gets the AdminCenter inline (separate desktop page in phase E)
+  // Admin gets the AdminCenter inline. AdminCenter owns the page title;
+  // MePage wrapper just provides session controls (back home / logout)
+  // floating top-right.
   if (isSystemAdmin) {
     return (
       <div className="mx-auto max-w-5xl">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-1">
-          <h1 className="font-serif text-2xl font-semibold text-foreground">系统管理员中心</h1>
-          <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={onBackHome}>
-              返回首页
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => void logout()}>
-              <LogOut className="h-4 w-4" />
-              退出
-            </Button>
-          </div>
+        <div className="mb-3 flex items-center justify-end gap-2 px-1">
+          <Button type="button" variant="outline" size="sm" onClick={onBackHome}>
+            返回首页
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => void logout()}>
+            <LogOut className="h-4 w-4" />
+            退出
+          </Button>
         </div>
         <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">加载管理中心…</p>}>
           <AdminCenter currentAccountId={account?.id} />
