@@ -9,8 +9,8 @@
 // - Bottom toolbar shows current selection + a "重置" link
 // - Map controls (zoom in/out + refresh) stay in the top-right corner
 
-import React, { useEffect } from 'react';
-import { RefreshCw, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Crosshair, MapPin, RefreshCw, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { GeoJSON, MapContainer, Rectangle, TileLayer, useMap } from 'react-leaflet';
 import type { LatLngBoundsExpression, PathOptions } from 'leaflet';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
@@ -27,9 +27,7 @@ interface HomeMapProps {
   activeProvince: string[];
   activeRegions: string[];
   quickFocusOptions: string[];
-  /** Hot locations are no longer rendered inside the map (phase C.7);
-   * the prop is kept on the type for backward compat but ignored. */
-  hotLocations?: readonly HotLocation[];
+  hotLocations: readonly HotLocation[];
   focusRegion: string;
   onProvinceSelect: (province: string) => void;
   onReset: () => void;
@@ -144,55 +142,169 @@ const FocusBorder: React.FC<{ focusRegion: string }> = ({ focusRegion }) => {
   return <Rectangle bounds={view.bounds} pathOptions={pathOptions} />;
 };
 
-// ─── Top toolbar overlay: region tabs only (hot provinces moved out per
-//     user feedback C.7) ──────────────────────────────────────────────────────
+// ─── Left-side collapsible popovers — phase C.8 ─────────────────────────────
+// Two icon buttons stacked top-left of the map. Click to expand a small
+// popover with chips. Default state: collapsed (just icons), so the map
+// gets the full visible area.
 
-const MapTopToolbar: React.FC<{
+const stopAll = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); };
+
+const PopoverPanel: React.FC<{
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}> = ({ title, onClose, children }) => (
+  <div
+    className="absolute left-12 top-0 z-[401] w-[19rem] rounded-lg border border-border bg-card/95 p-2 shadow-lg backdrop-blur-sm"
+    onClick={stopAll}
+    onMouseDown={stopAll}
+    onMouseUp={stopAll}
+    onWheel={stopAll}
+  >
+    <div className="mb-1.5 flex items-center justify-between px-1">
+      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{title}</span>
+      <button
+        type="button"
+        onClick={(e) => { stopAll(e); onClose(); }}
+        className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+        aria-label="收起"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+    <div className="flex flex-wrap gap-1">{children}</div>
+  </div>
+);
+
+const MapLeftControls: React.FC<{
   quickFocusOptions: string[];
+  hotLocations: readonly HotLocation[];
   isLocationActive: (type: 'province' | 'region', value: string) => boolean;
   onRegionSelect: (region: string) => void;
+  onProvinceSelect: (province: string) => void;
   onReset: () => void;
-}> = ({ quickFocusOptions, isLocationActive, onRegionSelect, onReset }) => {
-  const stop = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); };
+}> = ({ quickFocusOptions, hotLocations, isLocationActive, onRegionSelect, onProvinceSelect, onReset }) => {
+  const [open, setOpen] = useState<null | 'region' | 'province'>(null);
+
+  const togglePanel = (panel: 'region' | 'province') => (e: React.MouseEvent) => {
+    stopAll(e);
+    setOpen((prev) => (prev === panel ? null : panel));
+  };
+
+  const closeAll = () => setOpen(null);
+
+  // active counts for badge
+  const activeRegionCount = quickFocusOptions.filter((r) => isLocationActive('region', r)).length;
+  const activeProvinceCount = hotLocations.filter((h) => isLocationActive(h.type, h.value)).length;
 
   return (
     <div
-      // Smaller border, lighter background, less padding — feels less like a
-      // "panel" and more like a thin floating control strip.
-      className="absolute left-3 right-3 top-3 z-[400] rounded-lg border border-border/60 bg-card/90 px-2 py-1 shadow-sm backdrop-blur-sm"
-      onClick={stop}
-      onMouseDown={stop}
-      onMouseUp={stop}
-      onWheel={stop}
+      className="absolute left-3 top-3 z-[400]"
+      onClick={stopAll}
+      onMouseDown={stopAll}
+      onWheel={stopAll}
     >
-      <div className="flex flex-wrap items-center gap-1 text-[11px]">
-        {quickFocusOptions.map((region) => {
-          const active = isLocationActive('region', region);
-          return (
-            <button
-              key={region}
-              type="button"
-              onClick={(e) => { stop(e); onRegionSelect(region); }}
-              className={cn(
-                'rounded px-2 py-0.5 font-medium transition-colors',
-                active
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-              )}
-            >
-              {region.replace('中国', '')}
-            </button>
-          );
-        })}
+      <div className="relative flex flex-col gap-1.5">
+        {/* 快速聚焦 (region) trigger */}
         <button
           type="button"
-          onClick={(e) => { stop(e); onReset(); }}
-          className="ml-auto inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="重置选择"
-          title="重置地理筛选"
+          onClick={togglePanel('region')}
+          className={cn(
+            'relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card/95 shadow-sm backdrop-blur-sm transition-colors',
+            open === 'region' || activeRegionCount > 0
+              ? 'border-primary/60 text-primary'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+          aria-label="快速聚焦区域"
+          title="快速聚焦"
         >
-          <RotateCcw className="h-3 w-3" />
+          <Crosshair className="h-4 w-4" />
+          {activeRegionCount > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary" />
+          )}
         </button>
+
+        {/* 热门省份 trigger */}
+        <button
+          type="button"
+          onClick={togglePanel('province')}
+          className={cn(
+            'relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card/95 shadow-sm backdrop-blur-sm transition-colors',
+            open === 'province' || activeProvinceCount > 0
+              ? 'border-accent/60 text-accent'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+          aria-label="热门省份"
+          title="热门省份"
+        >
+          <MapPin className="h-4 w-4" />
+          {activeProvinceCount > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent" />
+          )}
+        </button>
+
+        {/* 重置 trigger */}
+        <button
+          type="button"
+          onClick={(e) => { stopAll(e); onReset(); closeAll(); }}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card/95 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:text-foreground"
+          aria-label="重置地理筛选"
+          title="重置"
+        >
+          <RotateCcw className="h-4 w-4" />
+        </button>
+
+        {/* Region popover */}
+        {open === 'region' && (
+          <PopoverPanel title="快速聚焦" onClose={closeAll}>
+            {quickFocusOptions.map((region) => {
+              const active = isLocationActive('region', region);
+              return (
+                <button
+                  key={region}
+                  type="button"
+                  onClick={(e) => { stopAll(e); onRegionSelect(region); }}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                    active
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  {region}
+                </button>
+              );
+            })}
+          </PopoverPanel>
+        )}
+
+        {/* Province popover */}
+        {open === 'province' && (
+          <PopoverPanel title="热门省份" onClose={closeAll}>
+            {hotLocations.map((h) => {
+              const active = isLocationActive(h.type, h.value);
+              return (
+                <button
+                  key={h.label}
+                  type="button"
+                  onClick={(e) => {
+                    stopAll(e);
+                    if (h.type === 'province') onProvinceSelect(h.value);
+                    else onRegionSelect(h.value);
+                  }}
+                  className={cn(
+                    'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                    active
+                      ? 'bg-accent text-accent-foreground shadow-sm'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  {h.label}
+                </button>
+              );
+            })}
+          </PopoverPanel>
+        )}
       </div>
     </div>
   );
@@ -228,7 +340,7 @@ const HomeMap: React.FC<HomeMapProps> = ({
   activeProvince,
   activeRegions: _activeRegions,
   quickFocusOptions,
-  hotLocations: _hotLocations,
+  hotLocations,
   focusRegion,
   onProvinceSelect,
   onReset,
@@ -360,12 +472,14 @@ const HomeMap: React.FC<HomeMapProps> = ({
         </MapContainer>
       )}
 
-      {/* Top toolbar overlay (regions + reset only) */}
+      {/* Left-side collapsible controls: region popover + province popover + reset */}
       {!loading && !error && (
-        <MapTopToolbar
+        <MapLeftControls
           quickFocusOptions={quickFocusOptions}
+          hotLocations={hotLocations}
           isLocationActive={isLocationActive}
           onRegionSelect={onQuickFocusSelect}
+          onProvinceSelect={onProvinceSelect}
           onReset={onReset}
         />
       )}

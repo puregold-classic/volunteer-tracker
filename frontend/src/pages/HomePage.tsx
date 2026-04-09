@@ -113,9 +113,9 @@ function Chip({
       type="button"
       onClick={onClick}
       className={cn(
-        'rounded-full px-3 py-1 text-xs font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'inline-flex h-8 items-center rounded-full px-3 text-xs font-medium transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring',
         active
-          ? 'bg-primary text-primary-foreground shadow-sm'
+          ? 'bg-primary text-primary-foreground shadow-sm border border-primary'
           : 'border border-border bg-background text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-foreground',
       )}
     >
@@ -124,26 +124,19 @@ function Chip({
   );
 }
 
-function FilterSection({
+function FilterRow({
   label,
-  count,
   children,
 }: {
   label: string;
-  count?: number;
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+    <div className="flex items-center gap-2">
+      <span className="w-10 shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
-        {count != null && count > 0 && (
-          <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-            {count}
-          </span>
-        )}
-      </div>
-      {children}
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
     </div>
   );
 }
@@ -296,29 +289,26 @@ function HomePage(props: HomePageProps) {
         </div>
       )}
 
-      {/* Horizontal row: 状态 (left) + 部门 (right). On narrow widths wraps. */}
-      <div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-start">
-        <FilterSection label="状态" count={homeStatus !== 'all' ? 1 : 0}>
-          <div className="flex flex-wrap gap-1.5">
-            {STATUS_OPTIONS.map((o) => (
-              <Chip key={o.value} active={homeStatus === o.value} onClick={() => onStatusChange(o.value)}>
-                {o.label}
-              </Chip>
-            ))}
-          </div>
-        </FilterSection>
+      {/* Two stacked rows: 状态 + 部门. Both use FilterRow with consistent
+         label gutter; chips and the dept select all share h-8 pill styling. */}
+      <FilterRow label="状态">
+        {STATUS_OPTIONS.map((o) => (
+          <Chip key={o.value} active={homeStatus === o.value} onClick={() => onStatusChange(o.value)}>
+            {o.label}
+          </Chip>
+        ))}
+      </FilterRow>
 
-        <FilterSection label="部门" count={homeDepartmentId ? 1 : 0}>
-          <Select value={homeDepartmentId} onChange={(e) => onDepartmentChange(e.target.value)}>
-            <option value="">全部部门</option>
-            {DEPARTMENTS.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
-          </Select>
-        </FilterSection>
-      </div>
+      <FilterRow label="部门">
+        <Select value={homeDepartmentId} onChange={(e) => onDepartmentChange(e.target.value)}>
+          <option value="">全部部门</option>
+          {DEPARTMENTS.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </Select>
+      </FilterRow>
     </div>
   );
 
@@ -473,47 +463,13 @@ function HomePage(props: HomePageProps) {
       </div>
 
       {/* ─── Desktop layout — fits viewport, no page scroll ──────────────
-        Vertical budget: ~900px viewport - header(56) - footer(40)
-                        - main padding(48) - hot row(36) - gaps = ~720px
-        Each rail card height is constrained via flex / max-h. Map card
-        is allowed to be tall; right rail uses internal scroll for the
-        volunteer list.
+        phase C.8: 热门省份 strip 删除（搬到地图左侧 collapsible），
+        height calc(100vh - 10rem) → calc(100vh - 8rem) 多 32px 给地图。
       */}
       <div
-        className="hidden sm:flex flex-col gap-3"
-        style={{ height: 'calc(100vh - 10rem)', minHeight: '32rem' }}
+        className="hidden sm:grid gap-4 xl:grid-cols-[1.7fr_1fr]"
+        style={{ height: 'calc(100vh - 8rem)', minHeight: '32rem' }}
       >
-        {/* Hot province strip (above the map, outside the map card) —
-            phase C.7: was inside map overlay; user said move out + smaller. */}
-        <div className="flex flex-wrap items-center gap-1 px-1 text-[11px]">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">
-            热门省份
-          </span>
-          {HOT_LOCATIONS.map((h) => {
-            const active = isLocationActive(h.type, h.value);
-            return (
-              <button
-                key={h.label}
-                type="button"
-                onClick={() => {
-                  if (h.type === 'province') onProvinceSelect(h.value);
-                  else onQuickFocusSelect(h.value);
-                }}
-                className={cn(
-                  'rounded px-2 py-0.5 font-medium transition-colors border',
-                  active
-                    ? 'border-accent bg-accent/10 text-accent'
-                    : 'border-border bg-background text-muted-foreground hover:border-accent/50 hover:text-foreground',
-                )}
-              >
-                {h.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Main grid: map left, right rail */}
-        <div className="grid gap-4 xl:grid-cols-[1.7fr_1fr] min-h-0 flex-1">
         {/* Map column (left, full height) */}
         <Card variant="elevated" className="overflow-hidden p-3 md:p-4">
           <div className="h-full overflow-hidden rounded-2xl border border-border">
@@ -532,7 +488,6 @@ function HomePage(props: HomePageProps) {
           <Card variant="elevated" className="flex flex-col p-4 md:p-5 min-h-0 overflow-hidden">
             {listPanel}
           </Card>
-        </div>
         </div>
       </div>
 
