@@ -81,11 +81,12 @@ volunteer-tracker/
 │           └── 20260408..._schema_v2_1/  # 第 3 个 migration，含手工 SQL patch
 ├── scripts/deploy/         # pg-backup.sh / pg-restore.sh / launchd plist 模板
 ├── docs/
-│   ├── deploy/             # mac-mini-setup.md / backup-strategy.md / ...
-│   ├── design/             # 各页面设计文档
-│   ├── framework/          # chunk-6-plan.md (前端视觉重做计划)
-│   ├── project/            # 部分已过时（v1 / Mongo 残留）
-│   └── archive/            # 历史
+│   ├── README.md           # 文档索引 + 项目总览
+│   ├── architecture.md     # 技术栈 + 模块图 + 数据模型 + 角色权限
+│   ├── development.md      # 本地起步 + git workflow + 测试
+│   ├── api-overview.md     # v2.1 endpoint 巡览
+│   ├── deploy/             # mac-mini-setup.md + backup-strategy.md
+│   └── archive/            # v1 时代的设计 / NPS 流程 / chunk-6-plan / stage 拆分等历史
 └── docker-compose{,.deploy}.yml + .env.deploy.example + Makefile
 ```
 
@@ -133,7 +134,7 @@ make test-coverage     # 覆盖率报告
 
 ## 注意事项 + 历史坑
 
-- `docs/project/` 部分文档仍提及 MongoDB / v1 schema —— **已过时**。本文件 + `prisma/schema.prisma` + `docs/framework/chunk-6-plan.md` 为准
+- 旧的 v1 文档（NPS 审核流 / Mongo / SCSS / hash routing / stages 拆分）已全部移到 `docs/archive/v1-*` 子目录，仅作 history 留存。当前真值源是 `docs/architecture.md` + `prisma/schema.prisma` + 本文件
 - `render.yaml` 是历史遗留，不再使用
 - `backend/Dockerfile` 在容器启动时自动跑 `prisma migrate deploy` 然后启 server。改了 schema 之后 deploy 重 build 即可
 - `backend/.env`（开发）和 `.env.deploy`（部署）都含真实密钥，不得提交；模板用 `.env.deploy.example`

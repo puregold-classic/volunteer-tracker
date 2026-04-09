@@ -111,9 +111,10 @@ curl http://localhost/api/health
 
 # 看 backend 启动日志，确认 bootstrap 创建了 admin
 docker compose --env-file .env.deploy -f docker-compose.deploy.yml logs backend | grep -E "bootstrap|migration"
-# 应该看到：
+# 应该看到 3 条 migration apply（最后一个是 v2.1 schema reset）：
 #   Applying migration `20260308223201_init`
 #   Applying migration `20260308223223_add_partial_unique_nps`
+#   Applying migration `20260408183915_schema_v2_1`
 #   [bootstrap] created initial admin account: 你的邮箱@example.com (id=...)
 ```
 
