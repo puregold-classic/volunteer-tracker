@@ -27,7 +27,9 @@ interface HomeMapProps {
   activeProvince: string[];
   activeRegions: string[];
   quickFocusOptions: string[];
-  hotLocations: readonly HotLocation[];
+  /** Hot locations are no longer rendered inside the map (phase C.7);
+   * the prop is kept on the type for backward compat but ignored. */
+  hotLocations?: readonly HotLocation[];
   focusRegion: string;
   onProvinceSelect: (province: string) => void;
   onReset: () => void;
@@ -142,91 +144,54 @@ const FocusBorder: React.FC<{ focusRegion: string }> = ({ focusRegion }) => {
   return <Rectangle bounds={view.bounds} pathOptions={pathOptions} />;
 };
 
-// ─── Top toolbar overlay: region tabs + hot provinces ───────────────────────
+// ─── Top toolbar overlay: region tabs only (hot provinces moved out per
+//     user feedback C.7) ──────────────────────────────────────────────────────
 
 const MapTopToolbar: React.FC<{
   quickFocusOptions: string[];
-  hotLocations: readonly HotLocation[];
   isLocationActive: (type: 'province' | 'region', value: string) => boolean;
   onRegionSelect: (region: string) => void;
-  onProvinceSelect: (province: string) => void;
   onReset: () => void;
-}> = ({ quickFocusOptions, hotLocations, isLocationActive, onRegionSelect, onProvinceSelect, onReset }) => {
+}> = ({ quickFocusOptions, isLocationActive, onRegionSelect, onReset }) => {
   const stop = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); };
 
   return (
     <div
-      className="absolute left-3 right-3 top-3 z-[400] rounded-xl border border-border bg-card/95 px-2.5 py-2 shadow-md backdrop-blur"
+      // Smaller border, lighter background, less padding — feels less like a
+      // "panel" and more like a thin floating control strip.
+      className="absolute left-3 right-3 top-3 z-[400] rounded-lg border border-border/60 bg-card/90 px-2 py-1 shadow-sm backdrop-blur-sm"
       onClick={stop}
       onMouseDown={stop}
       onMouseUp={stop}
       onWheel={stop}
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
-        {/* Region tabs */}
-        <div className="flex flex-wrap items-center gap-1">
-          {quickFocusOptions.map((region) => {
-            const active = isLocationActive('region', region);
-            return (
-              <button
-                key={region}
-                type="button"
-                onClick={(e) => { stop(e); onRegionSelect(region); }}
-                className={cn(
-                  'rounded-md px-2.5 py-1 font-medium transition-colors',
-                  active
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
-              >
-                {region.replace('中国', '')}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Divider */}
-        <span className="hidden h-4 w-px bg-border md:inline-block" />
-
-        {/* Hot provinces */}
-        <div className="flex flex-wrap items-center gap-1">
-          <span className="hidden text-[10px] uppercase tracking-wider text-muted-foreground md:inline">
-            热门
-          </span>
-          {hotLocations.map((h) => {
-            const active = isLocationActive(h.type, h.value);
-            return (
-              <button
-                key={h.label}
-                type="button"
-                onClick={(e) => {
-                  stop(e);
-                  if (h.type === 'province') onProvinceSelect(h.value);
-                  else onRegionSelect(h.value);
-                }}
-                className={cn(
-                  'rounded-md px-2 py-1 font-medium transition-colors',
-                  active
-                    ? 'bg-accent text-accent-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                )}
-              >
-                {h.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Reset */}
+      <div className="flex flex-wrap items-center gap-1 text-[11px]">
+        {quickFocusOptions.map((region) => {
+          const active = isLocationActive('region', region);
+          return (
+            <button
+              key={region}
+              type="button"
+              onClick={(e) => { stop(e); onRegionSelect(region); }}
+              className={cn(
+                'rounded px-2 py-0.5 font-medium transition-colors',
+                active
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              {region.replace('中国', '')}
+            </button>
+          );
+        })}
         <button
           type="button"
           onClick={(e) => { stop(e); onReset(); }}
-          className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="ml-auto inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="重置选择"
           title="重置地理筛选"
         >
           <RotateCcw className="h-3 w-3" />
-          重置
         </button>
       </div>
     </div>
@@ -263,7 +228,7 @@ const HomeMap: React.FC<HomeMapProps> = ({
   activeProvince,
   activeRegions: _activeRegions,
   quickFocusOptions,
-  hotLocations,
+  hotLocations: _hotLocations,
   focusRegion,
   onProvinceSelect,
   onReset,
@@ -395,14 +360,12 @@ const HomeMap: React.FC<HomeMapProps> = ({
         </MapContainer>
       )}
 
-      {/* Top toolbar overlay (region + hot provinces + reset) */}
+      {/* Top toolbar overlay (regions + reset only) */}
       {!loading && !error && (
         <MapTopToolbar
           quickFocusOptions={quickFocusOptions}
-          hotLocations={hotLocations}
           isLocationActive={isLocationActive}
           onRegionSelect={onQuickFocusSelect}
-          onProvinceSelect={onProvinceSelect}
           onReset={onReset}
         />
       )}

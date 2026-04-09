@@ -474,15 +474,46 @@ function HomePage(props: HomePageProps) {
 
       {/* ─── Desktop layout — fits viewport, no page scroll ──────────────
         Vertical budget: ~900px viewport - header(56) - footer(40)
-                        - main padding(48) - rail gaps = ~750px usable
+                        - main padding(48) - hot row(36) - gaps = ~720px
         Each rail card height is constrained via flex / max-h. Map card
         is allowed to be tall; right rail uses internal scroll for the
         volunteer list.
       */}
       <div
-        className="hidden sm:grid gap-4 xl:grid-cols-[1.7fr_1fr]"
+        className="hidden sm:flex flex-col gap-3"
         style={{ height: 'calc(100vh - 10rem)', minHeight: '32rem' }}
       >
+        {/* Hot province strip (above the map, outside the map card) —
+            phase C.7: was inside map overlay; user said move out + smaller. */}
+        <div className="flex flex-wrap items-center gap-1 px-1 text-[11px]">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">
+            热门省份
+          </span>
+          {HOT_LOCATIONS.map((h) => {
+            const active = isLocationActive(h.type, h.value);
+            return (
+              <button
+                key={h.label}
+                type="button"
+                onClick={() => {
+                  if (h.type === 'province') onProvinceSelect(h.value);
+                  else onQuickFocusSelect(h.value);
+                }}
+                className={cn(
+                  'rounded px-2 py-0.5 font-medium transition-colors border',
+                  active
+                    ? 'border-accent bg-accent/10 text-accent'
+                    : 'border-border bg-background text-muted-foreground hover:border-accent/50 hover:text-foreground',
+                )}
+              >
+                {h.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Main grid: map left, right rail */}
+        <div className="grid gap-4 xl:grid-cols-[1.7fr_1fr] min-h-0 flex-1">
         {/* Map column (left, full height) */}
         <Card variant="elevated" className="overflow-hidden p-3 md:p-4">
           <div className="h-full overflow-hidden rounded-2xl border border-border">
@@ -501,6 +532,7 @@ function HomePage(props: HomePageProps) {
           <Card variant="elevated" className="flex flex-col p-4 md:p-5 min-h-0 overflow-hidden">
             {listPanel}
           </Card>
+        </div>
         </div>
       </div>
 

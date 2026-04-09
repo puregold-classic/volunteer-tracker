@@ -79,11 +79,17 @@ export function useHomeState() {
     return params;
   }, [homeStatus, homeDepartmentId, selectedRegions, selectedProvinces, debouncedSearch]);
 
+  // Track whether we've ever successfully loaded stats. Subsequent fetches
+  // skip the loading flag so the StatStrip doesn't flash "加载中…" on every
+  // filter change. Stale data stays visible until new data arrives.
+  const hasLoadedStatsRef = useMemo(() => ({ value: false }), []);
   useEffect(() => {
+    let cancelled = false;
     const fetchHomeStats = async () => {
-      setHomeStatsLoading(true);
+      if (!hasLoadedStatsRef.value) setHomeStatsLoading(true);
       try {
         const result = await volunteerService.getStats(homeStatsFilterParams);
+        if (cancelled) return;
         if (result?.success && result?.data?.summary) {
           setHomeStats({
             totalVolunteers: result.data.summary.totalVolunteers || 0,
@@ -98,16 +104,19 @@ export function useHomeState() {
               count: r.count,
             })),
           });
-        } else {
-          setHomeStats({ totalVolunteers: 0, totalActive: 0, totalHours: 0, departmentDistribution: [], regionDistribution: [] });
+          hasLoadedStatsRef.value = true;
         }
       } catch {
-        setHomeStats({ totalVolunteers: 0, totalActive: 0, totalHours: 0, departmentDistribution: [], regionDistribution: [] });
+        if (!cancelled && !hasLoadedStatsRef.value) {
+          setHomeStats({ totalVolunteers: 0, totalActive: 0, totalHours: 0, departmentDistribution: [], regionDistribution: [] });
+        }
       } finally {
-        setHomeStatsLoading(false);
+        if (!cancelled) setHomeStatsLoading(false);
       }
     };
     void fetchHomeStats();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeStatsFilterParams]);
 
   const primaryFocusRegion = selectedRegions.length > 0 ? selectedRegions[selectedRegions.length - 1] : '';
