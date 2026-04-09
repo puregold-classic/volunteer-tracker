@@ -1,6 +1,7 @@
-// chunk 6 phase C.5: rewritten as a horizontal row card optimized for
-// single-column rail display. No more name truncation. Avatars hidden in
-// compact mode (placeholder UN avatars from v1 are noise without real images).
+// chunk 6 phase C.6: adds gradient initial avatar (first chinese char with
+// deterministic warm-palette color from volunteerCode hash). v1's UN
+// placeholder noise is gone; real photos can be wired in later by reading
+// volunteer.avatar (when it's a real URL not the ui-avatars default).
 
 import React from 'react';
 import { ChevronRight, MapPin, Briefcase } from 'lucide-react';
@@ -14,8 +15,38 @@ export interface VolunteerCardProps {
   compact?: boolean;
 }
 
+// Warm palette derived from chart-1..5 + primary/accent. Each entry is a
+// pre-baked Tailwind utility pair so we don't compute styles per render.
+const AVATAR_TONES = [
+  'bg-primary/15 text-primary ring-primary/30',           // ochre
+  'bg-accent/15 text-accent ring-accent/30',              // teal
+  'bg-chart-3/15 text-chart-3 ring-chart-3/30',           // moss
+  'bg-chart-4/15 text-chart-4 ring-chart-4/30',           // terracotta
+  'bg-chart-5/15 text-chart-5 ring-chart-5/30',           // plum
+] as const;
+
+function hashCode(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 1) {
+    hash = (hash * 31 + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function getInitial(name?: string, fallback?: string): string {
+  const source = (name || fallback || '').trim();
+  return source ? source.charAt(0) : '?';
+}
+
+const AVATAR_DEFAULT_PREFIX = 'https://ui-avatars.com/api/';
+
 const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compact = false }) => {
   const isActive = volunteer.status === '在职';
+  const initial = getInitial(volunteer.chineseName, volunteer.volunteerCode);
+  const tone = AVATAR_TONES[hashCode(volunteer.volunteerCode || volunteer.id) % AVATAR_TONES.length];
+
+  // Show real photo only if it's NOT the v1 ui-avatars placeholder
+  const hasRealPhoto = volunteer.avatar && !volunteer.avatar.startsWith(AVATAR_DEFAULT_PREFIX);
 
   return (
     <button
@@ -36,10 +67,29 @@ const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compa
         )}
       />
 
-      <div className="flex items-start justify-between gap-3 pl-2">
+      <div className="flex items-start gap-3 pl-2">
+        {/* Avatar */}
+        {hasRealPhoto ? (
+          <img
+            src={volunteer.avatar}
+            alt={volunteer.chineseName}
+            className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-border"
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            className={cn(
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg font-serif text-base font-semibold ring-1',
+              tone,
+            )}
+          >
+            {initial}
+          </div>
+        )}
+
         {/* Main info */}
-        <div className="min-w-0 flex-1 space-y-1.5">
-          {/* Name + code + status badge */}
+        <div className="min-w-0 flex-1 space-y-1">
+          {/* Name + code + status */}
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
             <h3 className="font-serif text-base font-semibold text-foreground leading-tight">
               {volunteer.chineseName}
@@ -58,7 +108,7 @@ const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compa
           )}
 
           {/* Region + department */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <MapPin className="h-3 w-3" />
               {volunteer.region}
@@ -74,7 +124,7 @@ const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compa
         </div>
 
         {/* Chevron */}
-        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+        <ChevronRight className="h-4 w-4 shrink-0 self-center text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
       </div>
     </button>
   );

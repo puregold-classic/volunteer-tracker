@@ -1,19 +1,39 @@
+// frontend/src/components/HomeMap/HomeMap.tsx — chunk 6 phase C.6
+//
+// Changes (user feedback):
+// - Province tooltips: permanent → hover-only (was overlapping each other)
+// - New top toolbar overlay: region tabs + hot province chips
+//   ("地理筛选搬到地图侧"，节省右侧 rail 空间)
+// - Focus panel popover removed (the crosshair button); the new top toolbar
+//   covers the same use case more directly
+// - Bottom toolbar shows current selection + a "重置" link
+// - Map controls (zoom in/out + refresh) stay in the top-right corner
+
 import React, { useEffect } from 'react';
-import { Crosshair, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
-import { GeoJSON, MapContainer, Rectangle, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { RefreshCw, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { GeoJSON, MapContainer, Rectangle, TileLayer, useMap } from 'react-leaflet';
 import type { LatLngBoundsExpression, PathOptions } from 'leaflet';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import 'leaflet/dist/leaflet.css';
+import { cn } from '@/lib/utils';
+
+export interface HotLocation {
+  label: string;
+  type: 'province' | 'region';
+  value: string;
+}
 
 interface HomeMapProps {
   activeProvince: string[];
   activeRegions: string[];
   quickFocusOptions: string[];
+  hotLocations: readonly HotLocation[];
   focusRegion: string;
   onProvinceSelect: (province: string) => void;
   onReset: () => void;
   onQuickFocusSelect: (region: string) => void;
   onRefresh: () => void;
+  isLocationActive: (type: 'province' | 'region', value: string) => boolean;
 }
 
 type ProvinceProperties = {
@@ -32,14 +52,12 @@ const CHINA_BOUNDS: LatLngBoundsExpression = [
   [54.0, 136.0]
 ];
 const CHINA_CENTER: [number, number] = [35.5, 104.5];
-// Self-hosted from frontend/public/. Avoids Aliyun DataV's Referer-based 403
-// when served from any non-aliyun origin.
 const CHINA_GEOJSON_URL = '/china-100000.json';
 const REGION_VIEW: Record<
   string,
   { center: [number, number]; zoom: number; bounds?: LatLngBoundsExpression; label?: string; borderColor?: string }
 > = {
-  中国大陆: { center: [35.5, 104.5], zoom: 4, bounds: CHINA_BOUNDS, label: '中国大陆', borderColor: '#2563eb' },
+  中国大陆: { center: [35.5, 104.5], zoom: 4, bounds: CHINA_BOUNDS, label: '中国大陆', borderColor: '#a6610b' },
   中国台湾: {
     center: [23.8, 121.0],
     zoom: 7,
@@ -92,7 +110,6 @@ const FitChinaBounds: React.FC = () => {
 
 const FocusRegion: React.FC<{ focusRegion: string }> = ({ focusRegion }) => {
   const map = useMap();
-
   useEffect(() => {
     if (!focusRegion || focusRegion === '重置世界视图') {
       map.fitBounds(CHINA_BOUNDS, { padding: [6, 6] });
@@ -107,7 +124,6 @@ const FocusRegion: React.FC<{ focusRegion: string }> = ({ focusRegion }) => {
       map.flyTo(view.center, view.zoom, { duration: 0.6 });
     }
   }, [map, focusRegion]);
-
   return null;
 };
 
@@ -117,83 +133,143 @@ const FocusBorder: React.FC<{ focusRegion: string }> = ({ focusRegion }) => {
   if (!view?.bounds) return null;
 
   const pathOptions: PathOptions = {
-    color: view.borderColor || '#2563eb',
+    color: view.borderColor || '#a6610b',
     weight: 2.5,
     dashArray: '8 6',
     fillOpacity: 0.04
   };
 
-  return (
-    <Rectangle bounds={view.bounds} pathOptions={pathOptions}>
-      {view.label && <Tooltip permanent direction="center" className="home-map__region-label">{view.label}</Tooltip>}
-    </Rectangle>
-  );
+  return <Rectangle bounds={view.bounds} pathOptions={pathOptions} />;
 };
 
-const MapActionControls: React.FC<{
+// ─── Top toolbar overlay: region tabs + hot provinces ───────────────────────
+
+const MapTopToolbar: React.FC<{
   quickFocusOptions: string[];
-  activeRegions: string[];
-  onQuickFocusSelect: (region: string) => void;
-  onRefresh: () => void;
-}> = ({ quickFocusOptions, activeRegions, onQuickFocusSelect, onRefresh }) => {
-  const map = useMap();
-  const [showQuickFocus, setShowQuickFocus] = React.useState(false);
-  const stop = (event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
+  hotLocations: readonly HotLocation[];
+  isLocationActive: (type: 'province' | 'region', value: string) => boolean;
+  onRegionSelect: (region: string) => void;
+  onProvinceSelect: (province: string) => void;
+  onReset: () => void;
+}> = ({ quickFocusOptions, hotLocations, isLocationActive, onRegionSelect, onProvinceSelect, onReset }) => {
+  const stop = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); };
 
   return (
-    <div className="home-map__controls" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-      <button type="button" onClick={(e) => { stop(e); map.zoomIn(); }} aria-label="放大"><ZoomIn className="h-4 w-4" /></button>
-      <button type="button" onClick={(e) => { stop(e); map.zoomOut(); }} aria-label="缩小"><ZoomOut className="h-4 w-4" /></button>
-      <button
-        type="button"
-        onClick={(e) => { stop(e); setShowQuickFocus((v) => !v); }}
-        className={showQuickFocus ? 'is-active' : ''}
-        aria-label="快速聚焦"
-      >
-        <Crosshair className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={(e) => {
-          stop(e);
-          map.fitBounds(CHINA_BOUNDS, { padding: [6, 6] });
-          onRefresh();
-          setShowQuickFocus(false);
-        }}
-        aria-label="刷新"
-      >
-        <RefreshCw className="h-4 w-4" />
-      </button>
-      {showQuickFocus && (
-        <div className="home-map__focus-panel" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-          {quickFocusOptions.map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={activeRegions.includes(item) ? 'is-active' : ''}
-              onClick={(e) => { stop(e); onQuickFocusSelect(item); }}
-            >
-              {item}
-            </button>
-          ))}
+    <div
+      className="absolute left-3 right-3 top-3 z-[400] rounded-xl border border-border bg-card/95 px-2.5 py-2 shadow-md backdrop-blur"
+      onClick={stop}
+      onMouseDown={stop}
+      onMouseUp={stop}
+      onWheel={stop}
+    >
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
+        {/* Region tabs */}
+        <div className="flex flex-wrap items-center gap-1">
+          {quickFocusOptions.map((region) => {
+            const active = isLocationActive('region', region);
+            return (
+              <button
+                key={region}
+                type="button"
+                onClick={(e) => { stop(e); onRegionSelect(region); }}
+                className={cn(
+                  'rounded-md px-2.5 py-1 font-medium transition-colors',
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {region.replace('中国', '')}
+              </button>
+            );
+          })}
         </div>
-      )}
+
+        {/* Divider */}
+        <span className="hidden h-4 w-px bg-border md:inline-block" />
+
+        {/* Hot provinces */}
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="hidden text-[10px] uppercase tracking-wider text-muted-foreground md:inline">
+            热门
+          </span>
+          {hotLocations.map((h) => {
+            const active = isLocationActive(h.type, h.value);
+            return (
+              <button
+                key={h.label}
+                type="button"
+                onClick={(e) => {
+                  stop(e);
+                  if (h.type === 'province') onProvinceSelect(h.value);
+                  else onRegionSelect(h.value);
+                }}
+                className={cn(
+                  'rounded-md px-2 py-1 font-medium transition-colors',
+                  active
+                    ? 'bg-accent text-accent-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {h.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Reset */}
+        <button
+          type="button"
+          onClick={(e) => { stop(e); onReset(); }}
+          className="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="重置选择"
+          title="重置地理筛选"
+        >
+          <RotateCcw className="h-3 w-3" />
+          重置
+        </button>
+      </div>
     </div>
   );
 };
 
+// ─── Right-side zoom/refresh stack ──────────────────────────────────────────
+
+const MapZoomControls: React.FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
+  const map = useMap();
+  const stop = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); };
+  return (
+    <div className="home-map__controls" onClick={stop} onMouseDown={stop}>
+      <button type="button" onClick={(e) => { stop(e); map.zoomIn(); }} aria-label="放大">
+        <ZoomIn className="h-4 w-4" />
+      </button>
+      <button type="button" onClick={(e) => { stop(e); map.zoomOut(); }} aria-label="缩小">
+        <ZoomOut className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={(e) => { stop(e); map.fitBounds(CHINA_BOUNDS, { padding: [6, 6] }); onRefresh(); }}
+        aria-label="刷新"
+      >
+        <RefreshCw className="h-4 w-4" />
+      </button>
+    </div>
+  );
+};
+
+// ─── Main map ───────────────────────────────────────────────────────────────
+
 const HomeMap: React.FC<HomeMapProps> = ({
   activeProvince,
-  activeRegions,
+  activeRegions: _activeRegions,
   quickFocusOptions,
+  hotLocations,
   focusRegion,
   onProvinceSelect,
   onReset,
   onQuickFocusSelect,
-  onRefresh
+  onRefresh,
+  isLocationActive,
 }) => {
   const [geoData, setGeoData] = React.useState<ProvinceCollection | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -218,9 +294,7 @@ const HomeMap: React.FC<HomeMapProps> = ({
       }
     };
     void loadGeo();
-    return () => {
-      canceled = true;
-    };
+    return () => { canceled = true; };
   }, []);
 
   const getProvinceColor = (name: string) => {
@@ -246,36 +320,30 @@ const HomeMap: React.FC<HomeMapProps> = ({
     const isHovered = name === hoveredProvince;
 
     if (isActive) {
-      return {
-        color: '#1e3a8a',
-        weight: 3,
-        fillColor: '#60a5fa',
-        fillOpacity: 0.86
-      };
+      return { color: '#7a4a06', weight: 3, fillColor: '#e8a153', fillOpacity: 0.86 };
     }
-
     if (isHovered) {
-      return {
-        color: '#2563eb',
-        weight: 2.2,
-        fillColor: '#93c5fd',
-        fillOpacity: 0.82
-      };
+      return { color: '#a6610b', weight: 2.2, fillColor: '#f0c389', fillOpacity: 0.82 };
     }
-
     return {
       color: '#334155',
-      weight: 1.35,
+      weight: 1.0,
       fillColor: getProvinceColor(name),
-      fillOpacity: 0.72
+      fillOpacity: 0.55,
     };
   };
 
   const geoJsonRenderKey = `${activeProvince.join('|')}__${hoveredProvince}`;
 
+  const selectionLabel = activeProvince.length > 0
+    ? `当前省份: ${activeProvince.join(' / ')}`
+    : focusRegion
+      ? `当前区域: ${focusRegion}`
+      : '';
+
   return (
     <div className="home-map">
-      {loading && <div className="home-map__state">地图加载中...</div>}
+      {loading && <div className="home-map__state">地图加载中…</div>}
       {error && <div className="home-map__state home-map__state--error">{error}</div>}
 
       {!loading && !error && (
@@ -291,12 +359,7 @@ const HomeMap: React.FC<HomeMapProps> = ({
           <FitChinaBounds />
           <FocusRegion focusRegion={focusRegion} />
           <FocusBorder focusRegion={focusRegion} />
-          <MapActionControls
-            quickFocusOptions={quickFocusOptions}
-            activeRegions={activeRegions}
-            onQuickFocusSelect={onQuickFocusSelect}
-            onRefresh={onRefresh}
-          />
+          <MapZoomControls onRefresh={onRefresh} />
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
             subdomains="abcd"
@@ -309,36 +372,45 @@ const HomeMap: React.FC<HomeMapProps> = ({
               style={style}
               onEachFeature={(feature, layer) => {
                 const name = getFeatureName(feature as ProvinceFeature);
-                if (!name) return; // Skip features without names (e.g., USA, other non-China regions)
+                if (!name) return;
                 layer.on({
-                  mouseover: () => {
-                    if (name) setHoveredProvince(name);
-                  },
-                  mouseout: () => {
-                    if (name) setHoveredProvince((current) => (current === name ? '' : current));
-                  },
+                  mouseover: () => setHoveredProvince(name),
+                  mouseout: () => setHoveredProvince((current) => (current === name ? '' : current)),
                   click: () => {
-                    if (!name || REGION_VIEW[name]) return;
+                    if (REGION_VIEW[name]) return;
                     onProvinceSelect(name);
-                  }
+                  },
                 });
-                if (name) {
-                  layer.bindTooltip(name, {
-                    permanent: true,
-                    direction: 'center',
-                    className: 'home-map__province-label'
-                  });
-                }
+                // Tooltip is hover-only (permanent: false) — fixes the
+                // overlapping label issue from previous design
+                layer.bindTooltip(name, {
+                  permanent: false,
+                  direction: 'top',
+                  className: 'home-map__province-label',
+                  sticky: true,
+                });
               }}
             />
           )}
         </MapContainer>
       )}
 
-      <div className="home-map__toolbar">
-        <span>当前省份: {activeProvince.length > 0 ? activeProvince.join(' / ') : '-'}</span>
-        <button type="button" onClick={onReset}>清除省份</button>
-      </div>
+      {/* Top toolbar overlay (region + hot provinces + reset) */}
+      {!loading && !error && (
+        <MapTopToolbar
+          quickFocusOptions={quickFocusOptions}
+          hotLocations={hotLocations}
+          isLocationActive={isLocationActive}
+          onRegionSelect={onQuickFocusSelect}
+          onProvinceSelect={onProvinceSelect}
+          onReset={onReset}
+        />
+      )}
+
+      {/* Bottom selection display */}
+      {selectionLabel && (
+        <div className="home-map__toolbar">{selectionLabel}</div>
+      )}
     </div>
   );
 };

@@ -221,6 +221,7 @@ function HomePage(props: HomePageProps) {
   const [mobileTab, setMobileTab] = useState<'map' | 'list'>('map');
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState<Volunteer | null>(null);
+  const [activeChipsExpanded, setActiveChipsExpanded] = useState(false);
 
   const departmentName = homeDepartmentId
     ? DEPARTMENTS.find((d) => d.id === homeDepartmentId)?.name || homeDepartmentId
@@ -248,15 +249,43 @@ function HomePage(props: HomePageProps) {
       : []),
   ];
 
-  // Filter card content (search NOT here — moved to list card)
+  // Filter card content — compact horizontal layout, geographic filters
+  // moved to map toolbar (see phase C.6 user feedback).
+  //
+  // Active chips overflow strategy: when many provinces are selected they
+  // would otherwise stack vertically and push everything else down. Cap
+  // visible chips to 3, show "+N" badge for the rest. The overflow expands
+  // into a popover (or just toggle to show all) on click.
+  const ACTIVE_CHIPS_VISIBLE = 3;
+  const visibleChips = activeChipsExpanded ? activeChips : activeChips.slice(0, ACTIVE_CHIPS_VISIBLE);
+  const hiddenChipCount = activeChips.length - ACTIVE_CHIPS_VISIBLE;
+
   const filterPanel = (
-    <div className="space-y-3.5">
-      {/* Active chips */}
+    <div className="space-y-3">
+      {/* Active chips bar — capped at 3 visible, "+N" expander for the rest */}
       {activeChips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {activeChips.map((c) => (
+        <div className="flex flex-wrap items-center gap-1">
+          {visibleChips.map((c) => (
             <ActiveFilterChip key={c.key} label={c.label} onRemove={c.onRemove} />
           ))}
+          {!activeChipsExpanded && hiddenChipCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveChipsExpanded(true)}
+              className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            >
+              +{hiddenChipCount}
+            </button>
+          )}
+          {activeChipsExpanded && activeChips.length > ACTIVE_CHIPS_VISIBLE && (
+            <button
+              type="button"
+              onClick={() => setActiveChipsExpanded(false)}
+              className="rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            >
+              收起
+            </button>
+          )}
           <button
             type="button"
             onClick={onResetFilters}
@@ -267,49 +296,29 @@ function HomePage(props: HomePageProps) {
         </div>
       )}
 
-      {/* Status */}
-      <FilterSection label="状态" count={homeStatus !== 'all' ? 1 : 0}>
-        <div className="flex flex-wrap gap-1.5">
-          {STATUS_OPTIONS.map((o) => (
-            <Chip key={o.value} active={homeStatus === o.value} onClick={() => onStatusChange(o.value)}>
-              {o.label}
-            </Chip>
-          ))}
-        </div>
-      </FilterSection>
+      {/* Horizontal row: 状态 (left) + 部门 (right). On narrow widths wraps. */}
+      <div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-start">
+        <FilterSection label="状态" count={homeStatus !== 'all' ? 1 : 0}>
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_OPTIONS.map((o) => (
+              <Chip key={o.value} active={homeStatus === o.value} onClick={() => onStatusChange(o.value)}>
+                {o.label}
+              </Chip>
+            ))}
+          </div>
+        </FilterSection>
 
-      {/* Department dropdown */}
-      <FilterSection label="部门" count={homeDepartmentId ? 1 : 0}>
-        <Select value={homeDepartmentId} onChange={(e) => onDepartmentChange(e.target.value)}>
-          <option value="">全部部门</option>
-          {DEPARTMENTS.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
-          ))}
-        </Select>
-      </FilterSection>
-
-      {/* Hot provinces */}
-      <FilterSection
-        label="热门省份"
-        count={HOT_LOCATIONS.filter((h) => isLocationActive(h.type, h.value)).length}
-      >
-        <div className="flex flex-wrap gap-1.5">
-          {HOT_LOCATIONS.map((h) => (
-            <Chip
-              key={h.label}
-              active={isLocationActive(h.type, h.value)}
-              onClick={() => {
-                if (h.type === 'province') onProvinceSelect(h.value);
-                else onQuickFocusSelect(h.value);
-              }}
-            >
-              {h.label}
-            </Chip>
-          ))}
-        </div>
-      </FilterSection>
+        <FilterSection label="部门" count={homeDepartmentId ? 1 : 0}>
+          <Select value={homeDepartmentId} onChange={(e) => onDepartmentChange(e.target.value)}>
+            <option value="">全部部门</option>
+            {DEPARTMENTS.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </Select>
+        </FilterSection>
+      </div>
     </div>
   );
 
@@ -361,11 +370,13 @@ function HomePage(props: HomePageProps) {
       activeProvince={selectedProvinces}
       activeRegions={selectedRegions}
       quickFocusOptions={[...quickFocusOptions]}
+      hotLocations={HOT_LOCATIONS}
       focusRegion={primaryFocusRegion}
       onProvinceSelect={onProvinceSelect}
       onReset={onResetProvinceSelections}
       onQuickFocusSelect={onQuickFocusSelect}
       onRefresh={onRefreshMap}
+      isLocationActive={isLocationActive}
     />
   );
 
