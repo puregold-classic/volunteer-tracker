@@ -1,109 +1,112 @@
-# Volunteer Tracker 开发命令
+# Volunteer Tracker — 开发命令 (v2.1)
 #
-# ⚠️ 部分目标过时（v1 残留），不要直接信任 — 需要单独清理。
-# v2.1 已经整理过的目标：backup / backup-list / restore (见末尾)
+# 全部以 v2.1 schema 为准。v1 残留命令（seed-quality / backfill-accounts /
+# migrate-* / db-shell→mongodb / etc）已删除——它们指向不存在的 npm scripts，
+# 跑了只会出错。
 
-.PHONY: help dev start stop restart logs seed test clean recover backup backup-list restore
+.PHONY: help \
+        dev start stop restart logs status recover \
+        seed db-migrate db-generate db-studio db-reset \
+        test test-watch test-coverage lint \
+        backup backup-list restore \
+        clean
 
 help:
-	@echo "📋 志愿者管理系统开发命令"
+	@echo "📋 志愿者管理系统命令 (v2.1)"
 	@echo ""
-	@echo "开发环境:"
-	@echo "  make dev         稳定启动（后端健康检查 + 前端）"
-	@echo "  make start       启动开发环境"
-	@echo "  make stop        停止开发环境"
-	@echo "  make restart     重启开发环境"
-	@echo "  make logs        查看容器日志"
-	@echo "  make recover     快速恢复后端依赖并重启"
+	@echo "本地开发（docker-compose.yml）:"
+	@echo "  make dev          稳定启动 backend + postgres，前端单独 npm run dev"
+	@echo "  make start        同 dev"
+	@echo "  make stop         停掉本地容器"
+	@echo "  make restart      重启"
+	@echo "  make logs         看本地容器日志"
+	@echo "  make status       查看运行状态 + 后端健康检查"
+	@echo "  make recover      backend 依赖出问题时的恢复"
 	@echo ""
-	@echo "数据库:"
-	@echo "  make seed        初始化数据库"
-	@echo "  make seed-quality 高质量种子数据（志愿者+账号+服务记录）"
-	@echo "  make backfill-accounts 为未绑定志愿者补账号"
-	@echo "  make migrate-data 执行数据质量迁移（账号绑定唯一+服务去重）"
-	@echo "  make migrate-remove-deprecated-services 清理已废弃服务方向数据"
-	@echo "  make migrate-reviewer-ids 给admin/a_admin分配保留PG编号"
-	@echo "  make db-shell    进入数据库Shell"
-	@echo "  make db-reset    重置数据库"
-	@echo "  make db-reset-system-admin 清空业务数据并仅保留系统管理员"
+	@echo "数据库 (本地 dev):"
+	@echo "  make seed         跑 prisma db seed (10 部门 + 50 service items + 4 测试账号)"
+	@echo "  make db-migrate   prisma migrate dev (开发期建迁移)"
+	@echo "  make db-generate  prisma generate (生成 client)"
+	@echo "  make db-studio    打开 prisma studio 可视化"
+	@echo "  make db-reset     完全重置 (down -v + up + migrate deploy + seed)"
 	@echo ""
-	@echo "测试:"
-	@echo "  make test        运行测试"
-	@echo "  make lint        代码检查"
+	@echo "测试 + 检查:"
+	@echo "  make test         vitest run（service 单元测试，纯 mock 不需要 DB）"
+	@echo "  make test-watch   vitest watch"
+	@echo "  make test-coverage vitest run --coverage"
+	@echo "  make lint         eslint"
+	@echo ""
+	@echo "Mac mini sandbox 备份 (deploy 栈):"
+	@echo "  make backup       手动备份一次（详见 docs/deploy/backup-strategy.md）"
+	@echo "  make backup-list  列出现有备份"
+	@echo "  make restore      恢复最新一份备份（destructive，会要求 RESTORE 确认）"
 	@echo ""
 	@echo "工具:"
-	@echo "  make clean       清理临时文件"
-	@echo "  make status      查看服务状态"
+	@echo "  make clean        清理 docker 资源 + node_modules + log"
+
+# ─── 本地开发栈（docker-compose.yml — postgres + backend，前端 npm run dev） ────
 
 dev:
 	@./scripts/dev/up.sh
 
-start:
-	@./scripts/dev/up.sh
+start: dev
 
 stop:
-	@docker-compose down
+	@docker compose down
 
 restart: stop start
 
 logs:
-	@docker-compose logs -f
-
-seed:
-	@docker-compose exec backend npm run seed
-
-seed-quality:
-	@docker-compose exec backend npm run seed:quality
-
-backfill-accounts:
-	@docker-compose exec backend npm run backfill:volunteer-accounts
-
-migrate-data:
-	@docker-compose exec backend npm run migrate:accounts:volunteer-unique
-	@docker-compose exec backend npm run migrate:services:dedupe
-
-migrate-remove-deprecated-services:
-	@docker-compose exec backend npm run migrate:services:remove-deprecated
-
-migrate-reviewer-ids:
-	@docker-compose exec backend npm run migrate:reviewers:reserved-ids
-
-db-shell:
-	@docker-compose exec mongodb mongosh volunteer_tracker
-
-db-reset:
-	@docker-compose down -v
-	@docker-compose up -d mongodb
-	@sleep 3
-	@docker-compose exec backend npm run seed
-
-db-reset-system-admin:
-	@docker-compose exec backend npm run reset:system-admin
-
-test:
-	@docker-compose exec backend npm test
-
-lint:
-	@docker-compose exec backend npm run lint
-
-clean:
-	@docker system prune -f
-	@rm -rf frontend/node_modules backend/node_modules
-	@find . -name "*.log" -delete
+	@docker compose logs -f
 
 status:
-	@docker-compose ps
+	@docker compose ps
 	@echo ""
-	@echo "🌐 服务状态:"
+	@echo "🌐 后端健康检查:"
 	@curl -s http://localhost:5000/api/health | python3 -m json.tool || echo "后端服务未运行"
 
 recover:
-	@docker-compose exec -u root backend npm install
-	@docker-compose restart backend
-	@docker-compose logs --tail=80 backend
+	@docker compose exec -u root backend npm install
+	@docker compose restart backend
+	@docker compose logs --tail=80 backend
 
-# ─── v2.1 备份 / 恢复 ─────────────────────────────────────────────────────────
-# 详见 docs/deploy/backup-strategy.md。这些目标在 Mac mini sandbox 上跑。
+# ─── 数据库 (本地 dev) ────────────────────────────────────────────────────────
+
+seed:
+	@docker compose exec -T backend npx prisma db seed
+
+db-migrate:
+	@docker compose exec -T backend npx prisma migrate dev
+
+db-generate:
+	@docker compose exec -T backend npx prisma generate
+
+db-studio:
+	@docker compose exec backend npx prisma studio
+
+db-reset:
+	@docker compose down -v
+	@docker compose up -d
+	@sleep 5
+	@docker compose exec -T backend npx prisma migrate deploy
+	@docker compose exec -T backend npx prisma db seed
+
+# ─── 测试 ───────────────────────────────────────────────────────────────────
+
+test:
+	@cd backend && npx vitest run
+
+test-watch:
+	@cd backend && npx vitest
+
+test-coverage:
+	@cd backend && npx vitest run --coverage
+
+lint:
+	@cd backend && npm run lint
+
+# ─── Mac mini sandbox 备份 (deploy 栈) ───────────────────────────────────────
+# 这些 target 在 Mac mini 上跑，要走 deploy 栈。详见 docs/deploy/backup-strategy.md。
 
 backup:
 	@./scripts/deploy/pg-backup.sh
@@ -113,3 +116,10 @@ backup-list:
 
 restore:
 	@./scripts/deploy/pg-restore.sh latest
+
+# ─── 工具 ───────────────────────────────────────────────────────────────────
+
+clean:
+	@docker system prune -f
+	@rm -rf frontend/node_modules backend/node_modules
+	@find . -name "*.log" -delete
