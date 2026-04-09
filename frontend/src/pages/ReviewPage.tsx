@@ -17,6 +17,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock3, FileText, Layers3, TrendingUp } from 'lucide-react';
 import ledgerService, { LedgerOverview, LedgerTimeSeriesPoint } from '@services/ledgerService';
+import departmentService from '@services/departmentService';
+import type { Department } from '@services/types';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -34,21 +36,68 @@ interface VolunteerSort {
   dir: 'asc' | 'desc';
 }
 
+type DateRangeKey = 'all' | '7d' | '30d' | '90d' | 'thisMonth' | 'thisYear';
+
+const DATE_RANGE_OPTIONS: Array<{ key: DateRangeKey; label: string }> = [
+  { key: 'all', label: '全部时间' },
+  { key: '7d', label: '近 7 天' },
+  { key: '30d', label: '近 30 天' },
+  { key: '90d', label: '近 90 天' },
+  { key: 'thisMonth', label: '本月' },
+  { key: 'thisYear', label: '本年' },
+];
+
+/** Convert a preset key to (dateFrom, dateTo) bounds in YYYY-MM-DD form. */
+function rangeToBounds(key: DateRangeKey): { dateFrom?: string; dateTo?: string } {
+  if (key === 'all') return {};
+  const now = new Date();
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const dateTo = fmt(now);
+  let from: Date;
+  if (key === 'thisMonth') from = new Date(now.getFullYear(), now.getMonth(), 1);
+  else if (key === 'thisYear') from = new Date(now.getFullYear(), 0, 1);
+  else if (key === '7d') from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+  else if (key === '30d') from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+  else /* 90d */ from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 89);
+  return { dateFrom: fmt(from), dateTo };
+}
+
 function ReviewPage({ isReviewer }: ReviewPageProps) {
   const { isAuthenticated } = useAuth();
   const [overview, setOverview] = useState<LedgerOverview | null>(null);
   const [series, setSeries] = useState<LedgerTimeSeriesPoint[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<DimensionTab>('department');
   const [volunteerSort, setVolunteerSort] = useState<VolunteerSort>({ key: 'totalHours', dir: 'desc' });
+  // Filter state
+  const [dateRange, setDateRange] = useState<DateRangeKey>('all');
+  const [filterDeptId, setFilterDeptId] = useState<string>('');
 
+  // Department list — fetched once for the filter select.
+  useEffect(() => {
+    if (!isAuthenticated || !isReviewer) return;
+    departmentService.list().then((res) => {
+      if (res?.success && res.data) setDepartments(res.data);
+    });
+  }, [isAuthenticated, isReviewer]);
+
+  // Overview + time-series — refetch on filter change. timeSeries is
+  // intentionally NOT filtered (it's a 12-month rolling trend, independent
+  // of the dimension filters).
   useEffect(() => {
     if (!isAuthenticated || !isReviewer) return;
     let cancelled = false;
     setLoading(true);
     setError('');
-    Promise.all([ledgerService.overview(), ledgerService.timeSeries(12)])
+    const bounds = rangeToBounds(dateRange);
+    const overviewParams = {
+      ...bounds,
+      ...(filterDeptId ? { departmentId: filterDeptId } : {}),
+    };
+    Promise.all([ledgerService.overview(overviewParams), ledgerService.timeSeries(12)])
       .then(([oRes, tRes]) => {
         if (cancelled) return;
         if (oRes?.success && oRes.data) setOverview(oRes.data);
@@ -64,7 +113,13 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, isReviewer]);
+  }, [isAuthenticated, isReviewer, dateRange, filterDeptId]);
+
+  const hasActiveFilters = dateRange !== 'all' || !!filterDeptId;
+  const resetFilters = () => {
+    setDateRange('all');
+    setFilterDeptId('');
+  };
 
   // ─── Derived data ─────────────────────────────────────────────────────────
 
@@ -194,6 +249,58 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
             </span>
           </p>
         </div>
+      </div>
+
+      {/* ─── Filter bar ──────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2 px-1">
+        {/* Date range chips */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {DATE_RANGE_OPTIONS.map((opt) => {
+            const active = dateRange === opt.key;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setDateRange(opt.key)}
+                className={cn(
+                  'inline-flex h-7 items-center rounded-full px-2.5 text-xs font-medium transition-colors',
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'border border-border bg-card text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        {/* Department select */}
+        <div className="flex items-center gap-1.5">
+          <select
+            value={filterDeptId}
+            onChange={(e) => setFilterDeptId(e.target.value)}
+            className="h-7 rounded-full border border-border bg-card px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <option value="">全部部门</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="inline-flex h-7 items-center rounded-full px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            清除筛选
+          </button>
+        )}
+        {loading && overview && (
+          <span className="text-[11px] text-muted-foreground">刷新中…</span>
+        )}
       </div>
 
       {/* ─── KPI strip ────────────────────────────────────────────────────── */}

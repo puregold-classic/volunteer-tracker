@@ -21,16 +21,26 @@ class SupportLedgerService {
    * usual dimensions. Admin dashboard uses this for the top-of-page widgets.
    */
   static async overview({ dateFrom, dateTo, departmentId } = {}) {
+    // Normalize bounds. NULL means "no bound on this side". `to` is bumped
+    // to end-of-day so callers can pass a calendar date and have the
+    // upper bound include records made anywhere on that day.
+    const from = dateFrom ? new Date(dateFrom) : null;
+    let to = null;
+    if (dateTo) {
+      to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+    }
+    const dept = departmentId || null;
+
+    // Mirror filters into the Prisma operator-style `where` for the
+    // aggregate totals. The 3 raw queries below all share the same
+    // logical filter expressed as inline COALESCE clauses.
     const where = { status: 'ACTIVE' };
-    if (departmentId) where.serviceItem = { departmentId };
-    if (dateFrom || dateTo) {
+    if (dept) where.serviceItem = { departmentId: dept };
+    if (from || to) {
       where.serviceDate = {};
-      if (dateFrom) where.serviceDate.gte = new Date(dateFrom);
-      if (dateTo) {
-        const end = new Date(dateTo);
-        end.setHours(23, 59, 59, 999);
-        where.serviceDate.lte = end;
-      }
+      if (from) where.serviceDate.gte = from;
+      if (to) where.serviceDate.lte = to;
     }
 
     const [totals, byVolunteer, byDepartment, byServiceItem] = await Promise.all([
@@ -51,7 +61,11 @@ class SupportLedgerService {
                MAX(p."serviceDate") AS "lastDate"
         FROM project_supports p
         JOIN volunteers v ON v.id = p."volunteerId"
+        JOIN service_items si ON si.id = p."serviceItemId"
         WHERE p.status = 'ACTIVE'
+          AND p."serviceDate" >= COALESCE(${from}::timestamp, p."serviceDate")
+          AND p."serviceDate" <= COALESCE(${to}::timestamp,   p."serviceDate")
+          AND si."departmentId" = COALESCE(${dept}::text,     si."departmentId")
         GROUP BY v."volunteerCode", v."chineseName", v."departmentId"
         ORDER BY "totalHours" DESC NULLS LAST
         LIMIT 50
@@ -65,6 +79,9 @@ class SupportLedgerService {
         JOIN service_items si ON si.id = p."serviceItemId"
         JOIN departments d   ON d.id  = si."departmentId"
         WHERE p.status = 'ACTIVE'
+          AND p."serviceDate" >= COALESCE(${from}::timestamp, p."serviceDate")
+          AND p."serviceDate" <= COALESCE(${to}::timestamp,   p."serviceDate")
+          AND si."departmentId" = COALESCE(${dept}::text,     si."departmentId")
         GROUP BY d.id, d.name, d."displayOrder"
         ORDER BY d."displayOrder" ASC
       `,
@@ -78,6 +95,9 @@ class SupportLedgerService {
         JOIN service_items si ON si.id = p."serviceItemId"
         JOIN departments d   ON d.id  = si."departmentId"
         WHERE p.status = 'ACTIVE'
+          AND p."serviceDate" >= COALESCE(${from}::timestamp, p."serviceDate")
+          AND p."serviceDate" <= COALESCE(${to}::timestamp,   p."serviceDate")
+          AND si."departmentId" = COALESCE(${dept}::text,     si."departmentId")
         GROUP BY si.id, si.name, d.name, d."displayOrder", si."displayOrder"
         ORDER BY d."displayOrder" ASC, si."displayOrder" ASC
       `,
