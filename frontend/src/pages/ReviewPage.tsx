@@ -197,14 +197,20 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
       </div>
 
       {/* ─── KPI strip ────────────────────────────────────────────────────── */}
+      {/*
+        Layout: mobile 2-col / sm 4-col / lg 4-col with the 时间跨度 tile
+        always spanning the full row at the bottom (the date range value
+        was getting truncated in a 5-col flat layout on tablet).
+      */}
       <Card variant="elevated" className="overflow-hidden">
-        <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
           {[
             {
               icon: FileText,
               label: '总记录',
               value: summary.totalRecords.toLocaleString(),
               suffix: '条',
+              emphasized: true,
             },
             {
               icon: Clock3,
@@ -224,23 +230,14 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
               value: overview.byDepartment.length,
               suffix: '个',
             },
-            {
-              icon: Calendar,
-              label: '时间跨度',
-              value: span,
-              span2: true,
-            },
-          ].map((tile, idx) => {
+          ].map((tile) => {
             const Icon = tile.icon;
-            const isSpan = tile.span2;
             return (
               <div
                 key={tile.label}
                 className={cn(
                   'bg-card px-4 py-4 sm:px-5 sm:py-5',
-                  isSpan && 'col-span-2 sm:col-span-1',
-                  // Emphasize the first tile
-                  idx === 0 && 'sm:border-l-4 sm:border-l-primary',
+                  tile.emphasized && 'border-l-4 border-l-primary',
                 )}
               >
                 <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -258,6 +255,16 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
               </div>
             );
           })}
+          {/* 时间跨度 — full row, label inline with value */}
+          <div className="col-span-2 flex items-center justify-between gap-3 bg-card px-4 py-3 sm:col-span-4 sm:px-5">
+            <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <Calendar className="h-3 w-3" />
+              时间跨度
+            </div>
+            <p className="truncate font-serif text-sm font-medium tabular-nums text-foreground sm:text-base">
+              {span}
+            </p>
+          </div>
         </div>
       </Card>
 
@@ -268,34 +275,36 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
           <p className="text-[11px] text-muted-foreground">单位：小时</p>
         </div>
         <div className="mt-4">
-          <div className="flex h-32 items-end gap-2">
+          {/*
+            Bars are direct children of an `h-32 flex items-end` row so the
+            child `style={{height:'X%'}}` resolves against the row height.
+            The earlier wrapper-div approach gave wrappers no height, which
+            collapsed every bar to 0. items-end aligns them to the bottom.
+          */}
+          <div className="flex h-32 items-end gap-1.5 sm:gap-2">
             {sparklineBuckets.map((b) => {
               const h = (b.totalHours / sparklineMax) * 100;
               return (
                 <div
                   key={b.period}
-                  className="group relative flex flex-1 flex-col items-center justify-end"
+                  className={cn(
+                    'flex-1 rounded-t-md transition-colors',
+                    b.totalHours > 0
+                      ? 'bg-primary/70 hover:bg-primary'
+                      : 'bg-muted',
+                  )}
+                  style={{ height: `${Math.max(h, b.totalHours > 0 ? 6 : 4)}%` }}
                   title={`${b.period} · ${b.totalHours}h · ${b.count} 条`}
-                >
-                  <div
-                    className={cn(
-                      'w-full rounded-t-md transition-colors',
-                      b.totalHours > 0
-                        ? 'bg-primary/70 group-hover:bg-primary'
-                        : 'bg-muted',
-                    )}
-                    style={{ height: `${Math.max(h, b.totalHours > 0 ? 6 : 4)}%` }}
-                  />
-                </div>
+                />
               );
             })}
           </div>
           {/* X-axis labels */}
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2 flex gap-1.5 sm:gap-2">
             {sparklineBuckets.map((b) => (
               <div
                 key={`l-${b.period}`}
-                className="flex-1 text-center text-[10px] tabular-nums text-muted-foreground"
+                className="flex-1 text-center text-[9px] tabular-nums text-muted-foreground sm:text-[10px]"
               >
                 {b.label}
               </div>
@@ -374,7 +383,53 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
           {sortedVolunteers.length === 0 ? (
             <p className="p-6 text-center text-sm text-muted-foreground">暂无数据</p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            {/* Mobile: card list (table is unwieldy on narrow screens) */}
+            <ul className="divide-y divide-border/60 sm:hidden">
+              {sortedVolunteers.map((v) => (
+                <li key={`m-${v.volunteerCode}`} className="flex items-center gap-3 px-4 py-3">
+                  {v.originalRank <= 3 ? (
+                    <span
+                      className={cn(
+                        'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums',
+                        v.originalRank === 1 && 'bg-amber-400/20 text-amber-700 dark:text-amber-300',
+                        v.originalRank === 2 && 'bg-zinc-400/20 text-zinc-600 dark:text-zinc-300',
+                        v.originalRank === 3 && 'bg-orange-400/20 text-orange-700 dark:text-orange-300',
+                      )}
+                    >
+                      {v.originalRank}
+                    </span>
+                  ) : (
+                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] tabular-nums text-muted-foreground">
+                      {v.originalRank}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-foreground">
+                      {v.chineseName}
+                      <span className="ml-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">
+                        {v.volunteerCode}
+                      </span>
+                    </p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {v.departmentId}
+                      {v.lastDate && (
+                        <span className="ml-1.5 tabular-nums">· 最近 {formatLocalDate(v.lastDate)}</span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-serif text-base font-semibold tabular-nums text-foreground">
+                      {v.totalHours}
+                      <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">h</span>
+                    </p>
+                    <p className="text-[10px] tabular-nums text-muted-foreground">{v.count} 条</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            {/* Desktop / tablet: full sortable table */}
+            <div className="hidden overflow-x-auto sm:block">
               <table className="w-full text-sm">
                 <thead className="border-b border-border bg-muted/40">
                   <tr className="text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -455,10 +510,11 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
                   ))}
                 </tbody>
               </table>
-              <p className="border-t border-border bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
-                显示前 {sortedVolunteers.length} 名（按总时长降序）
-              </p>
             </div>
+            <p className="border-t border-border bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
+              显示前 {sortedVolunteers.length} 名（按总时长降序）
+            </p>
+            </>
           )}
         </Card>
       )}
