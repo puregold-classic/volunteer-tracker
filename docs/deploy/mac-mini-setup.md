@@ -56,6 +56,17 @@ git checkout develop
 git pull
 ```
 
+### 2.4 auto-login（让 Docker Desktop 在 boot 后自动起）
+
+**为什么需要**：Docker Desktop 在 macOS 是 user-session 应用，只在用户登录后才起。Mac mini 停在 login 屏幕的话 Docker daemon 不起，容器不起，cloudflared 有 tunnel 但 origin 死 → 公网 502/530。踩过。
+
+**设置 auto-login**：
+
+1. **System Settings → Users & Groups → "Automatically log in as"** → 选你的账号 → 输密码
+2. 如果选项是**灰的**：检查 **System Settings → Privacy & Security → FileVault** 是不是开着。FileVault 开启会禁用 auto-login，要先关 FileVault（关 FV 需要重启 + 等解密完成）。
+
+> **关于 sleep 的一条重要反教训**：不要尝试 `sudo pmset -a sleep 0 powernap 0 standby 0` 想"禁掉睡眠让系统 7×24"。在 Apple Silicon 上 **pmset 不能完全阻止 maintenance-class sleep**——设置会生效但系统仍会进入 "Maintenance Sleep + TCPKeepAlive=active" 这种硬件层低功耗状态。好在这种状态不会真的挂掉 Docker 容器（容器在宿主 kernel 下继续运行），实测对 app 层无影响。真正的抖动源是 **cloudflared 边缘连接 stale**（见 §4.7 和故障排查表），跟 sleep 无关——不要被 `pmset -g log` 里的 Sleep 事件误导为根因。完整复盘见 `docs/deploy/openclaw-agent/incident-2026-04-09.md`。
+
 ---
 
 ## 阶段 3｜首次启动整套
@@ -327,4 +338,6 @@ docker compose --env-file .env.deploy -f docker-compose.deploy.yml up -d --build
 | 浏览器能打开页面但登录报 `CORS not allowed` | `CORS_ALLOWED_ORIGINS` 没填、值不对、或者改完没 `up -d` 重启 backend |
 | `https://dev.puregoldclassictranslation.com` 在外网打不开但 `localhost` 能 | (1) `cloudflared tunnel route dns` 没跑过 (2) tunnel 服务没在跑（`sudo launchctl list \| grep cloudflared`）(3) DNS 还没生效，等几分钟 |
 | Cloudflare 显示 `Error 1033` | tunnel 进程没在跑或没真连到边缘。看 `/Library/Logs/com.cloudflare.cloudflared.err.log`：如果在反复打印 `Use 'cloudflared tunnel run' to start tunnel ...`，说明阶段 4.6 的 plist `ProgramArguments` 没改对，回去补 |
+| **1033 + 同时 LAN/Tailscale ssh 全 timeout** | 大概率是**网络层事件同时打断多条长连接**（家里路由器重启、WiFi↔ethernet 切换、DHCP 续约等）。Tailscale 会自己重建 DERP relay，cloudflared 会被 launchd 拉起，等 1-3 分钟通常自愈。如果持续 >10 分钟：从 LAN 或物理终端检查 `ifconfig`、`ps aux \| grep cloudflared`、`sudo launchctl list \| grep cloudflare`。2026-04-09 曾被这个现象骗去以为是系统 sleep，踩过坑（见 `openclaw-agent/incident-2026-04-09.md`） |
+| public 502/530 + container 没起 + 0 users 登录 | Mac mini 停在 login 屏，Docker Desktop 没起。回去 §2.4 设 auto-login |
 | 想重置 admin 密码 | 直接 `docker compose ... down -v` 清空，调整 `.env.deploy` 里的 `BOOTSTRAP_ADMIN_PASSWORD`，重新 up——记住这会清掉所有数据，sandbox 模式可以接受 |
