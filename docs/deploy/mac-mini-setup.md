@@ -234,15 +234,18 @@ tail /Library/Logs/com.cloudflare.cloudflared.err.log
 
 ### 4.7 装 tunnel watchdog（**强烈建议**）
 
-cloudflared 有个 launchd `KeepAlive` 抓不到的盲区：进程活着但跟 edge 的 4 条连接全断了，对外就 HTTP 530 / err 1033。已经踩过一次 11 小时没人发现，所以装一个端到端的健康探测 daemon：每 2 分钟 curl 一次公网 URL，连续 2 次失败就 `launchctl kickstart -k` 把 cloudflared 硬重启。
+cloudflared 有个 launchd `KeepAlive` 抓不到的盲区：进程活着但跟 edge 的 4 条连接全断了，对外就 HTTP 530 / err 1033。已经踩过一次 11 小时没人发现，所以装一个端到端的健康探测 daemon：每 2 分钟 curl 一次公网 URL，连续 2 次失败就 `launchctl kickstart -k` 把 cloudflared 硬重启，**并通过 ntfy.sh 推送通知到手机**。
 
 脚本和 plist 模板已经在 repo 里：
 
 ```bash
 cd ~/srv/volunteer-tracker  # 假设这是你 Mac mini 上的 PROJECT_ROOT
 
-# 把 plist 模板里的 {{PROJECT_ROOT}} 替换成绝对路径，写到系统 LaunchDaemons
-sudo sed "s|{{PROJECT_ROOT}}|$(pwd)|g" \
+# 把 plist 模板里两个 {{...}} 占位符填好，写到系统 LaunchDaemons
+# - {{PROJECT_ROOT}}: 当前 checkout 路径
+# - {{NTFY_TOPIC}}:   ntfy.sh topic（用于通知，不是密码但当口令对待）
+sudo sed -e "s|{{PROJECT_ROOT}}|$(pwd)|g" \
+         -e "s|{{NTFY_TOPIC}}|vt-sandbox-circleooneblood|g" \
   scripts/deploy/com.volunteer-tracker.tunnel-watchdog.plist.template \
   | sudo tee /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist > /dev/null
 
@@ -252,6 +255,8 @@ sudo chmod 644 /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plis
 # bootstrap 加载到 launchd（RunAtLoad=true，会立即跑一次）
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
 ```
+
+> **关于 NTFY_TOPIC**：`vt-sandbox-circleooneblood` 是 [ntfy.sh](https://ntfy.sh) 上的 public topic 名字。任何知道这个字符串的人都能往里推消息或订阅它，所以**不要用于敏感告警**——它只发"网站挂了/恢复了"这种 ephemeral 状态。要轮换 topic，编辑 `/Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist` 里的 `NTFY_TOPIC` 字段，然后 `bootout` + `bootstrap` 重载。手机端记得 ntfy app 里订阅同名 topic。
 
 验证：
 

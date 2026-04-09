@@ -7,8 +7,9 @@
   cloudflared if N consecutive probes fail. See tunnel-watchdog.sh for
   the detection rationale.
 
-  This is a TEMPLATE — the {{PROJECT_ROOT}} placeholder must be replaced
-  with the absolute path to the volunteer-tracker checkout on the host.
+  This is a TEMPLATE — TWO placeholders must be replaced before install:
+    {{PROJECT_ROOT}}  absolute path to volunteer-tracker checkout on host
+    {{NTFY_TOPIC}}    ntfy topic for notifications (set empty to disable)
 
   Why a system LaunchDaemon (and not a user LaunchAgent)?
     `launchctl kickstart system/com.cloudflare.cloudflared` requires root,
@@ -17,9 +18,11 @@
 
   Install (run on Mac mini, requires sudo):
 
-    sudo sed "s|{{PROJECT_ROOT}}|/Users/zsy666/srv/volunteer-tracker|g" \
-      /Users/zsy666/srv/volunteer-tracker/scripts/deploy/com.volunteer-tracker.tunnel-watchdog.plist.template \
-      > /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
+    cd /Users/zsy666/srv/volunteer-tracker
+    sudo sed -e "s|{{PROJECT_ROOT}}|$(pwd)|g" \
+             -e "s|{{NTFY_TOPIC}}|vt-sandbox-circleooneblood|g" \
+      scripts/deploy/com.volunteer-tracker.tunnel-watchdog.plist.template \
+      | sudo tee /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist > /dev/null
     sudo chown root:wheel /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
     sudo chmod 644 /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
     sudo launchctl bootstrap system /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
@@ -69,6 +72,10 @@
   <dict>
     <key>PATH</key>
     <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+    <key>NTFY_SERVER</key>
+    <string>https://ntfy.sh</string>
+    <key>NTFY_TOPIC</key>
+    <string>{{NTFY_TOPIC}}</string>
   </dict>
 </dict>
 </plist>
