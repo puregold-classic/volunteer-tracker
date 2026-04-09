@@ -24,6 +24,7 @@ export interface DistributionEntry {
 export function useHomeState() {
   const [homeStatus, setHomeStatus] = useState<'all' | '在职' | '不在职'>('all');
   const [homeServices, setHomeServices] = useState<string[]>([]);
+  const [homeDepartmentId, setHomeDepartmentId] = useState<string>('');
   const [homeSelections, setHomeSelections] = useState<HomeSelection[]>([]);
   const [homeSearch, setHomeSearch] = useState<string>('');
   const [debouncedSearch, setDebouncedSearch] = useState<string>('');
@@ -58,26 +59,25 @@ export function useHomeState() {
     [homeSelections]
   );
 
-  // homeServices is currently a no-op filter — v2.1 doesn't have a "services"
-  // field on Volunteer (replaced by departmentId). Kept for backward compat
-  // with the chip UI; will be redesigned as a department picker in phase C.
   const homeFilterParams = useMemo<VolunteersParams>(() => {
     const params: VolunteersParams = { limit: 20, order: 'desc', sortBy: 'createdAt' };
     if (homeStatus !== 'all') params.status = homeStatus;
+    if (homeDepartmentId) params.departmentId = homeDepartmentId;
     if (selectedRegions.length > 0) params.region = selectedRegions;
     if (selectedProvinces.length > 0) params.province = selectedProvinces;
     if (debouncedSearch) params.search = debouncedSearch;
     return params;
-  }, [homeStatus, selectedRegions, selectedProvinces, debouncedSearch]);
+  }, [homeStatus, homeDepartmentId, selectedRegions, selectedProvinces, debouncedSearch]);
 
   const homeStatsFilterParams = useMemo<VolunteersParams>(() => {
     const params: VolunteersParams = {};
     if (homeStatus !== 'all') params.status = homeStatus;
+    if (homeDepartmentId) params.departmentId = homeDepartmentId;
     if (selectedRegions.length > 0) params.region = selectedRegions;
     if (selectedProvinces.length > 0) params.province = selectedProvinces;
     if (debouncedSearch) params.search = debouncedSearch;
     return params;
-  }, [homeStatus, selectedRegions, selectedProvinces, debouncedSearch]);
+  }, [homeStatus, homeDepartmentId, selectedRegions, selectedProvinces, debouncedSearch]);
 
   useEffect(() => {
     const fetchHomeStats = async () => {
@@ -149,6 +149,7 @@ export function useHomeState() {
   const resetFilters = () => {
     setHomeStatus('all');
     setHomeServices([]);
+    setHomeDepartmentId('');
     setHomeSelections([]);
     setHomeSearch('');
   };
@@ -156,6 +157,7 @@ export function useHomeState() {
   return {
     homeStatus,
     homeServices,
+    homeDepartmentId,
     homeSelections,
     homeSearch,
     homeStats,
@@ -166,6 +168,7 @@ export function useHomeState() {
     primaryFocusRegion,
     homeFilterParams,
     setHomeStatus,
+    setHomeDepartmentId,
     toggleService,
     setHomeSearch,
     toggleRegion,

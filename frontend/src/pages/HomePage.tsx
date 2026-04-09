@@ -1,30 +1,35 @@
-// frontend/src/pages/HomePage.tsx — chunk 6 phase C (Warm Editorial rewrite)
+// frontend/src/pages/HomePage.tsx — chunk 6 phase C.5
 //
-// Information architecture:
+// IA v3 (after user feedback round 1):
 //
-//   ┌──────────────────────────────────┬────────────────────────┐
-//   │                                  │  搜索栏 + 筛选         │
-//   │                                  ├────────────────────────┤
-//   │           Map (大)               │  统计概览              │
-//   │                                  │  · 文本摘要            │
-//   │                                  │  · 部门分布 mini chart │
-//   │                                  ├────────────────────────┤
-//   │                                  │  志愿者列表            │
-//   └──────────────────────────────────┴────────────────────────┘
+//   ┌──────────────────────────────────┬──────────────────────────┐
+//   │                                  │  Card 1: 筛选条件         │
+//   │                                  │  · 状态 chips             │
+//   │                                  │  · 部门 dropdown ← NEW    │
+//   │                                  │  · 热门省份 chips         │
+//   │                                  │  · active chips + reset   │
+//   │                                  ├──────────────────────────┤
+//   │           Map (左侧主区)          │  Card 2: 志愿者结果       │
+//   │                                  │  · 1 行 stat strip        │
+//   │                                  │  · 搜索 input ← MOVED     │
+//   │                                  │  ─────────────            │
+//   │                                  │  · 单列 volunteer cards   │
+//   │                                  │    (内部 scroll)          │
+//   └──────────────────────────────────┴──────────────────────────┘
 //
-// 决策：
-// - 顶部 filter 横条删除，整合到右侧 rail（节省垂直空间）
-// - "方向" filter 删除（v2.1 没有 services 字段，是 dead UI）
-// - 统计从"3 个大数字 card"改成 1 行编辑式摘要 + 部门分布 mini bar
-// - mobile 仍 tab 切换 map / list，但 layout 全部 retokenize 成 Warm Editorial
-//
-// Map 容器尺寸：desktop 60%-65% 宽，min-height 620px。
+// 决策（基于 user 反馈）：
+// - 搜索框移到 list card 顶部（"和列表放一块更直觉"）
+// - 新增 部门 dropdown（10 项），filter card 唯一新增内容
+// - SummaryPanel 简化为 1 行 stat strip 内嵌 list card；mini bar chart 砍掉
+//   （信息密度上 mini chart 跟 dept dropdown 重复，list card 也腾出空间）
+// - Volunteer cards 改成单列 + 完整宽度（不再 2x2 截断名字）
+// - List card 内部 max-height + scroll（保证整个 page 不外滚）
+// - 整体 fit viewport ~900px 不需要 page-level scroll
 
 import { useState } from 'react';
 import { Filter, Map, Search, Users, X } from 'lucide-react';
-import type { Volunteer } from '@services/types';
-import type { VolunteersParams } from '@services/types';
-import { HOT_LOCATIONS, type DistributionEntry } from '@/hooks/useHomeState';
+import type { Volunteer, VolunteersParams } from '@services/types';
+import { HOT_LOCATIONS } from '@/hooks/useHomeState';
 import HomeMap from '@components/HomeMap';
 import VolunteerList from '@components/VolunteerList';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +37,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
 type HomeStatus = 'all' | '在职' | '不在职';
@@ -40,13 +46,12 @@ interface HomePageStats {
   totalVolunteers: number;
   totalActive: number;
   totalHours: number;
-  departmentDistribution: DistributionEntry[];
-  regionDistribution: DistributionEntry[];
 }
 
 interface HomePageProps {
   homeStatus: HomeStatus;
   homeServices: string[];
+  homeDepartmentId: string;
   homeSearch: string;
   homeStats: HomePageStats;
   homeStatsLoading: boolean;
@@ -57,6 +62,7 @@ interface HomePageProps {
   quickFocusOptions: readonly string[];
   homeFilterParams: VolunteersParams;
   onStatusChange: (value: HomeStatus) => void;
+  onDepartmentChange: (value: string) => void;
   onServiceToggle: (service: string) => void;
   onResetFilters: () => void;
   onProvinceSelect: (province: string) => void;
@@ -77,30 +83,21 @@ const STATUS_OPTIONS: { value: HomeStatus; label: string }[] = [
   { value: '不在职', label: '不在职' },
 ];
 
-// v2.1 部门 code → 中文名 lookup table. 跟 backend seed 保持一致。
-const DEPARTMENT_NAMES: Record<string, string> = {
-  BY_PROJECT: '笔译项目部',
-  KY_PROJECT: '口译项目部',
-  XZT: 'XZT',
-  BY_TRAINING: '笔译培训部',
-  KY_TRAINING: '口译培训部',
-  DOCS: '文档部',
-  PROMO: '推广部',
-  TECH: '技术部',
-  CARE: '人文部',
-  MGMT: '管理部',
-};
+// v2.1 部门 — 跟 backend seed 保持一致，按 displayOrder 排
+const DEPARTMENTS: { id: string; name: string }[] = [
+  { id: 'BY_PROJECT', name: '笔译项目部' },
+  { id: 'KY_PROJECT', name: '口译项目部' },
+  { id: 'XZT', name: 'XZT' },
+  { id: 'BY_TRAINING', name: '笔译培训部' },
+  { id: 'KY_TRAINING', name: '口译培训部' },
+  { id: 'DOCS', name: '文档部' },
+  { id: 'PROMO', name: '推广部' },
+  { id: 'TECH', name: '技术部' },
+  { id: 'CARE', name: '人文部' },
+  { id: 'MGMT', name: '管理部' },
+];
 
-const REGION_DISPLAY: Record<string, string> = {
-  MAINLAND: '中国大陆',
-  TAIWAN: '中国台湾',
-  SOUTHEAST: '东南亚',
-  USA: '美国',
-  EUROPE: '欧洲',
-  OTHER: '其他',
-};
-
-// ─── Inline atoms ────────────────────────────────────────────────────────────
+// ─── Atoms ──────────────────────────────────────────────────────────────────
 
 function Chip({
   active,
@@ -137,8 +134,8 @@ function FilterSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
         {count != null && count > 0 && (
           <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
@@ -146,14 +143,14 @@ function FilterSection({
           </span>
         )}
       </div>
-      <div className="flex flex-wrap gap-1.5">{children}</div>
+      {children}
     </div>
   );
 }
 
 function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent ring-1 ring-accent/20">
+    <span className="inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent ring-1 ring-accent/20">
       {label}
       <button
         type="button"
@@ -167,75 +164,26 @@ function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => 
   );
 }
 
-// ─── SummaryPanel — editorial-style stats + dept distribution ───────────────
+// ─── Stat strip — single line, replaces SummaryPanel ────────────────────────
 
-function SummaryPanel({ stats, loading }: { stats: HomePageStats; loading: boolean }) {
+function StatStrip({ stats, loading }: { stats: HomePageStats; loading: boolean }) {
   const activeRatio =
     stats.totalVolunteers > 0
       ? `${Math.round((stats.totalActive / stats.totalVolunteers) * 100)}%`
       : '—';
-  const maxDeptCount = Math.max(1, ...stats.departmentDistribution.map((d) => d.count));
-
   return (
-    <div className="space-y-4">
-      {/* Editorial summary line */}
-      <div className="font-serif text-sm leading-7 text-foreground">
-        {loading ? (
-          <span className="text-muted-foreground">加载统计中…</span>
-        ) : (
-          <>
-            <span className="font-semibold text-primary tabular-nums">{stats.totalVolunteers}</span>
-            <span className="text-muted-foreground"> 名志愿者 · </span>
-            <span className="font-semibold text-foreground tabular-nums">{stats.totalHours}h</span>
-            <span className="text-muted-foreground"> 累计支援 · </span>
-            <span className="font-semibold text-foreground tabular-nums">{activeRatio}</span>
-            <span className="text-muted-foreground"> 在职</span>
-          </>
-        )}
-      </div>
-
-      {/* Department distribution mini bar */}
-      {stats.departmentDistribution.length > 0 && (
-        <div>
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            部门分布
-          </p>
-          <div className="space-y-1.5">
-            {stats.departmentDistribution.map((d) => {
-              const widthPct = Math.round((d.count / maxDeptCount) * 100);
-              return (
-                <div key={d.key} className="flex items-center gap-3 text-xs">
-                  <span className="w-20 shrink-0 truncate text-muted-foreground">
-                    {DEPARTMENT_NAMES[d.key] || d.key}
-                  </span>
-                  <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="absolute inset-y-0 left-0 rounded-full bg-primary/80 transition-all duration-300"
-                      style={{ width: `${widthPct}%` }}
-                    />
-                  </div>
-                  <span className="w-6 text-right tabular-nums text-foreground">{d.count}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Region distribution */}
-      {stats.regionDistribution.length > 0 && (
-        <div>
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            地区分布
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {stats.regionDistribution.map((r) => (
-              <Badge key={r.key} variant="department">
-                {REGION_DISPLAY[r.key] || r.key} <span className="ml-1 tabular-nums opacity-75">{r.count}</span>
-              </Badge>
-            ))}
-          </div>
-        </div>
+    <div className="font-serif text-sm leading-7 text-foreground">
+      {loading ? (
+        <span className="text-muted-foreground">加载统计中…</span>
+      ) : (
+        <>
+          <span className="font-semibold text-primary tabular-nums">{stats.totalVolunteers}</span>
+          <span className="text-muted-foreground"> 名 · </span>
+          <span className="font-semibold text-foreground tabular-nums">{stats.totalHours}h</span>
+          <span className="text-muted-foreground"> 累计 · </span>
+          <span className="font-semibold text-foreground tabular-nums">{activeRatio}</span>
+          <span className="text-muted-foreground"> 在职</span>
+        </>
       )}
     </div>
   );
@@ -246,6 +194,7 @@ function SummaryPanel({ stats, loading }: { stats: HomePageStats; loading: boole
 function HomePage(props: HomePageProps) {
   const {
     homeStatus,
+    homeDepartmentId,
     homeSearch,
     homeStats,
     homeStatsLoading,
@@ -256,6 +205,7 @@ function HomePage(props: HomePageProps) {
     quickFocusOptions,
     homeFilterParams,
     onStatusChange,
+    onDepartmentChange,
     onResetFilters,
     onProvinceSelect,
     onResetProvinceSelections,
@@ -272,9 +222,16 @@ function HomePage(props: HomePageProps) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState<Volunteer | null>(null);
 
+  const departmentName = homeDepartmentId
+    ? DEPARTMENTS.find((d) => d.id === homeDepartmentId)?.name || homeDepartmentId
+    : '';
+
   const activeChips: Array<{ key: string; label: string; onRemove: () => void }> = [
     ...(homeStatus !== 'all'
       ? [{ key: 'status', label: homeStatus, onRemove: () => onStatusChange('all') }]
+      : []),
+    ...(homeDepartmentId
+      ? [{ key: 'dept', label: departmentName, onRemove: () => onDepartmentChange('') }]
       : []),
     ...selectedRegions.map((r) => ({
       key: `r-${r}`,
@@ -291,11 +248,79 @@ function HomePage(props: HomePageProps) {
       : []),
   ];
 
-  // Right-rail filter panel: search → active chips → status / 热门省份
+  // Filter card content (search NOT here — moved to list card)
   const filterPanel = (
-    <div className="space-y-4">
-      {/* Search box */}
-      <div className="relative">
+    <div className="space-y-3.5">
+      {/* Active chips */}
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {activeChips.map((c) => (
+            <ActiveFilterChip key={c.key} label={c.label} onRemove={c.onRemove} />
+          ))}
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className="ml-auto text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            重置全部
+          </button>
+        </div>
+      )}
+
+      {/* Status */}
+      <FilterSection label="状态" count={homeStatus !== 'all' ? 1 : 0}>
+        <div className="flex flex-wrap gap-1.5">
+          {STATUS_OPTIONS.map((o) => (
+            <Chip key={o.value} active={homeStatus === o.value} onClick={() => onStatusChange(o.value)}>
+              {o.label}
+            </Chip>
+          ))}
+        </div>
+      </FilterSection>
+
+      {/* Department dropdown */}
+      <FilterSection label="部门" count={homeDepartmentId ? 1 : 0}>
+        <Select value={homeDepartmentId} onChange={(e) => onDepartmentChange(e.target.value)}>
+          <option value="">全部部门</option>
+          {DEPARTMENTS.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+        </Select>
+      </FilterSection>
+
+      {/* Hot provinces */}
+      <FilterSection
+        label="热门省份"
+        count={HOT_LOCATIONS.filter((h) => isLocationActive(h.type, h.value)).length}
+      >
+        <div className="flex flex-wrap gap-1.5">
+          {HOT_LOCATIONS.map((h) => (
+            <Chip
+              key={h.label}
+              active={isLocationActive(h.type, h.value)}
+              onClick={() => {
+                if (h.type === 'province') onProvinceSelect(h.value);
+                else onQuickFocusSelect(h.value);
+              }}
+            >
+              {h.label}
+            </Chip>
+          ))}
+        </div>
+      </FilterSection>
+    </div>
+  );
+
+  // List card content: stat strip + search + scrollable list
+  const listPanel = (
+    <div className="flex h-full flex-col">
+      {/* Stat strip */}
+      <StatStrip stats={homeStats} loading={homeStatsLoading} />
+
+      {/* Search */}
+      <div className="relative mt-3">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={homeSearch}
@@ -314,49 +339,20 @@ function HomePage(props: HomePageProps) {
         )}
       </div>
 
-      {/* Active chips */}
-      {activeChips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {activeChips.map((c) => (
-            <ActiveFilterChip key={c.key} label={c.label} onRemove={c.onRemove} />
-          ))}
-          <button
-            type="button"
-            onClick={onResetFilters}
-            className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            重置
-          </button>
-        </div>
-      )}
+      {/* Divider */}
+      <div className="my-3 border-t border-border" />
 
-      {/* Status filter */}
-      <FilterSection label="状态" count={homeStatus !== 'all' ? 1 : 0}>
-        {STATUS_OPTIONS.map((o) => (
-          <Chip key={o.value} active={homeStatus === o.value} onClick={() => onStatusChange(o.value)}>
-            {o.label}
-          </Chip>
-        ))}
-      </FilterSection>
-
-      {/* Hot provinces */}
-      <FilterSection
-        label="热门省份"
-        count={HOT_LOCATIONS.filter((h) => isLocationActive(h.type, h.value)).length}
-      >
-        {HOT_LOCATIONS.map((h) => (
-          <Chip
-            key={h.label}
-            active={isLocationActive(h.type, h.value)}
-            onClick={() => {
-              if (h.type === 'province') onProvinceSelect(h.value);
-              else onQuickFocusSelect(h.value);
-            }}
-          >
-            {h.label}
-          </Chip>
-        ))}
-      </FilterSection>
+      {/* Scrollable list */}
+      <div className="-mr-2 flex-1 overflow-y-auto pr-2">
+        <VolunteerList
+          compact
+          onVolunteerClick={onVolunteerClick}
+          onVolunteerSelect={setSelectedVolunteer}
+          showStats={false}
+          showPagination={false}
+          filterParams={homeFilterParams}
+        />
+      </div>
     </div>
   );
 
@@ -409,7 +405,7 @@ function HomePage(props: HomePageProps) {
         </div>
 
         <Card variant="elevated" className="p-4">
-          <SummaryPanel stats={homeStats} loading={homeStatsLoading} />
+          <StatStrip stats={homeStats} loading={homeStatsLoading} />
         </Card>
 
         <div className="grid grid-cols-2 rounded-2xl bg-muted p-1">
@@ -465,37 +461,34 @@ function HomePage(props: HomePageProps) {
         )}
       </div>
 
-      {/* ─── Desktop layout ────────────────────────────────────────────── */}
-      <div className="hidden sm:grid gap-4 xl:grid-cols-[1.7fr_1fr]">
-        {/* Map column (left) */}
+      {/* ─── Desktop layout — fits viewport, no page scroll ──────────────
+        Vertical budget: ~900px viewport - header(56) - footer(40)
+                        - main padding(48) - rail gaps = ~750px usable
+        Each rail card height is constrained via flex / max-h. Map card
+        is allowed to be tall; right rail uses internal scroll for the
+        volunteer list.
+      */}
+      <div
+        className="hidden sm:grid gap-4 xl:grid-cols-[1.7fr_1fr]"
+        style={{ height: 'calc(100vh - 10rem)', minHeight: '32rem' }}
+      >
+        {/* Map column (left, full height) */}
         <Card variant="elevated" className="overflow-hidden p-3 md:p-4">
-          <div className="overflow-hidden rounded-2xl border border-border" style={{ minHeight: '640px' }}>
+          <div className="h-full overflow-hidden rounded-2xl border border-border">
             {mapElement}
           </div>
         </Card>
 
-        {/* Right rail: filters → stats → volunteer list, 3 separate cards */}
-        <div className="space-y-4">
-          <Card variant="elevated" className="p-5">
+        {/* Right rail: 2 cards split top/bottom */}
+        <div className="grid grid-rows-[auto_1fr] gap-4 min-h-0">
+          {/* Card 1: filters (auto-height, content-driven) */}
+          <Card variant="elevated" className="p-4 md:p-5">
             {filterPanel}
           </Card>
 
-          <Card variant="elevated" className="p-5">
-            <SummaryPanel stats={homeStats} loading={homeStatsLoading} />
-          </Card>
-
-          <Card variant="elevated" className="p-5">
-            <div className="mb-3 flex items-baseline justify-between gap-2">
-              <h3 className="font-serif text-base font-semibold text-foreground">志愿者列表</h3>
-              <span className="text-xs text-muted-foreground">点击查看详情</span>
-            </div>
-            <VolunteerList
-              compact
-              onVolunteerClick={onVolunteerClick}
-              showStats={false}
-              showPagination={false}
-              filterParams={homeFilterParams}
-            />
+          {/* Card 2: stats + search + scrollable volunteer list (fills remaining space) */}
+          <Card variant="elevated" className="flex flex-col p-4 md:p-5 min-h-0 overflow-hidden">
+            {listPanel}
           </Card>
         </div>
       </div>

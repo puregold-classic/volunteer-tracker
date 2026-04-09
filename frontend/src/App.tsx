@@ -66,6 +66,7 @@ function HomePageContainer() {
     <HomePage
       homeStatus={home.homeStatus}
       homeServices={home.homeServices}
+      homeDepartmentId={home.homeDepartmentId}
       homeSearch={home.homeSearch}
       homeStats={home.homeStats}
       homeStatsLoading={home.homeStatsLoading}
@@ -76,6 +77,7 @@ function HomePageContainer() {
       quickFocusOptions={QUICK_FOCUS_OPTIONS}
       homeFilterParams={home.homeFilterParams}
       onStatusChange={home.setHomeStatus}
+      onDepartmentChange={home.setHomeDepartmentId}
       onServiceToggle={home.toggleService}
       onResetFilters={home.resetFilters}
       onProvinceSelect={home.toggleProvince}
