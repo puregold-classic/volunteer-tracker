@@ -379,8 +379,15 @@
     max-width: 18rem;
   }
 
+  /* The focus panel is a DOM child of .home-map__controls, so the
+     `.home-map__controls button { h-8 w-8 }` rule above also matches these
+     buttons via cascade. Explicitly reset width/height so the chips can
+     size themselves to their text content. */
   .home-map__focus-panel button {
     @apply rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground whitespace-nowrap;
+    width: auto;
+    height: auto;
+    display: inline-flex;
   }
 
   .home-map__focus-panel button.is-active {
