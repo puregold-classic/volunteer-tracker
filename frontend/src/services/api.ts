@@ -160,38 +160,8 @@ export const uploadApi = createApiInstance({
   }
 });
 
-// API响应类型
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data: T;
-  message?: string;
-  code?: number;
-  pagination?: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
-
-// 分页参数类型
-export interface PaginationParams {
-  page?: number;
-  limit?: number;
-  sortBy?: string;
-  order?: 'asc' | 'desc';
-}
-
-// 筛选参数类型
-export interface FilterParams {
-  status?: string;
-  region?: string | string[];
-  province?: string | string[];
-  services?: string[];
-  search?: string;
-}
-
-// 组合参数类型
-export type VolunteersParams = PaginationParams & FilterParams;
+// API 响应类型 + 参数类型已移到 services/types.ts (v2.1 chunk 3)。
+// 保留这里的 re-export 是为了不破坏老 import paths（用 import from types.ts 是新规则）。
+export type { ApiResponse, PaginationParams, VolunteersParams } from './types';
 
 export default api;

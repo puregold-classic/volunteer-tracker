@@ -1,80 +1,102 @@
+// frontend/src/components/Header/Header.tsx — chunk 6 phase A
+//
+// Warm Editorial header. Uses semantic tokens (foreground / muted-foreground /
+// primary / border) so it picks up the theme automatically. Nav items are
+// react-router NavLinks, so active state is derived from the URL — no more
+// onClick prop drilling.
+
 import React from 'react';
+import { NavLink } from 'react-router-dom';
 import { Handshake } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface HeaderNavItem {
+export interface HeaderNavItem {
   label: string;
-  active?: boolean;
-  onClick: () => void;
+  to: string;
+  /** Optional matcher: if set, this nav is "active" when the route matches this. Defaults to exact match on `to`. */
+  end?: boolean;
 }
 
 interface HeaderProps {
-  title: string;
-  subtitle?: string;
   navItems?: HeaderNavItem[];
   actions?: React.ReactNode;
 }
 
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    'relative flex items-center px-4 text-sm font-medium transition-colors duration-150 outline-none',
+    'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+    isActive
+      ? 'text-primary'
+      : 'text-muted-foreground hover:text-foreground',
+  );
+
+const mobileNavLinkClass = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    'relative flex shrink-0 items-center px-3.5 text-sm font-medium transition-colors duration-150 outline-none',
+    'focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+    isActive
+      ? 'text-primary'
+      : 'text-muted-foreground hover:text-foreground',
+  );
+
+const ActiveBar: React.FC<{ inset: 'desktop' | 'mobile' }> = ({ inset }) => (
+  <span
+    className={cn(
+      'absolute bottom-0 h-0.5 rounded-full bg-primary',
+      inset === 'desktop' ? 'inset-x-3' : 'inset-x-2',
+    )}
+  />
+);
+
 const Header: React.FC<HeaderProps> = ({ navItems = [], actions }) => {
   return (
-    <header className="sticky top-0 z-50 border-b border-neutral-100 bg-white/[0.97] backdrop-blur-lg">
+    <header className="sticky top-0 z-50 border-b border-border bg-background/[0.92] backdrop-blur-xl">
       <div className="mx-auto max-w-[92rem] px-4 sm:px-6">
         <div className="flex items-stretch" style={{ height: '3.5rem' }}>
-
-          {/* Brand — left */}
-          <div className="flex shrink-0 items-center gap-2.5">
-            <Handshake className="h-5 w-5 shrink-0 text-teal-500" strokeWidth={2} />
+          {/* Brand */}
+          <NavLink to="/" className="flex shrink-0 items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">
+            <Handshake className="h-5 w-5 shrink-0 text-primary" strokeWidth={2} />
             <div className="min-w-0">
-              <p className="text-[0.875rem] font-semibold leading-tight text-neutral-900">
+              <p className="font-serif text-[0.95rem] font-semibold leading-tight text-foreground">
                 纯金经典翻译计划
               </p>
-              <p className="text-[0.68rem] leading-tight text-neutral-400 -mt-px">
-                志愿者管理网站
+              <p className="text-[0.68rem] leading-tight text-muted-foreground -mt-px">
+                志愿者管理
               </p>
             </div>
-          </div>
+          </NavLink>
 
           {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Right: nav + actions — desktop */}
+          {/* Desktop nav + actions */}
           <div className="hidden md:flex items-stretch">
             {navItems.length > 0 && (
               <nav className="flex items-stretch">
                 {navItems.map((item) => (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={item.onClick}
-                    className={cn(
-                      'relative flex items-center px-4 text-sm font-medium transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-400',
-                      item.active
-                        ? 'text-teal-600'
-                        : 'text-neutral-500 hover:text-neutral-800'
+                  <NavLink key={item.to} to={item.to} end={item.end ?? true} className={navLinkClass}>
+                    {({ isActive }) => (
+                      <>
+                        {item.label}
+                        {isActive && <ActiveBar inset="desktop" />}
+                      </>
                     )}
-                  >
-                    {item.label}
-                    {item.active && (
-                      <span className="absolute bottom-0 inset-x-3 h-0.5 rounded-full bg-teal-500" />
-                    )}
-                  </button>
+                  </NavLink>
                 ))}
               </nav>
             )}
 
-            {/* Divider + actions */}
             {actions && (
-              <div className="flex items-center gap-2 pl-3 ml-2 border-l border-neutral-100">
+              <div className="flex items-center gap-2 pl-3 ml-2 border-l border-border">
                 {actions}
               </div>
             )}
           </div>
 
-          {/* Right: actions only — mobile */}
+          {/* Mobile actions only */}
           {actions && (
-            <div className="flex md:hidden items-center gap-2">
-              {actions}
-            </div>
+            <div className="flex md:hidden items-center gap-2">{actions}</div>
           )}
         </div>
 
@@ -85,22 +107,14 @@ const Header: React.FC<HeaderProps> = ({ navItems = [], actions }) => {
             style={{ height: '2.25rem' }}
           >
             {navItems.map((item) => (
-              <button
-                key={item.label}
-                type="button"
-                onClick={item.onClick}
-                className={cn(
-                  'relative flex shrink-0 items-center px-3.5 text-sm font-medium transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-400',
-                  item.active
-                    ? 'text-teal-600'
-                    : 'text-neutral-500 hover:text-neutral-800'
+              <NavLink key={item.to} to={item.to} end={item.end ?? true} className={mobileNavLinkClass}>
+                {({ isActive }) => (
+                  <>
+                    {item.label}
+                    {isActive && <ActiveBar inset="mobile" />}
+                  </>
                 )}
-              >
-                {item.label}
-                {item.active && (
-                  <span className="absolute bottom-0 inset-x-2 h-0.5 rounded-full bg-teal-500" />
-                )}
-              </button>
+              </NavLink>
             ))}
           </div>
         )}

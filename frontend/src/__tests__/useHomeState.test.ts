@@ -270,21 +270,9 @@ describe('useHomeState — homeFilterParams', () => {
     expect(result.current.homeFilterParams.region).toContain('美国');
   });
 
-  it('includes multi-select services', () => {
-    const { result } = renderHook(() => useHomeState());
-
-    act(() => result.current.toggleService('翻译'));
-    act(() => result.current.toggleService('校对'));
-
-    expect(result.current.homeFilterParams.services).toContain('翻译');
-    expect(result.current.homeFilterParams.services).toContain('校对');
-  });
-
-  it('omits services when none selected', () => {
-    const { result } = renderHook(() => useHomeState());
-
-    expect(result.current.homeFilterParams.services).toBeUndefined();
-  });
+  // services field 已在 v2.1 移除（替换为 departmentId）。homeServices 状态
+  // 还在但目前是 no-op，phase C 会改成 department picker。这两个测试因此被
+  // 删除——它们测的是 v1 的 ServiceType filter 行为。
 });
 
 describe('useHomeState — debouncedSearch', () => {

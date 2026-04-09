@@ -9,7 +9,6 @@
 // frontend-design + ui-ux-pro-max. This is just "compile + don't crash".
 
 import { useEffect, useState } from 'react';
-import './MePage.scss';
 import AdminCenter from '@components/AdminCenter';
 import { useAuth } from '@/context/AuthContext';
 import volunteerService from '@services/volunteerService';

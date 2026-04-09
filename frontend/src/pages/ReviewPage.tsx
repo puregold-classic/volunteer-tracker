@@ -5,7 +5,6 @@
 // project support activity. Visual is minimal until chunk 6 redesign.
 
 import { useEffect, useState } from 'react';
-import './ReviewPage.scss';
 import ledgerService, { LedgerOverview } from '@services/ledgerService';
 import { useAuth } from '@/context/AuthContext';
 

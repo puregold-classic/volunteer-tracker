@@ -1,23 +1,28 @@
+// frontend/src/pages/LoginPage.tsx — chunk 6 phase A
+//
+// Self-routing: useNavigate instead of onLoginSuccess/onBackHome props.
+// Tokens migrated to semantic (no more text-neutral-XXX).
+
 import { FormEvent, useState } from 'react';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Handshake } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from '@/hooks/use-toast';
 
-interface LoginPageProps {
-  onLoginSuccess: () => void;
-  onBackHome: () => void;
+interface LocationState {
+  from?: { pathname: string };
 }
 
-function LoginPage({ onLoginSuccess, onBackHome }: LoginPageProps) {
+function LoginPage() {
   const { login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const emailId = 'login-email';
-  const passwordId = 'login-password';
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -30,8 +35,11 @@ function LoginPage({ onLoginSuccess, onBackHome }: LoginPageProps) {
     setError('');
     try {
       await login(email, password);
-      toast({ title: '登录成功', description: '欢迎回来！' });
-      onLoginSuccess();
+      toast({ title: '登录成功', description: '欢迎回来' });
+      // Resume original target if redirected here from a protected page
+      const state = location.state as LocationState | undefined;
+      const next = state?.from?.pathname || '/me';
+      navigate(next, { replace: true });
     } catch (err: any) {
       const msg = err?.message || '登录失败，请稍后重试';
       setError(msg);
@@ -42,29 +50,31 @@ function LoginPage({ onLoginSuccess, onBackHome }: LoginPageProps) {
   };
 
   return (
-    <section className="mx-auto max-w-md">
+    <section className="mx-auto max-w-md py-12">
       {/* Brand header */}
       <div className="mb-8 text-center">
-        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-600 text-2xl shadow-md shadow-teal-200/60">
-          🤝
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-md">
+          <Handshake className="h-7 w-7" strokeWidth={2} />
         </div>
-        <h1 className="text-xl font-semibold text-neutral-800 dark:text-neutral-100">纯金经典翻译计划</h1>
-        <p className="mt-1 text-sm text-neutral-400">志愿者管理网站</p>
+        <h1 className="font-serif text-3xl font-semibold text-foreground">纯金经典翻译计划</h1>
+        <p className="mt-1 text-sm text-muted-foreground">志愿者管理</p>
       </div>
 
-      <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm sm:p-8 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">账号登录</h2>
-          <Button variant="ghost" size="sm" onClick={onBackHome}>返回首页</Button>
+          <h2 className="font-serif text-xl font-semibold text-foreground">账号登录</h2>
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/">返回首页</Link>
+          </Button>
         </div>
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <label htmlFor={emailId} className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            <label htmlFor="login-email" className="text-sm font-medium text-foreground">
               邮箱
             </label>
             <Input
-              id={emailId}
+              id="login-email"
               type="email"
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError(''); }}
@@ -75,11 +85,11 @@ function LoginPage({ onLoginSuccess, onBackHome }: LoginPageProps) {
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor={passwordId} className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            <label htmlFor="login-password" className="text-sm font-medium text-foreground">
               密码
             </label>
             <Input
-              id={passwordId}
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(''); }}
@@ -90,7 +100,7 @@ function LoginPage({ onLoginSuccess, onBackHome }: LoginPageProps) {
             />
           </div>
           {error && (
-            <p className="text-sm text-red-500 dark:text-red-400" role="alert">
+            <p className="text-sm text-destructive" role="alert">
               {error}
             </p>
           )}
@@ -98,8 +108,8 @@ function LoginPage({ onLoginSuccess, onBackHome }: LoginPageProps) {
             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {submitting ? '登录中...' : '登录'}
           </Button>
-          <p className="text-center text-xs text-neutral-400">
-            登录后可访问个人中心、审核中心与服务申请。
+          <p className="text-center text-xs text-muted-foreground">
+            登录后可访问个人中心、项目支援台账与提交流程
           </p>
         </form>
       </div>

@@ -1,8 +1,24 @@
-import { useEffect, useState } from 'react';
-import { cn } from './lib/utils';
+// frontend/src/App.tsx — chunk 6 phase A
+//
+// react-router v6 Routes. Replaces v1's hand-rolled hash-routing parser.
+//
+// Route structure:
+//   /                          → HomePage           (public, desktop-first browse)
+//   /login                     → LoginPage          (public)
+//   /volunteers/:id            → VolunteerDetailPage (public detail)
+//   /me                        → MePage             (auth, mobile-first for users; admin → AdminCenter)
+//   /review                    → ReviewPage         (b_admin+; will be renamed to /ledger in phase F)
+//   *                          → 404 fallback
+//
+// HomePage state still flows through useHomeState in this file because it's
+// a complex shared hook; I'll move ownership into HomePage when I rewrite
+// HomePage in phase C.
+
+import { useEffect } from 'react';
+import { Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import Header from '@components/Header';
-import { Button } from '@/components/ui/button';
 import Footer from '@components/Footer';
+import { Button } from '@/components/ui/button';
 import HomePage from './pages/HomePage';
 import MePage from './pages/MePage';
 import ReviewPage from './pages/ReviewPage';
@@ -11,219 +27,205 @@ import VolunteerDetailPage from './pages/VolunteerDetailPage';
 import { useHomeState, QUICK_FOCUS_OPTIONS } from './hooks/useHomeState';
 import { useAuth } from './context/AuthContext';
 
-type AppRoute = 'home' | 'login' | 'me' | 'review' | 'volunteer';
+// ─── Auth gate ──────────────────────────────────────────────────────────────
 
-type RouteState = {
-  route: AppRoute;
-  volunteerId?: string;
-};
-
-const parseHashRoute = (): RouteState => {
-  const raw = window.location.hash.replace(/^#/, '') || '/';
-  if (raw === '/' || raw === '') return { route: 'home' };
-  if (raw === '/login') return { route: 'login' };
-  if (raw === '/me') return { route: 'me' };
-  if (raw === '/review') return { route: 'review' };
-  if (raw.startsWith('/volunteer/')) {
-    const volunteerId = decodeURIComponent(raw.replace('/volunteer/', '').trim());
-    return volunteerId ? { route: 'volunteer', volunteerId } : { route: 'home' };
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+  if (isLoading) return null;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  return { route: 'home' };
-};
+  return <>{children}</>;
+}
 
-const toHash = (route: RouteState): string => {
-  switch (route.route) {
-    case 'login':
-      return '#/login';
-    case 'me':
-      return '#/me';
-    case 'review':
-      return '#/review';
-    case 'volunteer':
-      return route.volunteerId ? `#/volunteer/${encodeURIComponent(route.volunteerId)}` : '#/';
-    case 'home':
-    default:
-      return '#/';
+function RequireRole({ allowed, children }: { allowed: string[]; children: React.ReactNode }) {
+  const { account, isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+  if (isLoading) return null;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
-};
+  if (!account || !allowed.includes(account.role)) {
+    return (
+      <div className="mx-auto max-w-md py-16 text-center">
+        <h2 className="font-serif text-2xl font-semibold text-foreground">权限不足</h2>
+        <p className="mt-2 text-muted-foreground">该页面需要 {allowed.join(' / ')} 权限</p>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
+// ─── HomePage container — keeps the existing useHomeState wiring ────────────
+
+function HomePageContainer() {
+  const navigate = useNavigate();
+  const home = useHomeState();
+  return (
+    <HomePage
+      homeStatus={home.homeStatus}
+      homeServices={home.homeServices}
+      homeSearch={home.homeSearch}
+      homeStats={home.homeStats}
+      homeStatsLoading={home.homeStatsLoading}
+      selectedRegions={home.selectedRegions}
+      selectedProvinces={home.selectedProvinces}
+      debouncedSearch={home.debouncedSearch}
+      primaryFocusRegion={home.primaryFocusRegion}
+      quickFocusOptions={QUICK_FOCUS_OPTIONS}
+      homeFilterParams={home.homeFilterParams}
+      onStatusChange={home.setHomeStatus}
+      onServiceToggle={home.toggleService}
+      onResetFilters={home.resetFilters}
+      onProvinceSelect={home.toggleProvince}
+      onResetProvinceSelections={home.resetProvinceSelections}
+      onQuickFocusSelect={home.toggleRegion}
+      onRefreshMap={home.resetMap}
+      onSearchChange={home.setHomeSearch}
+      onClearSearch={() => home.setHomeSearch('')}
+      onLocationRemove={home.removeLocation}
+      onServiceRemove={home.removeService}
+      isLocationActive={home.isLocationActive}
+      onVolunteerClick={(id) => navigate(`/volunteers/${id}`)}
+    />
+  );
+}
+
+// ─── App shell ──────────────────────────────────────────────────────────────
 
 function App() {
-  const [routeState, setRouteState] = useState<RouteState>(() => parseHashRoute());
-  const {
-    homeStatus,
-    homeServices,
-
-    homeSearch,
-    homeStats,
-    homeStatsLoading,
-    selectedRegions,
-    selectedProvinces,
-    debouncedSearch,
-    primaryFocusRegion,
-    homeFilterParams,
-    setHomeStatus,
-    toggleService,
-    setHomeSearch,
-    toggleRegion,
-    toggleProvince,
-    isLocationActive,
-    removeLocation,
-    removeService,
-    resetFilters,
-    resetProvinceSelections,
-    resetMap,
-  } = useHomeState();
   const { account, isAuthenticated, isLoading, logout } = useAuth();
-  const isReviewer = Boolean(account && ['b_admin', 'a_admin', 'admin'].includes(account.role));
-  const currentPage = routeState.route;
+  const navigate = useNavigate();
 
-  const navigateTo = (nextRoute: RouteState) => {
-    const nextHash = toHash(nextRoute);
-    if (window.location.hash === nextHash) {
-      setRouteState(nextRoute);
-      return;
-    }
-    window.location.hash = nextHash;
-  };
+  // Use the home stats just to display total in the header subtitle (optional)
+  // In phase A I'm keeping HomePage's useHomeState owned by the container,
+  // so we don't have shared stats here.
 
+  // Build nav items per role
+  const navItems = [
+    { label: '首页', to: '/', end: true },
+    ...(isAuthenticated ? [{ label: '个人中心', to: '/me', end: false }] : []),
+    ...(isAuthenticated && account && ['b_admin', 'a_admin', 'admin'].includes(account.role)
+      ? [{ label: '项目支援台账', to: '/review', end: false }]
+      : []),
+  ];
+
+  // Listen to unauthorized events (from api.ts) and redirect
   useEffect(() => {
-    const syncRoute = () => setRouteState(parseHashRoute());
-    window.addEventListener('hashchange', syncRoute);
-    syncRoute();
-    return () => window.removeEventListener('hashchange', syncRoute);
-  }, []);
-
-  const promptLogin = () => navigateTo({ route: 'login' });
-
-  const goToPersonalCenter = () => {
-    if (!isAuthenticated) { promptLogin(); return; }
-    navigateTo({ route: 'me' });
-  };
-
-  const goToReviewCenter = () => {
-    if (!isAuthenticated) { promptLogin(); return; }
-    navigateTo({ route: 'review' });
-  };
+    const handler = () => {
+      if (window.location.pathname !== '/login') {
+        navigate('/login', { replace: true });
+      }
+    };
+    window.addEventListener('app:unauthorized', handler);
+    return () => window.removeEventListener('app:unauthorized', handler);
+  }, [navigate]);
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-white/90 backdrop-blur-sm dark:bg-neutral-950/85">
-        <div className="rounded-2xl bg-white px-6 py-5 text-center text-sm font-medium text-neutral-700 shadow-xl dark:bg-neutral-900 dark:text-neutral-100">
-          正在检查登录状态...
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-background/90 backdrop-blur-sm">
+        <div className="rounded-2xl border border-border bg-card px-6 py-5 text-center text-sm font-medium text-foreground shadow-xl">
+          正在检查登录状态…
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-neutral-50 dark:bg-neutral-950">
+    <div className="flex min-h-screen flex-col bg-background">
       <Header
-        title="志愿者管理系统"
-        subtitle="全球志愿者可视化平台"
-        navItems={[
-          {
-            label: '首页',
-            active: currentPage === 'home',
-            onClick: () => {
-              navigateTo({ route: 'home' });
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-          },
-          { label: '个人中心', active: currentPage === 'me', onClick: goToPersonalCenter },
-          { label: '审核中心', active: currentPage === 'review', onClick: goToReviewCenter }
-        ]}
+        navItems={navItems}
         actions={
           isAuthenticated ? (
             <>
-              <span className="hidden sm:inline-flex rounded-lg bg-neutral-50 border border-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-600 shrink-0">
+              <span className="hidden sm:inline-flex rounded-lg bg-muted/60 border border-border px-3 py-1.5 text-sm font-medium text-foreground shrink-0">
                 {account?.name} · {account?.role}
               </span>
               <Button
                 variant="outline"
                 size="sm"
-                className={cn('border-neutral-200 bg-white text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900 rounded-lg shrink-0')}
+                className="rounded-lg shrink-0"
                 onClick={() => {
-                  navigateTo({ route: 'home' });
-                  void logout();
+                  void logout().then(() => navigate('/'));
                 }}
               >
                 退出登录
               </Button>
             </>
           ) : (
-            <Button
-              variant="default"
-              size="sm"
-              className={cn('rounded-lg shrink-0')}
-              onClick={() => navigateTo({ route: 'login' })}
-            >
-              登录
+            <Button variant="default" size="sm" className="rounded-lg shrink-0" asChild>
+              <Link to="/login">登录</Link>
             </Button>
           )
         }
       />
 
       <main className="flex-1 py-6 md:py-4">
-        <div className="mx-auto w-full max-w-[92rem] px-2">
-          {currentPage === 'home' && (
-            <HomePage
-              homeStatus={homeStatus}
-              homeServices={homeServices}
-
-              homeSearch={homeSearch}
-              homeStats={homeStats}
-              homeStatsLoading={homeStatsLoading}
-              selectedRegions={selectedRegions}
-              selectedProvinces={selectedProvinces}
-              debouncedSearch={debouncedSearch}
-              primaryFocusRegion={primaryFocusRegion}
-              quickFocusOptions={QUICK_FOCUS_OPTIONS}
-              homeFilterParams={homeFilterParams}
-              onStatusChange={setHomeStatus}
-              onServiceToggle={toggleService}
-              onResetFilters={resetFilters}
-              onProvinceSelect={toggleProvince}
-              onResetProvinceSelections={resetProvinceSelections}
-              onQuickFocusSelect={toggleRegion}
-              onRefreshMap={resetMap}
-              onSearchChange={setHomeSearch}
-              onClearSearch={() => setHomeSearch('')}
-              onLocationRemove={removeLocation}
-              onServiceRemove={removeService}
-              isLocationActive={isLocationActive}
-              onVolunteerClick={(id) => navigateTo({ route: 'volunteer', volunteerId: id })}
+        <div className="mx-auto w-full max-w-[92rem] px-2 sm:px-4">
+          <Routes>
+            <Route path="/" element={<HomePageContainer />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/volunteers/:id" element={<VolunteerDetailPageWrapper />} />
+            <Route
+              path="/me"
+              element={
+                <RequireAuth>
+                  <MePageWrapper />
+                </RequireAuth>
+              }
             />
-          )}
-
-          {currentPage === 'login' && (
-            <LoginPage
-              onLoginSuccess={() => navigateTo({ route: 'me' })}
-              onBackHome={() => navigateTo({ route: 'home' })}
+            <Route
+              path="/review"
+              element={
+                <RequireRole allowed={['b_admin', 'a_admin', 'admin']}>
+                  <ReviewPageWrapper />
+                </RequireRole>
+              }
             />
-          )}
-
-          {currentPage === 'me' && (
-            <MePage
-              homeTotalVolunteers={homeStats.totalVolunteers}
-              onVolunteerDetail={(id) => navigateTo({ route: 'volunteer', volunteerId: id })}
-              onBackHome={() => navigateTo({ route: 'home' })}
-            />
-          )}
-
-          {currentPage === 'review' && (
-            <ReviewPage isReviewer={isReviewer} />
-          )}
-
-          {currentPage === 'volunteer' && routeState.volunteerId && (
-            <VolunteerDetailPage
-              volunteerId={routeState.volunteerId}
-              onBackHome={() => navigateTo({ route: 'home' })}
-            />
-          )}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
         </div>
       </main>
 
       <Footer />
+    </div>
+  );
+}
+
+// ─── Page wrappers (adapt old-prop signatures to react-router params) ──────
+
+function VolunteerDetailPageWrapper() {
+  const navigate = useNavigate();
+  const id = window.location.pathname.split('/').pop() || '';
+  return <VolunteerDetailPage volunteerId={id} onBackHome={() => navigate('/')} />;
+}
+
+function MePageWrapper() {
+  const navigate = useNavigate();
+  return (
+    <MePage
+      homeTotalVolunteers={0}
+      onVolunteerDetail={(id) => navigate(`/volunteers/${id}`)}
+      onBackHome={() => navigate('/')}
+    />
+  );
+}
+
+function ReviewPageWrapper() {
+  const { account } = useAuth();
+  const isReviewer = Boolean(account && ['b_admin', 'a_admin', 'admin'].includes(account.role));
+  return <ReviewPage isReviewer={isReviewer} />;
+}
+
+function NotFound() {
+  return (
+    <div className="mx-auto max-w-md py-20 text-center">
+      <p className="font-serif text-6xl font-semibold text-primary">404</p>
+      <p className="mt-3 text-foreground">页面不存在</p>
+      <Button asChild variant="outline" className="mt-6">
+        <Link to="/">返回首页</Link>
+      </Button>
     </div>
   );
 }

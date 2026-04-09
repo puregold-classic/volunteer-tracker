@@ -41,17 +41,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    // chunk 6: react-router handles navigation; we just clear local state
+    // here and let App.tsx's UNAUTHORIZED_EVENT listener navigate.
     const handleUnauthorized = () => {
       authService.clearToken();
       setAccount(null);
-      if (typeof window === 'undefined') return;
-
-      const currentPath = window.location.hash.replace(/^#/, '') || '/';
-      if (currentPath !== '/login') {
-        window.sessionStorage.setItem('post_login_path', currentPath);
-        window.sessionStorage.setItem('session_expired_message', '登录状态已过期，请重新登录。');
-        window.location.hash = '#/login';
-      }
     };
 
     window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized as EventListener);

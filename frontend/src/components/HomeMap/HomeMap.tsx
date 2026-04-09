@@ -4,7 +4,6 @@ import { GeoJSON, MapContainer, Rectangle, TileLayer, Tooltip, useMap } from 're
 import type { LatLngBoundsExpression, PathOptions } from 'leaflet';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import 'leaflet/dist/leaflet.css';
-import './HomeMap.scss';
 
 interface HomeMapProps {
   activeProvince: string[];
