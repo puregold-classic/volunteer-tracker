@@ -31,6 +31,7 @@ const VolunteerDetailPage = lazy(() => import('./pages/VolunteerDetailPage'));
 import { useHomeState, QUICK_FOCUS_OPTIONS } from './hooks/useHomeState';
 import { useAuth } from './context/AuthContext';
 import { toast } from '@/hooks/use-toast';
+import { resolveVolunteerCardTarget } from '@/lib/routing';
 
 // Inline route fallback while a code-split chunk is loading.
 const RouteFallback: React.FC = () => (
@@ -74,17 +75,18 @@ function HomePageContainer() {
   const { isAuthenticated, account } = useAuth();
   const home = useHomeState();
   // Click routing: anonymous → /login, self → /me, other → detail page.
+  // Decision logic lives in lib/routing.ts so it can be unit-tested
+  // without router / context mocks.
   const handleVolunteerClick = (id: string) => {
-    if (!isAuthenticated) {
+    const target = resolveVolunteerCardTarget({
+      isAuthenticated,
+      ownVolunteerId: account?.volunteerId,
+      targetVolunteerId: id,
+    });
+    if (target.needsLogin) {
       toast({ title: '请先登录', description: '登录后即可查看志愿者详情' });
-      navigate('/login');
-      return;
     }
-    if (account?.volunteerId === id) {
-      navigate('/me');
-      return;
-    }
-    navigate(`/volunteers/${id}`);
+    navigate(target.route);
   };
   return (
     <HomePage

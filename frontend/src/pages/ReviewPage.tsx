@@ -29,7 +29,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { formatLocalDate, parseLocalDate } from '@/lib/date-utils';
+import { formatLocalDate, parseLocalDate, rangeToBounds, type DateRangeKey } from '@/lib/date-utils';
 import { HeroAvatar } from '@/components/shared/hero-avatar';
 
 interface ReviewPageProps {
@@ -44,8 +44,6 @@ interface VolunteerSort {
   dir: 'asc' | 'desc';
 }
 
-type DateRangeKey = 'all' | '7d' | '30d' | '90d' | 'thisMonth' | 'thisYear';
-
 const DATE_RANGE_OPTIONS: Array<{ key: DateRangeKey; label: string }> = [
   { key: 'all', label: '全部时间' },
   { key: '7d', label: '近 7 天' },
@@ -54,22 +52,6 @@ const DATE_RANGE_OPTIONS: Array<{ key: DateRangeKey; label: string }> = [
   { key: 'thisMonth', label: '本月' },
   { key: 'thisYear', label: '本年' },
 ];
-
-/** Convert a preset key to (dateFrom, dateTo) bounds in YYYY-MM-DD form. */
-function rangeToBounds(key: DateRangeKey): { dateFrom?: string; dateTo?: string } {
-  if (key === 'all') return {};
-  const now = new Date();
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const dateTo = fmt(now);
-  let from: Date;
-  if (key === 'thisMonth') from = new Date(now.getFullYear(), now.getMonth(), 1);
-  else if (key === 'thisYear') from = new Date(now.getFullYear(), 0, 1);
-  else if (key === '7d') from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-  else if (key === '30d') from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-  else /* 90d */ from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 89);
-  return { dateFrom: fmt(from), dateTo };
-}
 
 function ReviewPage({ isReviewer }: ReviewPageProps) {
   const { isAuthenticated } = useAuth();

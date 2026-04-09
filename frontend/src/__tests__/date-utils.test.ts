@@ -10,7 +10,7 @@
 // local midnight regardless of system TZ.
 
 import { describe, it, expect } from 'vitest';
-import { parseLocalDate, formatLocalDate } from '../lib/date-utils';
+import { parseLocalDate, formatLocalDate, rangeToBounds } from '../lib/date-utils';
 
 describe('parseLocalDate', () => {
   it('parses YYYY-MM-DD as local-midnight Date', () => {
@@ -84,5 +84,66 @@ describe('formatLocalDate', () => {
     expect(formatLocalDate(undefined)).toBe('—');
     expect(formatLocalDate('')).toBe('—');
     expect(formatLocalDate('garbage')).toBe('—');
+  });
+});
+
+describe('rangeToBounds', () => {
+  // 2026-04-09 (the chunk-6 phase E development date) used as a fixed
+  // reference point so the tests are deterministic year-round.
+  const NOW = new Date(2026, 3, 9); // April 9, 2026 (local midnight)
+
+  it('"all" returns an empty object (no filter params)', () => {
+    expect(rangeToBounds('all', NOW)).toEqual({});
+  });
+
+  it('"thisMonth" → first of current month → today', () => {
+    expect(rangeToBounds('thisMonth', NOW)).toEqual({
+      dateFrom: '2026-04-01',
+      dateTo: '2026-04-09',
+    });
+  });
+
+  it('"thisYear" → Jan 1 → today', () => {
+    expect(rangeToBounds('thisYear', NOW)).toEqual({
+      dateFrom: '2026-01-01',
+      dateTo: '2026-04-09',
+    });
+  });
+
+  it('"7d" includes today and 6 days back (7 days inclusive)', () => {
+    expect(rangeToBounds('7d', NOW)).toEqual({
+      dateFrom: '2026-04-03',
+      dateTo: '2026-04-09',
+    });
+  });
+
+  it('"30d" → 29 days back → today', () => {
+    expect(rangeToBounds('30d', NOW)).toEqual({
+      dateFrom: '2026-03-11',
+      dateTo: '2026-04-09',
+    });
+  });
+
+  it('"90d" → 89 days back → today', () => {
+    expect(rangeToBounds('90d', NOW)).toEqual({
+      dateFrom: '2026-01-10',
+      dateTo: '2026-04-09',
+    });
+  });
+
+  it('"thisMonth" on the 1st of the month produces a single-day window', () => {
+    const firstOfMay = new Date(2026, 4, 1);
+    expect(rangeToBounds('thisMonth', firstOfMay)).toEqual({
+      dateFrom: '2026-05-01',
+      dateTo: '2026-05-01',
+    });
+  });
+
+  it('"7d" crossing a month boundary computes the previous month correctly', () => {
+    const earlyMay = new Date(2026, 4, 3); // May 3
+    expect(rangeToBounds('7d', earlyMay)).toEqual({
+      dateFrom: '2026-04-27', // 6 days before May 3
+      dateTo: '2026-05-03',
+    });
   });
 });
