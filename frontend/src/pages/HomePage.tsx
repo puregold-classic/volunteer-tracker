@@ -26,11 +26,14 @@
 // - List card 内部 max-height + scroll（保证整个 page 不外滚）
 // - 整体 fit viewport ~900px 不需要 page-level scroll
 
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Filter, Map, Search, Users, X } from 'lucide-react';
 import type { Volunteer, VolunteersParams } from '@services/types';
 import { HOT_LOCATIONS } from '@/hooks/useHomeState';
-import HomeMap from '@components/HomeMap';
+// HomeMap pulls in leaflet (~150kB). Defer it past first paint so the
+// list + filter chrome shows immediately while leaflet hydrates in the
+// background.
+const HomeMap = lazy(() => import('@components/HomeMap'));
 import VolunteerList from '@components/VolunteerList';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -356,18 +359,26 @@ function HomePage(props: HomePageProps) {
   );
 
   const mapElement = (
-    <HomeMap
-      activeProvince={selectedProvinces}
-      activeRegions={selectedRegions}
-      quickFocusOptions={[...quickFocusOptions]}
-      hotLocations={HOT_LOCATIONS}
-      focusRegion={primaryFocusRegion}
-      onProvinceSelect={onProvinceSelect}
-      onReset={onResetProvinceSelections}
-      onQuickFocusSelect={onQuickFocusSelect}
-      onRefresh={onRefreshMap}
-      isLocationActive={isLocationActive}
-    />
+    <Suspense
+      fallback={
+        <div className="flex h-[24rem] items-center justify-center rounded-2xl border border-border bg-card text-sm text-muted-foreground md:h-[36rem]">
+          地图加载中…
+        </div>
+      }
+    >
+      <HomeMap
+        activeProvince={selectedProvinces}
+        activeRegions={selectedRegions}
+        quickFocusOptions={[...quickFocusOptions]}
+        hotLocations={HOT_LOCATIONS}
+        focusRegion={primaryFocusRegion}
+        onProvinceSelect={onProvinceSelect}
+        onReset={onResetProvinceSelections}
+        onQuickFocusSelect={onQuickFocusSelect}
+        onRefresh={onRefreshMap}
+        isLocationActive={isLocationActive}
+      />
+    </Suspense>
   );
 
   return (

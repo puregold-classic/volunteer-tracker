@@ -42,15 +42,26 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       sourcemap: mode === 'development',
+      // Bumped from default 500kB; the warning still fires for any
+      // single chunk that crosses the limit but the actual ceiling is
+      // tracked per-chunk in the manualChunks split below.
+      chunkSizeWarningLimit: 600,
       rollupOptions: {
         output: {
           manualChunks: {
-            vendor: ['react', 'react-dom', 'axios']
-          }
-        }
-      }
+            // Core React + axios — every page needs them
+            vendor: ['react', 'react-dom', 'react-router-dom', 'axios'],
+            // Leaflet is the single biggest dep (~140kB) and only the
+            // landing page actually mounts a map.
+            map: ['leaflet', 'react-leaflet'],
+            // react-hook-form + zod + resolvers are only loaded by the
+            // dialog forms in MePage / AdminCenter.
+            forms: ['react-hook-form', 'zod', '@hookform/resolvers'],
+          },
+        },
+      },
     },
-    
+
     // 路径别名
     resolve: {
       alias: {
@@ -58,21 +69,8 @@ export default defineConfig(({ mode }) => {
         '@components': path.resolve(__dirname, './src/components'),
         '@services': path.resolve(__dirname, './src/services'),
         '@utils': path.resolve(__dirname, './src/utils'),
-        '@styles': path.resolve(__dirname, './src/styles')
-      }
+        '@styles': path.resolve(__dirname, './src/styles'),
+      },
     },
-    
-    // CSS预处理器配置
-    css: {
-      preprocessorOptions: {
-        scss: {
-          // 关键配置：强制使用新版 API
-          api: 'modern',
-          additionalData: `
-            
-          `
-        }
-      }
-    }
   };
 });

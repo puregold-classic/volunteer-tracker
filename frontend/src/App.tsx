@@ -14,19 +14,28 @@
 // a complex shared hook; I'll move ownership into HomePage when I rewrite
 // HomePage in phase C.
 
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import Header from '@components/Header';
 import Footer from '@components/Footer';
 import { Button } from '@/components/ui/button';
+// HomePage stays eager (it's the landing route — lazy would just cost a
+// flash of fallback for the first paint). The other 4 pages are gated
+// behind auth or click and account for the bulk of the bundle, so we
+// split them out.
 import HomePage from './pages/HomePage';
-import MePage from './pages/MePage';
-import ReviewPage from './pages/ReviewPage';
-import LoginPage from './pages/LoginPage';
-import VolunteerDetailPage from './pages/VolunteerDetailPage';
+const MePage = lazy(() => import('./pages/MePage'));
+const ReviewPage = lazy(() => import('./pages/ReviewPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const VolunteerDetailPage = lazy(() => import('./pages/VolunteerDetailPage'));
 import { useHomeState, QUICK_FOCUS_OPTIONS } from './hooks/useHomeState';
 import { useAuth } from './context/AuthContext';
 import { toast } from '@/hooks/use-toast';
+
+// Inline route fallback while a code-split chunk is loading.
+const RouteFallback: React.FC = () => (
+  <div className="mx-auto max-w-md py-16 text-center text-sm text-muted-foreground">加载中…</div>
+);
 
 // ─── Auth gate ──────────────────────────────────────────────────────────────
 
@@ -180,6 +189,7 @@ function App() {
 
       <main className="flex-1 py-6 md:py-4">
         <div className="mx-auto w-full max-w-[92rem] px-2 sm:px-4">
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<HomePageContainer />} />
             <Route path="/login" element={<LoginPage />} />
@@ -202,6 +212,7 @@ function App() {
             />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </div>
       </main>
 

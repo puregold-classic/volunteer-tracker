@@ -22,7 +22,7 @@
 // Form uses react-hook-form + zod for validation.
 // Admin role gets the AdminCenter inline (separate page coming in phase E).
 
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
   Briefcase,
   Calendar,
@@ -35,7 +35,10 @@ import {
   User as UserIcon,
   XCircle,
 } from 'lucide-react';
-import AdminCenter from '@components/AdminCenter';
+// AdminCenter is lazy-loaded — only ~10% of users (admin role) ever
+// see it, but it pulls in 5 dialog forms + react-hook-form/zod which
+// otherwise inflate every login session.
+const AdminCenter = lazy(() => import('@components/AdminCenter'));
 import { useAuth } from '@/context/AuthContext';
 import volunteerService from '@services/volunteerService';
 import projectSupportService from '@services/projectSupportService';
@@ -293,7 +296,9 @@ function MePage({ onBackHome }: MePageProps) {
             </Button>
           </div>
         </div>
-        <AdminCenter currentAccountId={account?.id} />
+        <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">加载管理中心…</p>}>
+          <AdminCenter currentAccountId={account?.id} />
+        </Suspense>
       </div>
     );
   }
