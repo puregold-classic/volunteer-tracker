@@ -47,6 +47,7 @@ import { Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { parseLocalDate, formatLocalDate } from '@/lib/date-utils';
 import { HeroAvatar } from '@/components/shared/hero-avatar';
 import { SupportRecordCard } from '@/components/shared/support-record-card';
 import { SubmitFormDialog } from '@/components/shared/submit-form-dialog';
@@ -146,7 +147,7 @@ const PendingProxyCard: React.FC<{
       </div>
       <div className="flex items-center gap-2 text-foreground">
         <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-        <span>{new Date(support.serviceDate).toISOString().split('T')[0]}</span>
+        <span>{formatLocalDate(support.serviceDate)}</span>
         <span className="text-muted-foreground">·</span>
         <Clock3 className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="tabular-nums">{support.duration}h</span>
@@ -328,7 +329,8 @@ function MePage({ onBackHome }: MePageProps) {
       if (s.status !== 'ACTIVE') continue;
       const dur = s.duration || 0;
       totalHours += dur;
-      const d = new Date(s.serviceDate);
+      const d = parseLocalDate(s.serviceDate);
+      if (!d) continue;
       if (d >= yearStart) yearHours += dur;
       if (d >= monthStart) monthHours += dur;
       if (d >= ninetyDaysAgo && d <= now) {
@@ -353,7 +355,8 @@ function MePage({ onBackHome }: MePageProps) {
     });
     const groupMap = new Map<string, { key: string; label: string; hours: number; count: number; records: ProjectSupport[] }>();
     for (const s of filtered) {
-      const d = new Date(s.serviceDate);
+      const d = parseLocalDate(s.serviceDate);
+      if (!d) continue;
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const label = `${d.getFullYear()} 年 ${d.getMonth() + 1} 月`;
       const g = groupMap.get(key) || { key, label, hours: 0, count: 0, records: [] };

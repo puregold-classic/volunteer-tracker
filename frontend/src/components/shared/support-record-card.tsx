@@ -7,6 +7,7 @@ import { Calendar, Clock3, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ProjectSupport } from '@services/types';
+import { formatLocalDate } from '@/lib/date-utils';
 
 export interface SupportRecordCardProps {
   support: ProjectSupport;
@@ -45,7 +46,7 @@ export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
         </p>
         <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
           <Calendar className="h-3 w-3" />
-          {new Date(support.serviceDate).toISOString().split('T')[0]}
+          {formatLocalDate(support.serviceDate)}
           <span>·</span>
           <Clock3 className="h-3 w-3" />
           <span className="tabular-nums">{support.duration}h</span>

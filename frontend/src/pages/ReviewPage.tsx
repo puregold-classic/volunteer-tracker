@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import ledgerService, { LedgerOverview } from '@services/ledgerService';
 import { useAuth } from '@/context/AuthContext';
+import { formatLocalDate } from '@/lib/date-utils';
 
 interface ReviewPageProps {
   isReviewer: boolean;
@@ -58,8 +59,8 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
         <p>记录总数：{overview.summary.totalRecords}</p>
         <p>累计时长：{overview.summary.totalHours} 小时</p>
         <p>平均时长：{overview.summary.avgDuration} 小时/记录</p>
-        <p>最早日期：{overview.summary.earliestDate ? new Date(overview.summary.earliestDate).toISOString().split('T')[0] : '—'}</p>
-        <p>最晚日期：{overview.summary.latestDate ? new Date(overview.summary.latestDate).toISOString().split('T')[0] : '—'}</p>
+        <p>最早日期：{formatLocalDate(overview.summary.earliestDate)}</p>
+        <p>最晚日期：{formatLocalDate(overview.summary.latestDate)}</p>
       </section>
 
       <section className="nps-panel">
@@ -87,7 +88,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
             {overview.byVolunteer.map((v) => (
               <article key={v.volunteerCode} className="admin-simple-card">
                 <p><strong>{v.chineseName}</strong> ({v.volunteerCode}) · {v.departmentId}</p>
-                <p>{v.count} 条 · {v.totalHours} 小时 · 最近 {v.lastDate ? new Date(v.lastDate).toISOString().split('T')[0] : '—'}</p>
+                <p>{v.count} 条 · {v.totalHours} 小时 · 最近 {formatLocalDate(v.lastDate)}</p>
               </article>
             ))}
           </div>

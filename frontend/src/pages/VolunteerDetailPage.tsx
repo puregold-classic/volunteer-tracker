@@ -38,6 +38,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { parseLocalDate, formatLocalDate } from '@/lib/date-utils';
 import { HeroAvatar } from '@/components/shared/hero-avatar';
 import { SupportRecordCard } from '@/components/shared/support-record-card';
 import { SubmitFormDialog } from '@/components/shared/submit-form-dialog';
@@ -123,7 +124,8 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
       activeCount += 1;
       const dur = s.duration || 0;
       totalHours += dur;
-      const d = new Date(s.serviceDate);
+      const d = parseLocalDate(s.serviceDate);
+      if (!d) continue;
       if (d >= yearStart) yearHours += dur;
       if (d >= ninetyDaysAgo && d <= now) {
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -284,30 +286,59 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
         </div>
       </Card>
 
-      {/* ─── 联系方式 (inline strip) ─────────────────────────────────────── */}
+      {/* ─── 联系方式 ───────────────────────────────────────────────────── */}
       {(volunteer.email || volunteer.phone || volunteer.joinDate) && (
-        <div className="rounded-xl border border-border bg-card/60 px-4 py-3 text-xs text-muted-foreground">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-            {volunteer.email && (
-              <span className="inline-flex items-center gap-1.5">
-                <Mail className="h-3 w-3" />
-                {volunteer.email}
-              </span>
-            )}
-            {volunteer.phone && (
-              <span className="inline-flex items-center gap-1.5">
-                <Phone className="h-3 w-3" />
-                {volunteer.phone}
-              </span>
-            )}
-            {volunteer.joinDate && (
-              <span className="inline-flex items-center gap-1.5">
-                <Calendar className="h-3 w-3" />
-                加入 {new Date(volunteer.joinDate).toISOString().split('T')[0]}
-              </span>
-            )}
+        <Card variant="elevated" className="overflow-hidden">
+          <div className="p-5 sm:p-6">
+            <h2 className="font-serif text-base font-semibold text-foreground">联系方式</h2>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              {volunteer.email && (
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                    <Mail className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">邮箱</dt>
+                    <dd className="mt-0.5 truncate text-sm text-foreground">
+                      <a
+                        href={`mailto:${volunteer.email}`}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {volunteer.email}
+                      </a>
+                    </dd>
+                  </div>
+                </div>
+              )}
+              {volunteer.phone && (
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                    <Phone className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">电话</dt>
+                    <dd className="mt-0.5 truncate text-sm text-foreground tabular-nums">
+                      {volunteer.phone}
+                    </dd>
+                  </div>
+                </div>
+              )}
+              {volunteer.joinDate && (
+                <div className="flex items-start gap-2.5">
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <dt className="text-[11px] uppercase tracking-wider text-muted-foreground">加入时间</dt>
+                    <dd className="mt-0.5 text-sm text-foreground tabular-nums">
+                      {formatLocalDate(volunteer.joinDate)}
+                    </dd>
+                  </div>
+                </div>
+              )}
+            </dl>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* ─── Submit CTA (proxy mode) ─────────────────────────────────────── */}
