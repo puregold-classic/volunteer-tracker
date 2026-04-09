@@ -212,127 +212,15 @@
   border-radius: calc(var(--radius) - 2px);
 }
 
-/* ─── Compat @layer for v1 SCSS class names ────────────────────────────────
+/* ─── HomeMap leaflet bridge ────────────────────────────────────────────────
  *
- * MePage / AdminCenter / HomeMap reference these class names from chunk 3
- * (when they were placeholder pages built on top of v1 SCSS). This @layer
- * is a *bridge* — it re-implements the structural styles using semantic
- * tokens (so Warm Editorial colors apply) without rewriting those pages.
- *
- * Phase D (MePage rewrite) and phase E (AdminCenter rewrite) will replace
- * these classes with inline Tailwind utilities and this whole block will
- * be deleted.
+ * The chunk-3 v1-SCSS bridge classes (page chrome / nps-panel / form helpers
+ * / admin-simple-card etc.) were removed in chunk 6 phase E once MePage,
+ * VolunteerDetailPage, AdminCenter and ReviewPage were all rewritten in
+ * inline Tailwind utilities. The HomeMap classes below remain because the
+ * Leaflet container needs explicit pixel sizing.
  */
 @layer components {
-  /* ── Page chrome ── */
-  .me-page,
-  .admin-center {
-    @apply space-y-6 max-w-5xl mx-auto;
-  }
-
-  .center-panel__head {
-    @apply flex flex-wrap items-center justify-between gap-3 mb-4;
-  }
-
-  .center-empty {
-    @apply text-center text-sm text-muted-foreground py-6;
-  }
-
-  /* ── Section panels ── */
-  .nps-panel {
-    @apply rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-sm space-y-3;
-  }
-
-  .nps-panel h3 {
-    @apply font-serif text-lg font-semibold text-foreground mb-1;
-  }
-
-  .nps-panel p {
-    @apply text-sm text-foreground;
-  }
-
-  .nps-msg {
-    @apply text-sm text-muted-foreground;
-  }
-
-  .auth-form-error {
-    @apply text-sm text-destructive;
-  }
-
-  /* ── Forms ── */
-  .admin-single-grid {
-    @apply grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3;
-  }
-
-  .admin-single-grid input,
-  .admin-single-grid select,
-  .admin-csv-input {
-    @apply rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
-  }
-
-  .admin-csv-input {
-    @apply min-h-[140px] font-mono text-xs leading-5 w-full;
-  }
-
-  .admin-form-row {
-    @apply flex flex-wrap items-center gap-4 mt-3 text-sm;
-  }
-
-  .admin-form-row label {
-    @apply flex items-center gap-2 text-foreground;
-  }
-
-  .admin-form-row label input[type='text'],
-  .admin-form-row label input[type='email'] {
-    @apply rounded-lg border border-input bg-background px-3 py-1.5 text-sm;
-  }
-
-  .admin-checkbox {
-    @apply flex items-center gap-2 text-sm text-foreground;
-  }
-
-  /* ── Action buttons (chip-style) ── */
-  .action-chip {
-    @apply inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50;
-  }
-
-  .quick-actions-row {
-    @apply flex flex-wrap items-center gap-2 mt-3;
-  }
-
-  .quick-actions-panel {
-    @apply rounded-2xl border border-destructive/30 bg-destructive/5 p-5 space-y-2;
-  }
-
-  .quick-actions-panel h3 {
-    @apply font-serif text-lg font-semibold text-destructive mb-1;
-  }
-
-  .quick-actions-panel p {
-    @apply text-sm text-foreground;
-  }
-
-  .filter-reset {
-    @apply inline-flex items-center gap-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground;
-  }
-
-  /* ── Account / record cards ── */
-  .admin-simple-list {
-    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-3;
-  }
-
-  .admin-simple-card {
-    @apply rounded-xl border border-border bg-background p-4 space-y-1 text-sm;
-  }
-
-  .admin-simple-card p {
-    @apply text-sm text-foreground;
-  }
-
-  .admin-simple-card strong {
-    @apply text-muted-foreground font-medium mr-1;
-  }
-
   /* ── HomeMap (Leaflet container) ── */
   .home-map {
     @apply relative w-full overflow-hidden rounded-2xl border border-border bg-card;
