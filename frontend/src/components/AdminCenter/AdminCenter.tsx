@@ -27,8 +27,10 @@ import { z } from 'zod';
 import {
   AlertTriangle,
   FileSpreadsheet,
+  Pencil,
   RefreshCcw,
   Search,
+  Shield,
   Trash2,
   UserPlus,
   Users,
@@ -36,6 +38,7 @@ import {
 } from 'lucide-react';
 import authService, { AdminAccountItem } from '@services/authService';
 import departmentService from '@services/departmentService';
+import volunteerService from '@services/volunteerService';
 import type { Department, Role } from '@services/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -465,6 +468,235 @@ const SystemResetDialog: React.FC<{
   );
 };
 
+// ─── Edit account dialog ────────────────────────────────────────────────────
+
+const editAccountSchema = z.object({
+  // Account fields
+  name: z.string().trim().min(1, '姓名必填'),
+  email: z.string().trim().email('邮箱格式错误'),
+  role: z.enum(['user', 'b_admin', 'a_admin', 'admin']),
+  isActive: z.boolean(),
+  // Volunteer fields (only meaningful when account has linked volunteer)
+  chineseName: z.string().trim().optional(),
+  englishName: z.string().trim().optional(),
+  status: z.enum(['在职', '不在职']).optional(),
+  region: z.enum(['中国大陆', '中国台湾', '东南亚', '美国', '欧洲', '其他']).optional(),
+  province: z.string().optional(),
+  departmentId: z.string().optional(),
+  phone: z.string().optional(),
+});
+
+type EditAccountForm = z.infer<typeof editAccountSchema>;
+
+const EditAccountDialog: React.FC<{
+  account: AdminAccountItem | null;
+  departments: Department[];
+  isSelf: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ account, departments, isSelf, onClose, onSaved }) => {
+  const open = !!account;
+  const hasVolunteer = !!account?.volunteer;
+  const {
+    register,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors, isSubmitting, dirtyFields },
+  } = useForm<EditAccountForm>({
+    resolver: zodResolver(editAccountSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      role: 'user',
+      isActive: true,
+      chineseName: '',
+      englishName: '',
+      status: '在职',
+      region: '其他',
+      province: '',
+      departmentId: '',
+      phone: '',
+    },
+  });
+
+  const region = watch('region');
+  const showProvince = region === '中国大陆' || region === '中国台湾';
+
+  useEffect(() => {
+    if (!account) return;
+    reset({
+      name: account.name,
+      email: account.email,
+      role: account.role,
+      isActive: account.isActive,
+      chineseName: account.volunteer?.chineseName || '',
+      englishName: account.volunteer?.englishName || '',
+      status: (account.volunteer?.status as '在职' | '不在职') || '在职',
+      region: (account.volunteer?.region as EditAccountForm['region']) || '其他',
+      province: account.volunteer?.province || '',
+      departmentId: account.volunteer?.department?.id || '',
+      phone: account.volunteer?.phone || '',
+    });
+  }, [account, reset]);
+
+  const onSubmit = async (data: EditAccountForm) => {
+    if (!account) return;
+
+    // 1) Patch account fields if any changed
+    const accountPatch: Record<string, unknown> = {};
+    if (dirtyFields.name) accountPatch.name = data.name;
+    if (dirtyFields.email) accountPatch.email = data.email;
+    if (dirtyFields.role) accountPatch.role = data.role;
+    if (dirtyFields.isActive) accountPatch.isActive = data.isActive;
+
+    if (Object.keys(accountPatch).length > 0) {
+      const res = await authService.adminUpdateAccount(account.id, accountPatch as any);
+      if (!res?.success) {
+        toast({
+          title: '账号更新失败',
+          description: (res as any)?.error || '未知错误',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // 2) Patch volunteer fields if any changed (only if account has volunteer)
+    if (hasVolunteer && account.volunteerId) {
+      const volunteerPatch: Record<string, unknown> = {};
+      if (dirtyFields.chineseName) volunteerPatch.chineseName = data.chineseName;
+      if (dirtyFields.englishName) volunteerPatch.englishName = data.englishName || null;
+      if (dirtyFields.status) volunteerPatch.status = data.status;
+      if (dirtyFields.region) volunteerPatch.region = data.region;
+      if (dirtyFields.province) volunteerPatch.province = data.province || null;
+      if (dirtyFields.departmentId) volunteerPatch.departmentId = data.departmentId;
+      if (dirtyFields.phone) volunteerPatch.phone = data.phone || null;
+
+      if (Object.keys(volunteerPatch).length > 0) {
+        const res = await volunteerService.updateVolunteer(account.volunteerId, volunteerPatch as any);
+        if (!res?.success) {
+          toast({
+            title: '志愿者信息更新失败',
+            description: (res as any)?.error || '未知错误',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+    }
+
+    toast({ title: '保存成功', description: data.name });
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => !o && onClose()}
+      title={account ? `编辑账号 · ${account.name}` : '编辑账号'}
+      description={
+        isSelf
+          ? '不能修改自己的角色或停用自己的账号'
+          : hasVolunteer
+            ? '账号信息 + 志愿者档案，仅修改改动过的字段'
+            : '系统 admin 账号（无 volunteer 关联）'
+      }
+      className="sm:max-w-2xl"
+    >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {/* ── Account section ── */}
+        <div className="rounded-lg border border-border bg-muted/20 p-3">
+          <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            <Shield className="h-3 w-3" />
+            账号信息
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="登录姓名" required error={errors.name?.message}>
+              <Input {...register('name')} />
+            </Field>
+            <Field label="邮箱" required error={errors.email?.message}>
+              <Input type="email" {...register('email')} />
+            </Field>
+            <Field label="角色" required>
+              <Select {...register('role')} disabled={isSelf}>
+                <option value="user">user</option>
+                <option value="b_admin">b_admin</option>
+                <option value="a_admin">a_admin</option>
+                <option value="admin">admin</option>
+              </Select>
+            </Field>
+            <Field label="状态">
+              <label className="flex h-8 items-center gap-2 px-1">
+                <input
+                  type="checkbox"
+                  {...register('isActive')}
+                  disabled={isSelf}
+                  className="h-4 w-4 rounded border-border text-primary"
+                />
+                <span className="text-sm text-foreground">激活账号</span>
+              </label>
+            </Field>
+          </div>
+        </div>
+
+        {/* ── Volunteer section (only for non-admin accounts with volunteer) ── */}
+        {hasVolunteer && (
+          <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              <Users className="h-3 w-3" />
+              志愿者档案 · {account?.volunteerCode}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="中文姓名" error={errors.chineseName?.message}>
+                <Input {...register('chineseName')} />
+              </Field>
+              <Field label="英文姓名" error={errors.englishName?.message}>
+                <Input {...register('englishName')} placeholder="可选" />
+              </Field>
+              <Field label="在职状态">
+                <Select {...register('status')}>
+                  <option value="在职">在职</option>
+                  <option value="不在职">不在职</option>
+                </Select>
+              </Field>
+              <Field label="部门" error={errors.departmentId?.message}>
+                <Select {...register('departmentId')}>
+                  <option value="">— 选择部门 —</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="地区">
+                <Select {...register('region')}>
+                  {REGION_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                </Select>
+              </Field>
+              <Field label={showProvince ? '省份 *' : '省份'} error={errors.province?.message}>
+                <Input {...register('province')} placeholder={showProvince ? '大陆 / 台湾必填' : '可选'} />
+              </Field>
+              <Field label="电话">
+                <Input {...register('phone')} placeholder="可选" />
+              </Field>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-3 pt-1">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
+            取消
+          </Button>
+          <Button type="submit" className="flex-1" disabled={isSubmitting} size="lg">
+            {isSubmitting ? '保存中…' : '保存修改'}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+};
+
 // ─── Field wrapper (label + error) ──────────────────────────────────────────
 
 const Field: React.FC<{
@@ -501,6 +733,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
   const [createAdminOpen, setCreateAdminOpen] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [systemResetOpen, setSystemResetOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<AdminAccountItem | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -567,22 +800,22 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
   return (
     <div className="space-y-5">
       {/* Header row */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 px-1">
         <div>
-          <h2 className="font-serif text-xl font-semibold text-foreground">系统管理中心</h2>
-          <p className="text-xs text-muted-foreground">志愿者 / 账号 / 系统配置</p>
+          <h2 className="font-serif text-2xl font-semibold text-foreground">系统管理中心</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">志愿者 / 账号 / 系统配置</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={refresh} disabled={loading}>
             <RefreshCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
             刷新
           </Button>
-          <Button type="button" size="sm" onClick={() => setCsvImportOpen(true)}>
+          <Button type="button" variant="outline" size="sm" onClick={() => setCsvImportOpen(true)}>
             <FileSpreadsheet className="h-4 w-4" />
             CSV 导入
           </Button>
-          <Button type="button" size="sm" onClick={() => setCreateAdminOpen(true)}>
-            <UserPlus className="h-4 w-4" />
+          <Button type="button" variant="outline" size="sm" onClick={() => setCreateAdminOpen(true)}>
+            <Shield className="h-4 w-4" />
             新增 admin
           </Button>
           <Button type="button" size="sm" onClick={() => setCreateVolunteerOpen(true)}>
@@ -598,19 +831,31 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
         </div>
       )}
 
-      {/* Stats overview */}
-      <Card variant="elevated" className="p-5">
-        <div className="font-serif text-sm leading-7 text-foreground">
-          <span className="font-semibold text-primary tabular-nums">{stats.total}</span>
-          <span className="text-muted-foreground"> 个账号 · </span>
-          <span className="font-semibold tabular-nums">{stats.byRole.user || 0}</span>
-          <span className="text-muted-foreground"> user · </span>
-          <span className="font-semibold tabular-nums">{stats.byRole.b_admin || 0}</span>
-          <span className="text-muted-foreground"> b_admin · </span>
-          <span className="font-semibold tabular-nums">{stats.byRole.a_admin || 0}</span>
-          <span className="text-muted-foreground"> a_admin · </span>
-          <span className="font-semibold tabular-nums">{stats.byRole.admin || 0}</span>
-          <span className="text-muted-foreground"> admin</span>
+      {/* KPI strip — same language as ReviewPage */}
+      <Card variant="elevated" className="overflow-hidden">
+        <div className="grid grid-cols-2 gap-px bg-border sm:grid-cols-4">
+          {[
+            { label: '总账号', value: stats.total, emphasized: true },
+            { label: 'user', value: stats.byRole.user || 0 },
+            { label: 'b/a admin', value: (stats.byRole.b_admin || 0) + (stats.byRole.a_admin || 0) },
+            { label: 'admin', value: stats.byRole.admin || 0 },
+          ].map((tile) => (
+            <div
+              key={tile.label}
+              className={cn(
+                'bg-card px-4 py-4 sm:px-5 sm:py-5',
+                tile.emphasized && 'border-l-4 border-l-primary',
+              )}
+            >
+              <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                {tile.label}
+              </div>
+              <p className="mt-2 font-serif text-xl font-semibold tabular-nums leading-none text-foreground sm:text-2xl">
+                {tile.value}
+                <span className="ml-1 text-xs font-normal text-muted-foreground">个</span>
+              </p>
+            </div>
+          ))}
         </div>
       </Card>
 
@@ -665,73 +910,150 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
-              <tr>
-                <th className="px-4 py-3 font-medium">Code</th>
-                <th className="px-4 py-3 font-medium">姓名</th>
-                <th className="px-4 py-3 font-medium">邮箱</th>
-                <th className="px-4 py-3 font-medium">角色</th>
-                <th className="px-4 py-3 font-medium">部门</th>
-                <th className="px-4 py-3 font-medium text-right">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && filteredAccounts.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                    加载中…
-                  </td>
-                </tr>
-              )}
-              {!loading && filteredAccounts.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                    {accounts.length === 0 ? '暂无账号数据' : '没有匹配的账号'}
-                  </td>
-                </tr>
-              )}
-              {filteredAccounts.map((account) => (
-                <tr
-                  key={account.id}
+        {/* Empty / loading states (shared between mobile + desktop) */}
+        {loading && filteredAccounts.length === 0 && (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">加载中…</p>
+        )}
+        {!loading && filteredAccounts.length === 0 && (
+          <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+            {accounts.length === 0 ? '暂无账号数据' : '没有匹配的账号'}
+          </p>
+        )}
+
+        {/* Mobile: card list */}
+        {filteredAccounts.length > 0 && (
+          <ul className="divide-y divide-border md:hidden">
+            {filteredAccounts.map((account) => {
+              const isSelf = account.id === currentAccountId;
+              return (
+                <li
+                  key={`m-${account.id}`}
                   className={cn(
-                    'border-b border-border last:border-b-0 transition-colors hover:bg-muted/20',
-                    account.id === currentAccountId && 'bg-primary/5',
+                    'px-4 py-3 transition-colors',
+                    isSelf && 'bg-primary/5',
                   )}
                 >
-                  <td className="px-4 py-3 font-mono text-xs tabular-nums text-muted-foreground">
-                    {account.volunteerCode || <span className="italic">(admin)</span>}
-                  </td>
-                  <td className="px-4 py-3 font-medium text-foreground">{account.name}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{account.email}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={roleBadgeVariant(account.role)} className="text-[10px] py-0.5">
-                      {ROLE_LABELS[account.role]}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-foreground">
-                    {account.volunteer?.department?.name || <span className="text-muted-foreground">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="ghost"
-                      onClick={() => handleDelete(account.id, account.name)}
-                      disabled={account.id === currentAccountId}
-                      title={account.id === currentAccountId ? '不能删除自己' : '删除账号'}
-                      aria-label="删除"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </td>
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate font-medium text-foreground">{account.name}</p>
+                        <Badge variant={roleBadgeVariant(account.role)} className="shrink-0 text-[10px] py-0.5">
+                          {ROLE_LABELS[account.role]}
+                        </Badge>
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">{account.email}</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {account.volunteerCode ? (
+                          <span className="font-mono tabular-nums">{account.volunteerCode}</span>
+                        ) : (
+                          <span className="italic">系统 admin</span>
+                        )}
+                        {account.volunteer?.department && (
+                          <span> · {account.volunteer.department.name}</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => setEditingAccount(account)}
+                        aria-label="编辑"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        onClick={() => handleDelete(account.id, account.name)}
+                        disabled={isSelf}
+                        title={isSelf ? '不能删除自己' : '删除账号'}
+                        aria-label="删除"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {/* Desktop / tablet: table */}
+        {filteredAccounts.length > 0 && (
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full text-sm">
+              <thead className="border-b border-border bg-muted/30 text-left text-xs uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Code</th>
+                  <th className="px-4 py-3 font-medium">姓名</th>
+                  <th className="px-4 py-3 font-medium">邮箱</th>
+                  <th className="px-4 py-3 font-medium">角色</th>
+                  <th className="px-4 py-3 font-medium">部门</th>
+                  <th className="px-4 py-3 font-medium text-right">操作</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredAccounts.map((account) => {
+                  const isSelf = account.id === currentAccountId;
+                  return (
+                    <tr
+                      key={account.id}
+                      onClick={() => setEditingAccount(account)}
+                      className={cn(
+                        'cursor-pointer border-b border-border last:border-b-0 transition-colors hover:bg-muted/30',
+                        isSelf && 'bg-primary/5',
+                      )}
+                    >
+                      <td className="px-4 py-3 font-mono text-xs tabular-nums text-muted-foreground">
+                        {account.volunteerCode || <span className="italic">(admin)</span>}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-foreground">{account.name}</td>
+                      <td className="px-4 py-3 text-muted-foreground">{account.email}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={roleBadgeVariant(account.role)} className="text-[10px] py-0.5">
+                          {ROLE_LABELS[account.role]}
+                        </Badge>
+                        {!account.isActive && (
+                          <Badge variant="outline" className="ml-1 text-[10px] py-0.5">已停用</Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-foreground">
+                        {account.volunteer?.department?.name || <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => setEditingAccount(account)}
+                          aria-label="编辑"
+                          title="编辑账号"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(account.id, account.name)}
+                          disabled={isSelf}
+                          title={isSelf ? '不能删除自己' : '删除账号'}
+                          aria-label="删除"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Footer count */}
         <div className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
@@ -784,6 +1106,13 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
         open={systemResetOpen}
         onOpenChange={setSystemResetOpen}
         onDone={refresh}
+      />
+      <EditAccountDialog
+        account={editingAccount}
+        departments={departments}
+        isSelf={editingAccount?.id === currentAccountId}
+        onClose={() => setEditingAccount(null)}
+        onSaved={refresh}
       />
     </div>
   );
