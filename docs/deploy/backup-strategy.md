@@ -103,13 +103,38 @@ ls -lht data/backups/
 # 恢复完成后会打印 safety net 文件路径，万一搞砸了可以回滚
 ```
 
-### 调整保留天数
+### 保留策略（GFS rotation）
+
+`pg-backup.sh` 用 Grandfather-Father-Son 滚动保留：
+
+| 槽位 | 数量 | 含义 |
+|---|---|---|
+| daily | 7 | 今天 + 过去 6 天，每天最新一份 |
+| weekly | 4 | 再往前 4 ISO 周，每周最新一份 |
+| monthly | 12 | 再往前 12 月，每月最新一份 |
+| yearly | ∞ | 再往前每年最新一份，无上限 |
+
+稳态约 23 + N yearlies ≈ < 200 KB 永久占用。新文件按 day_bucket / week_bucket /
+month_bucket / year_bucket 4 个 key 分类，cascade marking 保证同时间段内
+只留一份。`RETAIN_DAYS` 环境变量已废弃。
+
+### iCloud Drive 离机冗余
+
+每次 `pg-backup.sh` 跑完会自动调 `pg-backup-icloud.sh`，把最新 dump 拷到
+`~/Library/Mobile Documents/com~apple~CloudDocs/volunteer-tracker-backups/`，
+iCloud 端 rolling 30 daily（不做 GFS——长记忆放本地）。Apple iCloud Drive
+自带 E2EE，不需要再上 GPG。
+
+要跳过 iCloud 同步：
 
 ```bash
-# 临时
-RETAIN_DAYS=60 ./scripts/deploy/pg-backup.sh
+SKIP_ICLOUD=1 ./scripts/deploy/pg-backup.sh
+```
 
-# 永久：改 launchd plist 加 EnvironmentVariables 里的 RETAIN_DAYS
+要单独触发 iCloud 同步（不建新 dump）：
+
+```bash
+./scripts/deploy/pg-backup-icloud.sh
 ```
 
 ### 卸载 launchd 任务
