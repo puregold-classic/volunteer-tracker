@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  System LaunchDaemon for cloudflared tunnel watchdog.
+
+  Runs as root every 2 minutes, probes the public URL, kickstarts
+  cloudflared if N consecutive probes fail. See tunnel-watchdog.sh for
+  the detection rationale.
+
+  This is a TEMPLATE — the {{PROJECT_ROOT}} placeholder must be replaced
+  with the absolute path to the volunteer-tracker checkout on the host.
+
+  Why a system LaunchDaemon (and not a user LaunchAgent)?
+    `launchctl kickstart system/com.cloudflare.cloudflared` requires root,
+    so the watchdog itself must run as root. Putting the plist in
+    /Library/LaunchDaemons accomplishes this.
+
+  Install (run on Mac mini, requires sudo):
+
+    sudo sed "s|{{PROJECT_ROOT}}|/Users/zsy666/srv/volunteer-tracker|g" \
+      /Users/zsy666/srv/volunteer-tracker/scripts/deploy/com.volunteer-tracker.tunnel-watchdog.plist.template \
+      > /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
+    sudo chown root:wheel /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
+    sudo chmod 644 /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
+    sudo launchctl bootstrap system /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
+
+  Verify (after install — should fire immediately due to RunAtLoad):
+    sudo launchctl list | grep volunteer-tracker.tunnel-watchdog
+    tail -f /Library/Logs/volunteer-tracker-tunnel-watchdog.log
+
+  Uninstall:
+    sudo launchctl bootout system/com.volunteer-tracker.tunnel-watchdog
+    sudo rm /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.volunteer-tracker.tunnel-watchdog</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>{{PROJECT_ROOT}}/scripts/deploy/tunnel-watchdog.sh</string>
+  </array>
+
+  <!-- Run every 2 minutes. Worst-case detection latency = 2 * threshold = 4 min. -->
+  <key>StartInterval</key>
+  <integer>120</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Re-run if the script crashes, but throttle to avoid tight loops. -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Library/Logs/volunteer-tracker-tunnel-watchdog.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Library/Logs/volunteer-tracker-tunnel-watchdog.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>
