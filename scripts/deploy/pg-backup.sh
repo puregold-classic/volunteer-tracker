@@ -158,24 +158,31 @@ while IFS= read -r dump; do
   month_bucket="${ymd:0:6}"
   year_bucket="${ymd:0:4}"
 
+  # Decide which (if any) slot this file fills. The walk is newest-first,
+  # so when a file F fills the daily slot for day D, it ALSO implicitly
+  # covers the weekly / monthly / yearly slots that day D belongs to —
+  # any older file in those same buckets is redundant. We model that by
+  # marking all four bucket levels at once when a file is kept.
   decision="prune"
   reason=""
 
   if (( days_ago < 7 )) && ! in_set "$kept_days" "$day_bucket"; then
-    kept_days="$kept_days$day_bucket "
     decision="keep"; reason="daily"
   elif (( days_ago < 35 )) && [[ -n "$week_bucket" ]] && ! in_set "$kept_weeks" "$week_bucket"; then
-    kept_weeks="$kept_weeks$week_bucket "
     decision="keep"; reason="weekly"
   elif (( days_ago < 400 )) && ! in_set "$kept_months" "$month_bucket"; then
-    kept_months="$kept_months$month_bucket "
     decision="keep"; reason="monthly"
   elif ! in_set "$kept_years" "$year_bucket"; then
-    kept_years="$kept_years$year_bucket "
     decision="keep"; reason="yearly"
   fi
 
   if [[ "$decision" == "keep" ]]; then
+    in_set "$kept_days"   "$day_bucket"   || kept_days="$kept_days$day_bucket "
+    if [[ -n "$week_bucket" ]] && ! in_set "$kept_weeks" "$week_bucket"; then
+      kept_weeks="$kept_weeks$week_bucket "
+    fi
+    in_set "$kept_months" "$month_bucket" || kept_months="$kept_months$month_bucket "
+    in_set "$kept_years"  "$year_bucket"  || kept_years="$kept_years$year_bucket "
     KEPT=$((KEPT + 1))
     echo "  KEEP   $basename  (${reason}, ${days_ago}d ago)"
   else
