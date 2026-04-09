@@ -16,13 +16,21 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock3, FileText, Layers3, TrendingUp } from 'lucide-react';
-import ledgerService, { LedgerOverview, LedgerTimeSeriesPoint } from '@services/ledgerService';
+import ledgerService, {
+  LedgerOverview,
+  LedgerTimeSeriesPoint,
+  ProxyContribution,
+  RecentActivityEntry,
+  VolunteerLedgerDetail,
+} from '@services/ledgerService';
 import departmentService from '@services/departmentService';
-import type { Department } from '@services/types';
+import type { Department, ProjectSupport } from '@services/types';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
+import { Dialog } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { formatLocalDate, parseLocalDate } from '@/lib/date-utils';
+import { HeroAvatar } from '@/components/shared/hero-avatar';
 
 interface ReviewPageProps {
   isReviewer: boolean;
@@ -67,6 +75,8 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
   const { isAuthenticated } = useAuth();
   const [overview, setOverview] = useState<LedgerOverview | null>(null);
   const [series, setSeries] = useState<LedgerTimeSeriesPoint[]>([]);
+  const [proxies, setProxies] = useState<ProxyContribution[]>([]);
+  const [activity, setActivity] = useState<RecentActivityEntry[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -97,12 +107,20 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
       ...bounds,
       ...(filterDeptId ? { departmentId: filterDeptId } : {}),
     };
-    Promise.all([ledgerService.overview(overviewParams), ledgerService.timeSeries(12)])
-      .then(([oRes, tRes]) => {
+    // Side panels reuse the date filter; recentActivity is global (no filter).
+    Promise.all([
+      ledgerService.overview(overviewParams),
+      ledgerService.timeSeries(12),
+      ledgerService.proxyContributions(bounds),
+      ledgerService.recentActivity({ limit: 12 }),
+    ])
+      .then(([oRes, tRes, pRes, aRes]) => {
         if (cancelled) return;
         if (oRes?.success && oRes.data) setOverview(oRes.data);
         else setError((oRes as any)?.error || '加载台账失败');
         if (tRes?.success && tRes.data) setSeries(tRes.data);
+        if (pRes?.success && pRes.data) setProxies(pRes.data);
+        if (aRes?.success && aRes.data) setActivity(aRes.data);
       })
       .catch((err) => {
         if (!cancelled) setError(err?.message || '加载失败');
@@ -120,6 +138,33 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
     setDateRange('all');
     setFilterDeptId('');
   };
+
+  // ─── Drill-down sheet state ──────────────────────────────────────────────
+  const [drillVolunteerId, setDrillVolunteerId] = useState<string | null>(null);
+  const [drillDetail, setDrillDetail] = useState<VolunteerLedgerDetail | null>(null);
+  const [drillLoading, setDrillLoading] = useState(false);
+
+  useEffect(() => {
+    if (!drillVolunteerId) {
+      setDrillDetail(null);
+      return;
+    }
+    let cancelled = false;
+    setDrillLoading(true);
+    setDrillDetail(null);
+    ledgerService
+      .volunteerDetail(drillVolunteerId)
+      .then((res) => {
+        if (cancelled) return;
+        if (res?.success && res.data) setDrillDetail(res.data);
+      })
+      .finally(() => {
+        if (!cancelled) setDrillLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [drillVolunteerId]);
 
   // ─── Derived data ─────────────────────────────────────────────────────────
 
@@ -494,7 +539,11 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
             {/* Mobile: card list (table is unwieldy on narrow screens) */}
             <ul className="divide-y divide-border/60 sm:hidden">
               {sortedVolunteers.map((v) => (
-                <li key={`m-${v.volunteerCode}`} className="flex items-center gap-3 px-4 py-3">
+                <li
+                  key={`m-${v.volunteerCode}`}
+                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
+                  onClick={() => setDrillVolunteerId(v.volunteerId)}
+                >
                   {v.originalRank <= 3 ? (
                     <span
                       className={cn(
@@ -580,7 +629,8 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
                   {sortedVolunteers.map((v) => (
                     <tr
                       key={v.volunteerCode}
-                      className="border-b border-border/60 last:border-b-0 hover:bg-muted/30"
+                      onClick={() => setDrillVolunteerId(v.volunteerId)}
+                      className="cursor-pointer border-b border-border/60 last:border-b-0 transition-colors hover:bg-muted/40"
                     >
                       <td className="px-3 py-2.5">
                         {v.originalRank <= 3 ? (
@@ -659,11 +709,279 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
           )}
         </div>
       )}
+
+      {/* ─── Side panels: 代提交贡献榜 + 最近活动 ─────────────────────── */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Proxy contributions leaderboard */}
+        <Card variant="elevated" className="overflow-hidden">
+          <div className="border-b border-border bg-muted/30 px-4 py-2.5">
+            <h3 className="font-serif text-sm font-semibold text-foreground">
+              代提交贡献榜
+              <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                (帮他人录入次数)
+              </span>
+            </h3>
+          </div>
+          {proxies.length === 0 ? (
+            <p className="py-8 text-center text-xs text-muted-foreground">暂无代提交记录</p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {proxies.slice(0, 8).map((p, i) => (
+                <li
+                  key={p.volunteerCode}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm"
+                >
+                  <span
+                    className={cn(
+                      'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tabular-nums',
+                      i === 0 && 'bg-amber-400/20 text-amber-700 dark:text-amber-300',
+                      i === 1 && 'bg-zinc-400/20 text-zinc-600 dark:text-zinc-300',
+                      i === 2 && 'bg-orange-400/20 text-orange-700 dark:text-orange-300',
+                      i > 2 && 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {i + 1}
+                  </span>
+                  <div className="min-w-0 flex-1 truncate">
+                    <span className="font-medium text-foreground">{p.chineseName}</span>
+                    <span className="ml-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">
+                      {p.volunteerCode}
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-xs tabular-nums">
+                    <span className="font-semibold text-foreground">{Number(p.proxyCount) || 0}</span>{' '}
+                    <span className="text-muted-foreground">次</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        {/* Recent activity timeline */}
+        <Card variant="elevated" className="overflow-hidden">
+          <div className="border-b border-border bg-muted/30 px-4 py-2.5">
+            <h3 className="font-serif text-sm font-semibold text-foreground">最近活动</h3>
+          </div>
+          {activity.length === 0 ? (
+            <p className="py-8 text-center text-xs text-muted-foreground">暂无活动</p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {activity.map((a) => (
+                <li key={a.id} className="px-4 py-2.5 text-sm">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-medium text-foreground">
+                      {actionLabel(a.action)}
+                    </span>
+                    <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                      {formatRelative(a.timestamp)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    {a.operator?.name || '系统'}
+                    {a.submitter?.name && a.submitter.name !== a.operator?.name && (
+                      <span> · 原提交 {a.submitter.name}</span>
+                    )}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      {/* ─── Drill-down sheet ────────────────────────────────────────────── */}
+      <Dialog
+        open={!!drillVolunteerId}
+        onOpenChange={(o) => !o && setDrillVolunteerId(null)}
+        className="sm:max-w-2xl"
+      >
+        <VolunteerDrillContent loading={drillLoading} detail={drillDetail} />
+      </Dialog>
     </div>
   );
 }
 
+// ─── Drill-down sheet content ───────────────────────────────────────────────
+
+const VolunteerDrillContent: React.FC<{
+  loading: boolean;
+  detail: VolunteerLedgerDetail | null;
+}> = ({ loading, detail }) => {
+  // Sort byMonth ASC for the bar chart (oldest → newest); backend returns DESC.
+  const months = useMemo(() => {
+    if (!detail) return [] as Array<{ period: string; count: number; totalHours: number }>;
+    return [...detail.byMonth]
+      .map((m) => ({ ...m, totalHours: Number(m.totalHours) || 0 }))
+      .sort((a, b) => (a.period < b.period ? -1 : 1));
+  }, [detail]);
+  const monthMax = useMemo(
+    () => Math.max(1, ...months.map((m) => m.totalHours)),
+    [months]
+  );
+
+  if (loading || !detail) {
+    return <p className="py-12 text-center text-sm text-muted-foreground">加载中…</p>;
+  }
+
+  const { volunteer, summary, byServiceItem, recentRecords } = detail;
+  const recent = recentRecords as ProjectSupport[];
+
+  return (
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <HeroAvatar name={volunteer.chineseName} code={volunteer.volunteerCode} size="md" />
+        <div className="min-w-0 flex-1">
+          <h3 className="font-serif text-lg font-semibold text-foreground">{volunteer.chineseName}</h3>
+          <p className="text-xs text-muted-foreground">
+            <span className="font-mono tabular-nums">{volunteer.volunteerCode}</span>
+            {volunteer.department && <span> · {volunteer.department.name}</span>}
+          </p>
+        </div>
+      </div>
+
+      {/* Stat row */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          { label: '总条数', value: summary.totalRecords, suffix: '' },
+          { label: '累计时长', value: Number(summary.totalHours) || 0, suffix: 'h' },
+          { label: '平均', value: summary.avgDuration, suffix: 'h/条' },
+          { label: '代他人提交', value: summary.proxyContributions, suffix: '次' },
+        ].map((s) => (
+          <div key={s.label} className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
+            <p className="font-serif text-base font-semibold tabular-nums leading-tight text-foreground">
+              {s.value}
+              {s.suffix && <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">{s.suffix}</span>}
+            </p>
+            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Monthly bar chart */}
+      {months.length > 0 && (
+        <div>
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            按月时长（近 {months.length} 月）
+          </h4>
+          <div className="mt-2 flex h-20 items-end gap-1">
+            {months.map((m) => {
+              const h = (m.totalHours / monthMax) * 100;
+              return (
+                <div
+                  key={m.period}
+                  className={cn(
+                    'flex-1 rounded-t-md transition-colors',
+                    m.totalHours > 0 ? 'bg-primary/70 hover:bg-primary' : 'bg-muted',
+                  )}
+                  style={{ height: `${Math.max(h, m.totalHours > 0 ? 8 : 5)}%` }}
+                  title={`${m.period} · ${m.totalHours}h · ${m.count} 条`}
+                />
+              );
+            })}
+          </div>
+          <div className="mt-1 flex gap-1">
+            {months.map((m) => (
+              <div key={`l-${m.period}`} className="flex-1 text-center text-[9px] tabular-nums text-muted-foreground">
+                {m.period.slice(2)}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* By service item */}
+      {byServiceItem.length > 0 && (
+        <div>
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">按服务项</h4>
+          <ul className="mt-2 divide-y divide-border/60 rounded-lg border border-border">
+            {byServiceItem.map((s, i) => (
+              <li key={`${s.departmentName}-${s.serviceItemName}-${i}`} className="flex items-center justify-between px-3 py-2 text-sm">
+                <span className="truncate">
+                  <span className="text-xs text-muted-foreground">{s.departmentName} / </span>
+                  <span className="font-medium text-foreground">{s.serviceItemName}</span>
+                </span>
+                <span className="ml-3 shrink-0 text-xs tabular-nums text-muted-foreground">
+                  <span className="font-semibold text-foreground">{Number(s.totalHours) || 0}</span>h ·{' '}
+                  {s.count} 条
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Recent records */}
+      {recent.length > 0 && (
+        <div>
+          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+            最近 {recent.length} 条记录
+          </h4>
+          <ul className="mt-2 space-y-2">
+            {recent.map((r) => (
+              <li key={r.id} className="rounded-lg border border-border bg-card p-2.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {r.serviceItem?.departmentName} / {r.serviceItem?.name}
+                  </p>
+                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                    <span className="font-semibold text-foreground">{r.duration}</span>h
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  <span className="tabular-nums">{formatLocalDate(r.serviceDate)}</span>
+                  {r.isProxy && r.submittedBy && (
+                    <span className="ml-2">· 由 {r.submittedBy.chineseName} 代提交</span>
+                  )}
+                </p>
+                {r.description && (
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{r.description}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+const ACTION_LABELS: Record<string, string> = {
+  support_create: '提交支援',
+  support_update: '修改支援',
+  support_delete: '删除支援',
+  support_confirm: '确认代提交',
+  support_reject: '拒绝代提交',
+  volunteer_create: '创建志愿者',
+  volunteer_update: '修改志愿者',
+  volunteer_deactivate: '停用志愿者',
+  account_create: '创建账号',
+  account_update: '修改账号',
+  month_lock: '月结锁定',
+  system_cleanup: '系统清理',
+  seed_import: '初始化导入',
+};
+
+function actionLabel(action: string): string {
+  return ACTION_LABELS[action] || action;
+}
+
+function formatRelative(iso: string): string {
+  const now = Date.now();
+  const t = new Date(iso).getTime();
+  const diff = Math.max(0, now - t);
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return '刚刚';
+  if (m < 60) return `${m} 分钟前`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} 小时前`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d} 天前`;
+  return formatLocalDate(iso);
+}
 
 const SortableTh: React.FC<{
   sortKey: VolunteerSortKey;

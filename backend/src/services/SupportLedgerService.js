@@ -53,7 +53,8 @@ class SupportLedgerService {
         _max: { serviceDate: true },
       }),
       prisma.$queryRaw`
-        SELECT v."volunteerCode",
+        SELECT v.id                 AS "volunteerId",
+               v."volunteerCode",
                v."chineseName",
                v."departmentId",
                COUNT(*)::int        AS "count",
@@ -66,7 +67,7 @@ class SupportLedgerService {
           AND p."serviceDate" >= COALESCE(${from}::timestamp, p."serviceDate")
           AND p."serviceDate" <= COALESCE(${to}::timestamp,   p."serviceDate")
           AND si."departmentId" = COALESCE(${dept}::text,     si."departmentId")
-        GROUP BY v."volunteerCode", v."chineseName", v."departmentId"
+        GROUP BY v.id, v."volunteerCode", v."chineseName", v."departmentId"
         ORDER BY "totalHours" DESC NULLS LAST
         LIMIT 50
       `,

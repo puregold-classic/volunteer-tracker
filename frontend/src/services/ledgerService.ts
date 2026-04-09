@@ -16,6 +16,7 @@ export interface LedgerOverview {
     latestDate: string | null;
   };
   byVolunteer: Array<{
+    volunteerId: string;
     volunteerCode: string;
     chineseName: string;
     departmentId: string;
@@ -49,6 +50,18 @@ export interface ProxyContribution {
   volunteerCode: string;
   chineseName: string;
   proxyCount: number;
+}
+
+export interface RecentActivityEntry {
+  id: string;
+  auditId: string;
+  targetType: string;
+  targetId: string;
+  action: string;
+  actionDetails: Record<string, unknown> | null;
+  operator: { id?: string; name?: string; role?: string } | null;
+  submitter: { id?: string; name?: string } | null;
+  timestamp: string;
 }
 
 export interface VolunteerLedgerDetail {
@@ -103,7 +116,7 @@ export const ledgerService = {
   recentActivity: async (params: {
     limit?: number;
     action?: string;
-  } = {}): Promise<ApiResponse<unknown[]>> => {
+  } = {}): Promise<ApiResponse<RecentActivityEntry[]>> => {
     return api.get('/support-ledger/recent-activity', { params });
   },
 
