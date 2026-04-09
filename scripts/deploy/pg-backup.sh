@@ -3,16 +3,28 @@
 # pg-backup.sh — sandbox PostgreSQL backup script for Mac mini deploy
 #
 # Dumps the volunteer_tracker database from the running postgres container,
-# gzips the result into ./data/backups/, and prunes anything older than the
-# retention window.
+# gzips the result into ./data/backups/, prunes old dumps using a GFS
+# (Grandfather-Father-Son) rotation, then optionally chains a copy to
+# iCloud Drive.
 #
 # Designed for the Mac mini sandbox where docker-compose.deploy.yml is up.
 # It does NOT touch postgres directly — it shells into the container with
 # `docker exec` so we don't need a libpq client on the host.
 #
+# Retention (GFS):
+#   • last 7 days     — one dump per day  (daily slots)
+#   • last 4 weeks    — one dump per ISO week (weekly slots)
+#   • last 12 months  — one dump per calendar month (monthly slots)
+#   • everything older — one dump per year (yearly slots, unbounded)
+#
+# Steady state ≈ 7 + 4 + 12 + N yearlies = 23 + N files (~150KB+ total).
+# Filenames are timestamped so the prune logic parses YYYYMMDD out of the
+# basename rather than relying on mtime.
+#
 # Usage:
-#   ./scripts/deploy/pg-backup.sh           # default retention
-#   RETAIN_DAYS=14 ./scripts/deploy/pg-backup.sh
+#   ./scripts/deploy/pg-backup.sh
+#   PG_CONTAINER_NAME=other-postgres ./scripts/deploy/pg-backup.sh
+#   SKIP_ICLOUD=1 ./scripts/deploy/pg-backup.sh   # local-only run
 #
 # Exit codes:
 #   0  ok
@@ -35,7 +47,6 @@ set -euo pipefail
 CONTAINER_NAME="${PG_CONTAINER_NAME:-volunteer-tracker-deploy-postgres-1}"
 DB_NAME="${PG_DB_NAME:-volunteer_tracker}"
 DB_USER="${PG_DB_USER:-volunteer_user}"
-RETAIN_DAYS="${RETAIN_DAYS:-30}"
 
 # Resolve project root from this script's location so launchd / cron can call
 # it from any cwd.
@@ -88,12 +99,93 @@ fi
 
 echo "$LOG_PREFIX wrote $DUMP_FILE (${DUMP_SIZE} bytes)"
 
-# ─── Rotate ──────────────────────────────────────────────────────────────────
+# ─── GFS rotation ────────────────────────────────────────────────────────────
+#
+# Walk all dumps newest-to-oldest. For each one, decide which "slot" it
+# satisfies (daily / weekly / monthly / yearly) and keep the first dump that
+# fills each slot. Anything that doesn't fill a free slot gets deleted.
+#
+# Bucket keys:
+#   day_bucket   = YYYYMMDD     (one slot per calendar day)
+#   week_bucket  = GGGGWW       (ISO year + week, e.g. 202615)
+#   month_bucket = YYYYMM       (one slot per calendar month)
+#   year_bucket  = YYYY         (one slot per calendar year)
+#
+# Window thresholds (days_ago):
+#   daily   < 7    → 7 daily slots
+#   weekly  < 35   → 4 weekly slots beyond the daily window (1 ISO week buffer)
+#   monthly < 400  → 12 monthly slots beyond the weekly window (1 month buffer)
+#   yearly  ≥ 400  → unbounded yearly slots
 
-# Delete dumps older than RETAIN_DAYS. -mtime +N matches files modified more
-# than N days ago. Use -delete (BSD/GNU find both support it).
-PRUNED=$(find "$BACKUP_DIR" -type f -name "${DB_NAME}-*.sql.gz" -mtime "+${RETAIN_DAYS}" -print -delete | wc -l | tr -d ' ')
-echo "$LOG_PREFIX pruned ${PRUNED} dump(s) older than ${RETAIN_DAYS} days"
+today_epoch=$(date +%s)
+declare -A kept_days kept_weeks kept_months kept_years
+KEPT=0
+PRUNED=0
+
+# `ls -t` gives newest first. Filter to our naming pattern only.
+while IFS= read -r dump; do
+  [[ -z "$dump" ]] && continue
+  basename=$(basename "$dump")
+  ymd=$(echo "$basename" | sed -E "s/^${DB_NAME}-([0-9]{8})-.*/\1/")
+  [[ "$ymd" == "$basename" ]] && continue   # filename did not match
+
+  # Parse the YYYYMMDD into an epoch. BSD `date` (macOS) uses -j -f; GNU
+  # date uses -d. Try both so the script also runs on Linux for restore tests.
+  file_epoch=$(date -j -f "%Y%m%d" "$ymd" "+%s" 2>/dev/null \
+              || date -d "${ymd:0:4}-${ymd:4:2}-${ymd:6:2}" "+%s" 2>/dev/null \
+              || echo "")
+  [[ -z "$file_epoch" ]] && continue
+
+  days_ago=$(( (today_epoch - file_epoch) / 86400 ))
+  day_bucket="$ymd"
+  week_bucket=$(date -j -f "%Y%m%d" "$ymd" "+%G%V" 2>/dev/null \
+                || date -d "${ymd:0:4}-${ymd:4:2}-${ymd:6:2}" "+%G%V" 2>/dev/null \
+                || echo "")
+  month_bucket="${ymd:0:6}"
+  year_bucket="${ymd:0:4}"
+
+  decision="prune"
+  reason=""
+
+  if (( days_ago < 7 )) && [[ -z "${kept_days[$day_bucket]:-}" ]]; then
+    kept_days[$day_bucket]=1
+    decision="keep"
+    reason="daily"
+  elif (( days_ago < 35 )) && [[ -n "$week_bucket" ]] && [[ -z "${kept_weeks[$week_bucket]:-}" ]]; then
+    kept_weeks[$week_bucket]=1
+    decision="keep"
+    reason="weekly"
+  elif (( days_ago < 400 )) && [[ -z "${kept_months[$month_bucket]:-}" ]]; then
+    kept_months[$month_bucket]=1
+    decision="keep"
+    reason="monthly"
+  elif [[ -z "${kept_years[$year_bucket]:-}" ]]; then
+    kept_years[$year_bucket]=1
+    decision="keep"
+    reason="yearly"
+  fi
+
+  if [[ "$decision" == "keep" ]]; then
+    KEPT=$((KEPT + 1))
+    echo "  KEEP   $basename  (${reason}, ${days_ago}d ago)"
+  else
+    PRUNED=$((PRUNED + 1))
+    echo "  PRUNE  $basename  (${days_ago}d ago)"
+    rm -f "$dump"
+  fi
+done < <(ls -t "$BACKUP_DIR"/${DB_NAME}-*.sql.gz 2>/dev/null || true)
+
+echo "$LOG_PREFIX GFS rotation: kept ${KEPT}, pruned ${PRUNED}"
+
+# ─── iCloud Drive sync (best-effort, non-fatal) ──────────────────────────────
+
+if [[ "${SKIP_ICLOUD:-0}" != "1" ]] && [[ -x "$SCRIPT_DIR/pg-backup-icloud.sh" ]]; then
+  if "$SCRIPT_DIR/pg-backup-icloud.sh"; then
+    :
+  else
+    echo "$LOG_PREFIX iCloud sync failed (non-fatal — local dump intact)" >&2
+  fi
+fi
 
 # ─── Summary ─────────────────────────────────────────────────────────────────
 
