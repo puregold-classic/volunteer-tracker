@@ -26,6 +26,7 @@ import LoginPage from './pages/LoginPage';
 import VolunteerDetailPage from './pages/VolunteerDetailPage';
 import { useHomeState, QUICK_FOCUS_OPTIONS } from './hooks/useHomeState';
 import { useAuth } from './context/AuthContext';
+import { toast } from '@/hooks/use-toast';
 
 // ─── Auth gate ──────────────────────────────────────────────────────────────
 
@@ -61,7 +62,21 @@ function RequireRole({ allowed, children }: { allowed: string[]; children: React
 
 function HomePageContainer() {
   const navigate = useNavigate();
+  const { isAuthenticated, account } = useAuth();
   const home = useHomeState();
+  // Click routing: anonymous → /login, self → /me, other → detail page.
+  const handleVolunteerClick = (id: string) => {
+    if (!isAuthenticated) {
+      toast({ title: '请先登录', description: '登录后即可查看志愿者详情' });
+      navigate('/login');
+      return;
+    }
+    if (account?.volunteerId === id) {
+      navigate('/me');
+      return;
+    }
+    navigate(`/volunteers/${id}`);
+  };
   return (
     <HomePage
       homeStatus={home.homeStatus}
@@ -89,7 +104,7 @@ function HomePageContainer() {
       onLocationRemove={home.removeLocation}
       onServiceRemove={home.removeService}
       isLocationActive={home.isLocationActive}
-      onVolunteerClick={(id) => navigate(`/volunteers/${id}`)}
+      onVolunteerClick={handleVolunteerClick}
     />
   );
 }

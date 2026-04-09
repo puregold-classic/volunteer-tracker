@@ -1,16 +1,46 @@
-// frontend/src/pages/VolunteerDetailPage.tsx — v2.1
+// frontend/src/pages/VolunteerDetailPage.tsx — chunk 6 phase E
 //
-// Minimal volunteer profile + support records list. The submission form has
-// moved to MePage (用户只能从自己的个人中心提交). Visual minimal until chunk 6.
+// Visual parity with MePage. Layout:
+//
+//   ┌────────────────────────────────┐
+//   │  Hero (avatar + name + meta)   │
+//   │  · 3 stat tiles                │
+//   │  · 90 day heatmap              │
+//   ├────────────────────────────────┤
+//   │  联系方式 (inline strip)        │
+//   ├────────────────────────────────┤
+//   │  [+ 为 XX 提交项目支援]         │ ← only for logged-in non-self volunteers/admins
+//   ├────────────────────────────────┤
+//   │  支援记录 (按月分组, sticky)    │
+//   └────────────────────────────────┘
+//
+// Auth model:
+//   • Anonymous viewers — page is reachable but project-support records are
+//     gated behind a "请登录" prompt (the API rejects anonymous list calls).
+//     The Home page itself blocks anonymous clicks before navigation, so
+//     this is the deep-link safety net.
+//   • Logged-in volunteers viewing themselves — VolunteerCard click handler
+//     in App.tsx redirects to /me. As a defensive measure we also redirect
+//     here on mount.
+//   • Logged-in volunteers viewing someone else — see "为 XX 提交" CTA
+//     (locked-proxy mode of SubmitFormDialog).
+//   • Admins — same CTA; backend allows admin to create on behalf of any
+//     volunteer.
 
-import { useEffect, useState } from 'react';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Briefcase, Calendar, ChevronRight, Mail, MapPin, Phone, PlusCircle } from 'lucide-react';
 import volunteerService from '@services/volunteerService';
 import projectSupportService from '@services/projectSupportService';
-import type { Volunteer, ProjectSupport } from '@services/types';
+import serviceItemService from '@services/serviceItemService';
+import type { Volunteer, ProjectSupport, ServiceItemsByDepartment } from '@services/types';
 import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { HeroAvatar } from '@/components/shared/hero-avatar';
+import { SupportRecordCard } from '@/components/shared/support-record-card';
+import { SubmitFormDialog } from '@/components/shared/submit-form-dialog';
 
 interface VolunteerDetailPageProps {
   volunteerId: string;
@@ -18,109 +48,352 @@ interface VolunteerDetailPageProps {
 }
 
 function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPageProps) {
-  const { isAuthenticated } = useAuth();
+  const { account, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const isSystemAdmin = account?.role === 'admin';
+  const isSelf = !!account?.volunteerId && account.volunteerId === volunteerId;
+  const canProxySubmit = isAuthenticated && !isSelf && (!!account?.volunteerId || isSystemAdmin);
+
   const [volunteer, setVolunteer] = useState<Volunteer | null>(null);
   const [supports, setSupports] = useState<ProjectSupport[]>([]);
+  const [serviceItemsGrouped, setServiceItemsGrouped] = useState<ServiceItemsByDepartment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [submitOpen, setSubmitOpen] = useState(false);
 
+  // Defensive self-redirect: should be unreachable when navigating from
+  // Home (App.tsx blocks it) but catches deep-links and bookmarks.
   useEffect(() => {
-    let cancelled = false;
+    if (isSelf) navigate('/me', { replace: true });
+  }, [isSelf, navigate]);
+
+  const refresh = async () => {
     setLoading(true);
     setError('');
-    (async () => {
-      try {
-        const vRes = await volunteerService.getVolunteerById(volunteerId);
-        if (cancelled) return;
-        if (!vRes?.success || !vRes.data) {
-          setError('未找到该志愿者');
-          setVolunteer(null);
-          setSupports([]);
-          return;
-        }
-        setVolunteer(vRes.data);
-
-        // ProjectSupport list requires login. Skip silently for anonymous viewers.
-        if (isAuthenticated) {
-          const sRes = await projectSupportService.list({ volunteerId: vRes.data.id, limit: 50 });
-          if (cancelled) return;
-          if (sRes?.success && sRes.data?.records) setSupports(sRes.data.records);
-        } else {
-          setSupports([]);
-        }
-      } catch (err: any) {
-        if (!cancelled) setError(err?.message || '加载失败');
-      } finally {
-        if (!cancelled) setLoading(false);
+    try {
+      const vRes = await volunteerService.getVolunteerById(volunteerId);
+      if (!vRes?.success || !vRes.data) {
+        setError('未找到该志愿者');
+        setVolunteer(null);
+        setSupports([]);
+        return;
       }
-    })();
-    return () => { cancelled = true; };
+      setVolunteer(vRes.data);
+
+      // Records and service items both need auth.
+      if (isAuthenticated) {
+        const [sRes, itemsRes] = await Promise.all([
+          projectSupportService.list({ volunteerId: vRes.data.id, limit: 50 }),
+          canProxySubmit ? serviceItemService.listGrouped() : Promise.resolve({ success: false }) as any,
+        ]);
+        if (sRes?.success && sRes.data?.records) setSupports(sRes.data.records);
+        if (itemsRes?.success && itemsRes.data) setServiceItemsGrouped(itemsRes.data);
+      } else {
+        setSupports([]);
+      }
+    } catch (err: any) {
+      setError(err?.message || '加载失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [volunteerId, isAuthenticated]);
 
-  if (loading) return <p className="center-empty">加载中…</p>;
-  if (error) return <p className="auth-form-error">{error}</p>;
-  if (!volunteer) return <p className="center-empty">未找到</p>;
+  // ─── Stat / heatmap / month grouping ─────────────────────────────────────
+  // Mirrors MePage but only counts ACTIVE records and skips status filtering
+  // (someone else's REJECTED records are not surfaced).
+  const { stats, heatmap, monthlyGroups } = useMemo(() => {
+    const now = new Date();
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    let yearHours = 0;
+    let totalHours = 0;
+    let activeCount = 0;
+
+    const heatmapMap = new Map<string, number>();
+    const ninetyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 89);
+
+    const groupMap = new Map<string, { key: string; label: string; hours: number; count: number; records: ProjectSupport[] }>();
+
+    for (const s of supports) {
+      if (s.status !== 'ACTIVE') continue;
+      activeCount += 1;
+      const dur = s.duration || 0;
+      totalHours += dur;
+      const d = new Date(s.serviceDate);
+      if (d >= yearStart) yearHours += dur;
+      if (d >= ninetyDaysAgo && d <= now) {
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        heatmapMap.set(key, (heatmapMap.get(key) || 0) + dur);
+      }
+      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = `${d.getFullYear()} 年 ${d.getMonth() + 1} 月`;
+      const g = groupMap.get(monthKey) || { key: monthKey, label: monthLabel, hours: 0, count: 0, records: [] };
+      g.records.push(s);
+      g.count += 1;
+      g.hours += dur;
+      groupMap.set(monthKey, g);
+    }
+
+    const heatmapArr: Array<{ key: string; hours: number }> = [];
+    for (let i = 89; i >= 0; i -= 1) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      heatmapArr.push({ key, hours: heatmapMap.get(key) || 0 });
+    }
+
+    const groups = Array.from(groupMap.values()).sort((a, b) => (a.key < b.key ? 1 : -1));
+
+    return {
+      stats: { totalHours, yearHours, activeCount },
+      heatmap: heatmapArr,
+      monthlyGroups: groups,
+    };
+  }, [supports]);
+
+  // ─── Render guards ────────────────────────────────────────────────────────
+
+  if (isSelf) return null; // about to redirect
+
+  if (loading && !volunteer) {
+    return (
+      <div className="mx-auto max-w-2xl py-16 text-center text-sm text-muted-foreground">
+        加载中…
+      </div>
+    );
+  }
+  if (error || !volunteer) {
+    return (
+      <div className="mx-auto max-w-2xl py-16 text-center">
+        <p className="text-sm text-muted-foreground">{error || '未找到该志愿者'}</p>
+        <Button type="button" variant="outline" size="sm" className="mt-4" onClick={onBackHome}>
+          返回首页
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <Card variant="elevated" className="p-6">
-        <div className="flex items-start gap-4">
-          <img
-            src={volunteer.avatar}
-            alt={volunteer.chineseName}
-            className="h-20 w-20 rounded-2xl border-4 border-white object-cover shadow-lg dark:border-neutral-950"
-          />
-          <div className="flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-semibold">{volunteer.chineseName}</h1>
-              <Badge variant={volunteer.status === '在职' ? 'success' : 'outline'}>{volunteer.status}</Badge>
-            </div>
-            <p className="mt-1 text-sm text-neutral-500">{volunteer.englishName || '—'}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Badge variant="outline">Code：{volunteer.volunteerCode}</Badge>
-              <Badge variant="info">地区：{volunteer.region}{volunteer.province ? ` / ${volunteer.province}` : ''}</Badge>
-              {volunteer.department && <Badge variant="default">部门：{volunteer.department.name}</Badge>}
+    <div className="mx-auto max-w-2xl space-y-4 pb-20 sm:space-y-5">
+      {/* ─── Hero ────────────────────────────────────────────────────────── */}
+      <Card variant="elevated" className="overflow-hidden">
+        <div className="p-5 sm:p-6">
+          <div className="flex items-start gap-4">
+            <HeroAvatar name={volunteer.chineseName} code={volunteer.volunteerCode} size="lg" />
+            <div className="min-w-0 flex-1">
+              <h1 className="font-serif text-xl font-semibold text-foreground">
+                {volunteer.chineseName}
+              </h1>
+              {volunteer.englishName && (
+                <p className="text-sm text-muted-foreground italic">{volunteer.englishName}</p>
+              )}
+              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="font-mono tabular-nums">{volunteer.volunteerCode}</span>
+                {volunteer.department && (
+                  <span className="inline-flex items-center gap-1">
+                    <Briefcase className="h-3 w-3" />
+                    {volunteer.department.name}
+                  </span>
+                )}
+                {volunteer.region && (
+                  <span className="inline-flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    {volunteer.region}
+                    {volunteer.province ? ` · ${volunteer.province}` : ''}
+                  </span>
+                )}
+                <span
+                  className={cn(
+                    'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium',
+                    volunteer.status === '在职'
+                      ? 'bg-success/15 text-success'
+                      : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  {volunteer.status}
+                </span>
+              </div>
             </div>
           </div>
-          <Button type="button" variant="outline" onClick={onBackHome}>返回首页</Button>
-        </div>
-      </Card>
 
-      <Card variant="elevated" className="p-6">
-        <h2 className="text-lg font-semibold">联系方式</h2>
-        <div className="mt-3 grid gap-2 text-sm text-neutral-600 dark:text-neutral-300">
-          <p>邮箱：{volunteer.email || '—'}</p>
-          <p>电话：{volunteer.phone || '—'}</p>
-          <p>加入时间：{volunteer.joinDate ? new Date(volunteer.joinDate).toISOString().split('T')[0] : '—'}</p>
-        </div>
-      </Card>
-
-      <Card variant="elevated" className="p-6">
-        <h2 className="text-lg font-semibold">项目支援记录{isAuthenticated ? `（${supports.length}）` : ''}</h2>
-        {!isAuthenticated ? (
-          <p className="mt-3 text-sm text-neutral-500">登录后可查看该志愿者的项目支援记录</p>
-        ) : supports.length === 0 ? (
-          <p className="mt-3 text-sm text-neutral-500">暂无记录</p>
-        ) : (
-          <div className="mt-3 space-y-3">
-            {supports.map((s) => (
-              <div key={s.id} className="rounded-2xl border border-neutral-100 p-4 dark:border-neutral-800">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-xs text-neutral-500">{s.supportId}</span>
-                  <Badge variant={s.status === 'ACTIVE' ? 'success' : 'outline'}>{s.statusDisplay}</Badge>
+          {/* Stat tiles: 累计 / 本年 / 条数 — only when authed (anonymous can't fetch) */}
+          {isAuthenticated && (
+            <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-4 sm:gap-3">
+              {[
+                { label: '累计', value: stats.totalHours, suffix: 'h', emphasized: true },
+                { label: '本年', value: stats.yearHours, suffix: 'h' },
+                { label: '条数', value: stats.activeCount, suffix: '' },
+              ].map((tile) => (
+                <div
+                  key={tile.label}
+                  className={cn(
+                    'rounded-xl border px-3 py-2.5 text-center',
+                    tile.emphasized ? 'border-primary/30 bg-primary/5' : 'border-border bg-muted/30',
+                  )}
+                >
+                  <p className="font-serif text-2xl font-semibold tabular-nums leading-none text-foreground">
+                    {tile.value}
+                    {tile.suffix && (
+                      <span className="ml-0.5 text-sm font-normal text-muted-foreground">
+                        {tile.suffix}
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+                    {tile.label}
+                  </p>
                 </div>
-                <p className="mt-1 text-sm">
-                  {s.serviceItem?.departmentName} / {s.serviceItem?.name} · {s.duration}h · {new Date(s.serviceDate).toISOString().split('T')[0]}
-                </p>
-                <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-300">{s.description}</p>
-                {s.isProxy && (
-                  <p className="mt-1 text-xs text-neutral-400">代提交人：{s.submittedBy?.chineseName} ({s.submittedBy?.volunteerCode})</p>
-                )}
+              ))}
+            </div>
+          )}
+
+          {/* 90 天活跃热力条 */}
+          {isAuthenticated && stats.activeCount > 0 && (
+            <div className="mt-3">
+              <div className="mb-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
+                <span>近 90 天</span>
+                <span className="flex items-center gap-1">
+                  <span>少</span>
+                  <span className="h-2 w-2 rounded-[1px] bg-muted" />
+                  <span className="h-2 w-2 rounded-[1px] bg-primary/30" />
+                  <span className="h-2 w-2 rounded-[1px] bg-primary/60" />
+                  <span className="h-2 w-2 rounded-[1px] bg-primary" />
+                  <span>多</span>
+                </span>
+              </div>
+              <div className="flex gap-[2px]">
+                {heatmap.map((d) => (
+                  <div
+                    key={d.key}
+                    title={`${d.key} · ${d.hours}h`}
+                    className={cn(
+                      'h-3 flex-1 rounded-[2px]',
+                      d.hours === 0 && 'bg-muted',
+                      d.hours > 0 && d.hours < 2 && 'bg-primary/30',
+                      d.hours >= 2 && d.hours < 5 && 'bg-primary/60',
+                      d.hours >= 5 && 'bg-primary',
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {/* ─── 联系方式 (inline strip) ─────────────────────────────────────── */}
+      {(volunteer.email || volunteer.phone || volunteer.joinDate) && (
+        <div className="rounded-xl border border-border bg-card/60 px-4 py-3 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            {volunteer.email && (
+              <span className="inline-flex items-center gap-1.5">
+                <Mail className="h-3 w-3" />
+                {volunteer.email}
+              </span>
+            )}
+            {volunteer.phone && (
+              <span className="inline-flex items-center gap-1.5">
+                <Phone className="h-3 w-3" />
+                {volunteer.phone}
+              </span>
+            )}
+            {volunteer.joinDate && (
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar className="h-3 w-3" />
+                加入 {new Date(volunteer.joinDate).toISOString().split('T')[0]}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Submit CTA (proxy mode) ─────────────────────────────────────── */}
+      {canProxySubmit && (
+        <Button
+          type="button"
+          size="lg"
+          className="w-full font-serif text-base h-14 rounded-2xl shadow-md"
+          onClick={() => setSubmitOpen(true)}
+        >
+          <PlusCircle className="h-5 w-5" />
+          为 {volunteer.chineseName} 提交项目支援
+        </Button>
+      )}
+
+      {/* ─── Support records ─────────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="font-serif text-base font-semibold text-foreground">
+            项目支援记录{' '}
+            {isAuthenticated && (
+              <span className="text-muted-foreground">({stats.activeCount})</span>
+            )}
+          </h2>
+        </div>
+
+        {!isAuthenticated ? (
+          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
+            <p className="text-sm text-muted-foreground">登录后可查看该志愿者的项目支援记录</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3"
+              onClick={() => navigate('/login')}
+            >
+              去登录
+            </Button>
+          </div>
+        ) : loading ? (
+          <p className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+            加载中…
+          </p>
+        ) : monthlyGroups.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
+            <p className="text-sm text-muted-foreground">暂无已生效的支援记录</p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {monthlyGroups.map((g) => (
+              <div key={g.key} className="space-y-2.5">
+                <div className="sticky top-14 z-10 -mx-1 flex items-baseline justify-between border-b border-border/60 bg-background/85 px-1 py-1.5 backdrop-blur-sm">
+                  <h3 className="font-serif text-sm font-semibold text-foreground">{g.label}</h3>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {g.hours}h · {g.count} 条
+                  </p>
+                </div>
+                <div className="space-y-2.5">
+                  {g.records.map((s) => (
+                    <SupportRecordCard key={s.id} support={s} showDelete={false} />
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         )}
-      </Card>
+      </section>
+
+      {/* ─── Footer link to home ─────────────────────────────────────────── */}
+      <button
+        type="button"
+        onClick={onBackHome}
+        className="mx-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ChevronRight className="h-3 w-3 rotate-180" />
+        返回首页
+      </button>
+
+      {/* ─── Submit dialog (locked-proxy) ────────────────────────────────── */}
+      <SubmitFormDialog
+        open={submitOpen}
+        onOpenChange={setSubmitOpen}
+        groupedItems={serviceItemsGrouped}
+        targetVolunteer={{ id: volunteer.id, chineseName: volunteer.chineseName }}
+        onSubmitted={() => void refresh()}
+      />
     </div>
   );
 }
