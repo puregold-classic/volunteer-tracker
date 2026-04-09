@@ -118,9 +118,23 @@ echo "$LOG_PREFIX wrote $DUMP_FILE (${DUMP_SIZE} bytes)"
 #   yearly  ≥ 400  → unbounded yearly slots
 
 today_epoch=$(date +%s)
-declare -A kept_days kept_weeks kept_months kept_years
+# Bash 3.2 compatible "sets": space-padded strings, membership tested
+# with `case " $set " in *" $key "*)`. macOS ships bash 3.2 (the GPL3
+# license issue), so associative arrays (declare -A, bash 4+) are out.
+kept_days=" "
+kept_weeks=" "
+kept_months=" "
+kept_years=" "
 KEPT=0
 PRUNED=0
+
+# Helper: check whether a key is already in a set string.
+in_set() {
+  case "$1" in
+    *" $2 "*) return 0 ;;
+    *)        return 1 ;;
+  esac
+}
 
 # `ls -t` gives newest first. Filter to our naming pattern only.
 while IFS= read -r dump; do
@@ -147,22 +161,18 @@ while IFS= read -r dump; do
   decision="prune"
   reason=""
 
-  if (( days_ago < 7 )) && [[ -z "${kept_days[$day_bucket]:-}" ]]; then
-    kept_days[$day_bucket]=1
-    decision="keep"
-    reason="daily"
-  elif (( days_ago < 35 )) && [[ -n "$week_bucket" ]] && [[ -z "${kept_weeks[$week_bucket]:-}" ]]; then
-    kept_weeks[$week_bucket]=1
-    decision="keep"
-    reason="weekly"
-  elif (( days_ago < 400 )) && [[ -z "${kept_months[$month_bucket]:-}" ]]; then
-    kept_months[$month_bucket]=1
-    decision="keep"
-    reason="monthly"
-  elif [[ -z "${kept_years[$year_bucket]:-}" ]]; then
-    kept_years[$year_bucket]=1
-    decision="keep"
-    reason="yearly"
+  if (( days_ago < 7 )) && ! in_set "$kept_days" "$day_bucket"; then
+    kept_days="$kept_days$day_bucket "
+    decision="keep"; reason="daily"
+  elif (( days_ago < 35 )) && [[ -n "$week_bucket" ]] && ! in_set "$kept_weeks" "$week_bucket"; then
+    kept_weeks="$kept_weeks$week_bucket "
+    decision="keep"; reason="weekly"
+  elif (( days_ago < 400 )) && ! in_set "$kept_months" "$month_bucket"; then
+    kept_months="$kept_months$month_bucket "
+    decision="keep"; reason="monthly"
+  elif ! in_set "$kept_years" "$year_bucket"; then
+    kept_years="$kept_years$year_bucket "
+    decision="keep"; reason="yearly"
   fi
 
   if [[ "$decision" == "keep" ]]; then
