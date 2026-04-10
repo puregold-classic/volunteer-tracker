@@ -287,4 +287,46 @@
   .home-map__toolbar {
     @apply absolute bottom-3 left-3 z-[400] flex items-center gap-2 rounded-xl border border-border bg-card/95 px-3 py-1.5 text-xs text-muted-foreground shadow-md backdrop-blur;
   }
+
+  /* ── Permanent province labels — fixed font size at all zoom levels ── */
+  .home-map__province-label {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    font-size: 10px;
+    font-weight: 500;
+    color: hsl(20 25% 25% / 0.5);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .home-map__province-label::before {
+    display: none !important;
+  }
+
+  /* Zoom-out: progressively hide smaller tiers */
+  .home-map[data-zoom="2"] .home-map__province-label--sm,
+  .home-map[data-zoom="2"] .home-map__province-label--md,
+  .home-map[data-zoom="3"] .home-map__province-label--sm {
+    display: none !important;
+  }
+
+  /* ── Hover tooltip — prominent pill style ─────────────────────── */
+  .home-map__province-label--hover {
+    background: hsl(30 70% 42% / 0.9) !important;
+    color: #fff !important;
+    border: none !important;
+    box-shadow: 0 2px 8px hsl(30 70% 42% / 0.3) !important;
+    padding: 3px 10px !important;
+    border-radius: 9999px !important;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .home-map__province-label--hover::before {
+    border-top-color: hsl(30 70% 42% / 0.9) !important;
+  }
 }

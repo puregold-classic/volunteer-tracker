@@ -10,8 +10,9 @@
 // - Map controls (zoom in/out + refresh) stay in the top-right corner
 
 import React, { useEffect, useState } from 'react';
-import { Crosshair, MapPin, RefreshCw, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Crosshair, MapPin, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { GeoJSON, MapContainer, Rectangle, TileLayer, useMap } from 'react-leaflet';
+import type L from 'leaflet';
 import type { LatLngBoundsExpression, PathOptions } from 'leaflet';
 import type { Feature, FeatureCollection, Geometry } from 'geojson';
 import 'leaflet/dist/leaflet.css';
@@ -108,6 +109,29 @@ const FitChinaBounds: React.FC = () => {
   return null;
 };
 
+// Sync zoom level to data-zoom on .home-map for CSS-driven label visibility
+const ZoomTracker: React.FC = () => {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer().closest('.home-map');
+    if (!container) return;
+    const update = () => container.setAttribute('data-zoom', String(Math.round(map.getZoom())));
+    update();
+    map.on('zoomend', update);
+    return () => { map.off('zoomend', update); };
+  }, [map]);
+  return null;
+};
+
+// Bounding-box area tiers — controls when labels hide on zoom-out
+//   lg (>80): 新疆、内蒙古、西藏  — visible from zoom 2+
+//   md (>25): 四川、青海、黑龙江、云南、甘肃…  — visible from zoom 3+
+//   sm (>5):  浙江、福建、江苏、山西…  — visible from zoom 4+ (default)
+//   ≤5:       京津沪港澳  — hover only
+const TIER_LG = 80;
+const TIER_MD = 25;
+const TIER_SM = 5;
+
 const FocusRegion: React.FC<{ focusRegion: string }> = ({ focusRegion }) => {
   const map = useMap();
   useEffect(() => {
@@ -155,7 +179,7 @@ const PopoverPanel: React.FC<{
   children: React.ReactNode;
 }> = ({ title, onClose, children }) => (
   <div
-    className="absolute left-12 top-0 z-[401] w-[19rem] rounded-lg border border-border bg-card/95 p-2 shadow-lg backdrop-blur-sm"
+    className="absolute left-14 top-0 z-[401] w-[19rem] rounded-lg border border-border bg-card/95 p-2 shadow-lg backdrop-blur-sm"
     onClick={stopAll}
     onMouseDown={stopAll}
     onMouseUp={stopAll}
@@ -183,7 +207,8 @@ const MapLeftControls: React.FC<{
   onRegionSelect: (region: string) => void;
   onProvinceSelect: (province: string) => void;
   onReset: () => void;
-}> = ({ quickFocusOptions, hotLocations, isLocationActive, onRegionSelect, onProvinceSelect, onReset }) => {
+  onRefresh: () => void;
+}> = ({ quickFocusOptions, hotLocations, isLocationActive, onRegionSelect, onProvinceSelect, onReset, onRefresh }) => {
   const [open, setOpen] = useState<null | 'region' | 'province'>(null);
 
   const togglePanel = (panel: 'region' | 'province') => (e: React.MouseEvent) => {
@@ -204,16 +229,16 @@ const MapLeftControls: React.FC<{
       onMouseDown={stopAll}
       onWheel={stopAll}
     >
-      <div className="relative flex flex-col gap-1.5">
+      <div className="relative flex flex-col gap-1.5 rounded-xl border border-border bg-card/95 p-1.5 shadow-md backdrop-blur">
         {/* 快速聚焦 (region) trigger */}
         <button
           type="button"
           onClick={togglePanel('region')}
           className={cn(
-            'relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card/95 shadow-sm backdrop-blur-sm transition-colors',
+            'relative inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors',
             open === 'region' || activeRegionCount > 0
-              ? 'border-primary/60 text-primary'
-              : 'text-muted-foreground hover:text-foreground',
+              ? 'bg-primary/10 text-primary'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
           )}
           aria-label="快速聚焦区域"
           title="快速聚焦"
@@ -229,10 +254,10 @@ const MapLeftControls: React.FC<{
           type="button"
           onClick={togglePanel('province')}
           className={cn(
-            'relative inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card/95 shadow-sm backdrop-blur-sm transition-colors',
+            'relative inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors',
             open === 'province' || activeProvinceCount > 0
-              ? 'border-accent/60 text-accent'
-              : 'text-muted-foreground hover:text-foreground',
+              ? 'bg-accent/10 text-accent'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
           )}
           aria-label="热门省份"
           title="热门省份"
@@ -243,11 +268,11 @@ const MapLeftControls: React.FC<{
           )}
         </button>
 
-        {/* 重置 trigger */}
+        {/* 重置 trigger — clears selections + resets map view */}
         <button
           type="button"
-          onClick={(e) => { stopAll(e); onReset(); closeAll(); }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-card/95 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:text-foreground"
+          onClick={(e) => { stopAll(e); onReset(); onRefresh(); closeAll(); }}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="重置地理筛选"
           title="重置"
         >
@@ -312,7 +337,7 @@ const MapLeftControls: React.FC<{
 
 // ─── Right-side zoom/refresh stack ──────────────────────────────────────────
 
-const MapZoomControls: React.FC<{ onRefresh: () => void }> = ({ onRefresh }) => {
+const MapZoomControls: React.FC = () => {
   const map = useMap();
   const stop = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); };
   return (
@@ -322,13 +347,6 @@ const MapZoomControls: React.FC<{ onRefresh: () => void }> = ({ onRefresh }) => 
       </button>
       <button type="button" onClick={(e) => { stop(e); map.zoomOut(); }} aria-label="缩小">
         <ZoomOut className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={(e) => { stop(e); map.fitBounds(CHINA_BOUNDS, { padding: [6, 6] }); onRefresh(); }}
-        aria-label="刷新"
-      >
-        <RefreshCw className="h-4 w-4" />
       </button>
     </div>
   );
@@ -434,9 +452,10 @@ const HomeMap: React.FC<HomeMapProps> = ({
           scrollWheelZoom
         >
           <FitChinaBounds />
+          <ZoomTracker />
           <FocusRegion focusRegion={focusRegion} />
           <FocusBorder focusRegion={focusRegion} />
-          <MapZoomControls onRefresh={onRefresh} />
+          <MapZoomControls />
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
             subdomains="abcd"
@@ -458,13 +477,22 @@ const HomeMap: React.FC<HomeMapProps> = ({
                     onProvinceSelect(name);
                   },
                 });
-                // Tooltip is hover-only (permanent: false) — fixes the
-                // overlapping label issue from previous design
+                // Label tier based on bounding-box area: large provinces
+                // stay visible at all zoom levels, smaller ones hide via
+                // CSS when zoomed out, tiny ones are hover-only.
+                const bounds = 'getBounds' in layer ? (layer as L.Polyline).getBounds() : null;
+                const area = bounds
+                  ? (bounds.getNorth() - bounds.getSouth()) * (bounds.getEast() - bounds.getWest())
+                  : 0;
+                const isPermanent = area > TIER_SM;
+                const tier = area > TIER_LG ? 'lg' : area > TIER_MD ? 'md' : 'sm';
                 layer.bindTooltip(name, {
-                  permanent: false,
-                  direction: 'top',
-                  className: 'home-map__province-label',
-                  sticky: true,
+                  permanent: isPermanent,
+                  direction: isPermanent ? 'center' : 'top',
+                  className: isPermanent
+                    ? `home-map__province-label home-map__province-label--${tier}`
+                    : 'home-map__province-label--hover',
+                  sticky: !isPermanent,
                 });
               }}
             />
@@ -481,6 +509,7 @@ const HomeMap: React.FC<HomeMapProps> = ({
           onRegionSelect={onQuickFocusSelect}
           onProvinceSelect={onProvinceSelect}
           onReset={onReset}
+          onRefresh={onRefresh}
         />
       )}
 

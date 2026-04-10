@@ -136,7 +136,7 @@ function FilterRow({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="w-10 shrink-0 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+      <span className="shrink-0 text-xs font-medium text-foreground/70">
         {label}
       </span>
       <div className="flex flex-wrap items-center gap-1.5">{children}</div>
@@ -235,11 +235,14 @@ function HomePage(props: HomePageProps) {
       label: r,
       onRemove: () => onLocationRemove('region', r),
     })),
-    ...selectedProvinces.map((p) => ({
-      key: `p-${p}`,
-      label: p,
-      onRemove: () => onLocationRemove('province', p),
-    })),
+    // 中国大陆已包含所有大陆省份，不重复显示省份 chips
+    ...(selectedRegions.includes('中国大陆')
+      ? []
+      : selectedProvinces.map((p) => ({
+          key: `p-${p}`,
+          label: p,
+          onRemove: () => onLocationRemove('province', p),
+        }))),
     ...(debouncedSearch
       ? [{ key: 'search', label: `搜索: ${debouncedSearch}`, onRemove: onClearSearch }]
       : []),
@@ -292,26 +295,29 @@ function HomePage(props: HomePageProps) {
         </div>
       )}
 
-      {/* Two stacked rows: 状态 + 部门. Both use FilterRow with consistent
-         label gutter; chips and the dept select all share h-8 pill styling. */}
-      <FilterRow label="状态">
-        {STATUS_OPTIONS.map((o) => (
-          <Chip key={o.value} active={homeStatus === o.value} onClick={() => onStatusChange(o.value)}>
-            {o.label}
-          </Chip>
-        ))}
-      </FilterRow>
-
-      <FilterRow label="部门">
-        <Select value={homeDepartmentId} onChange={(e) => onDepartmentChange(e.target.value)}>
-          <option value="">全部部门</option>
-          {DEPARTMENTS.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
-            </option>
+      {/* Left-right layout: 状态 chips + 部门 dropdown */}
+      <div className="flex items-center gap-4">
+        <FilterRow label="状态">
+          {STATUS_OPTIONS.map((o) => (
+            <Chip key={o.value} active={homeStatus === o.value} onClick={() => onStatusChange(o.value)}>
+              {o.label}
+            </Chip>
           ))}
-        </Select>
-      </FilterRow>
+        </FilterRow>
+
+        <div className="ml-6">
+          <FilterRow label="部门">
+            <Select value={homeDepartmentId} onChange={(e) => onDepartmentChange(e.target.value)}>
+              <option value="">全部</option>
+              {DEPARTMENTS.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </Select>
+          </FilterRow>
+        </div>
+      </div>
     </div>
   );
 
