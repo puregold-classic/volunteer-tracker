@@ -1,0 +1,103 @@
+name: Sandbox Uptime Probe → Beacon Alert
+
+# 5-min cron probe of dev.puregoldclassictranslation.com/api/health
+# On failure: POST to alerts bot's sendMessage → supergroup → Beacon picks up
+# Beacon reads [UPTIME-ALERT] prefix and auto-diagnoses (per its context.md doctrine).
+#
+# Why GitHub Actions instead of UptimeRobot/BetterStack:
+#   - Truly external observer (runs on GitHub infra, not Mac mini → no shared fate)
+#   - Free tier supports this use case
+#   - No third-party UI to navigate; config is this yaml file
+#   - 5-min minimum schedule + ~5-15 min jitter (acceptable for sandbox)
+#
+# What this DOESN'T do:
+#   - State tracking. Each run is independent. Site down for 30 min → 6 alerts in group.
+#     Beacon will see all 6 and (after the first) probably treat them as no-ops since
+#     it's already working on it. If too noisy in practice, add gist-based dedup later.
+#   - Recovery notifications. Absence of new alerts == recovery signal. Beacon's repair
+#     log on Mac mini is the canonical record of what was done.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # every 5 minutes (GitHub Actions free tier minimum)
+  workflow_dispatch:        # manual trigger button (for testing)
+
+# Don't pile up runs if a previous probe is somehow still running.
+concurrency:
+  group: sandbox-uptime-probe
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Probe public /api/health
+        id: probe
+        run: |
+          set -u
+          URL="https://dev.puregoldclassictranslation.com/api/health"
+          STATUS=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 12 "$URL" || echo "000")
+          BODY=$(cat /tmp/body 2>/dev/null | tr -d '\n' | head -c 400 || echo "")
+
+          echo "Probe result: HTTP $STATUS"
+          echo "Body (truncated): $BODY"
+
+          # Both HTTP code AND body content must check out.
+          # The /api/health endpoint returns {"status":"ok",...} when healthy.
+          if [ "$STATUS" != "200" ] || ! echo "$BODY" | grep -q '"status":"ok"'; then
+            echo "OUTCOME: FAIL"
+            echo "fail=true" >> "$GITHUB_OUTPUT"
+            echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+            # Escape body for JSON: drop quotes, just use the truncated form
+            ESCAPED_BODY=$(echo "$BODY" | tr -d '"' | head -c 200)
+            echo "body=$ESCAPED_BODY" >> "$GITHUB_OUTPUT"
+          else
+            echo "OUTCOME: OK"
+            echo "fail=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send Telegram alert (only on failure)
+        if: steps.probe.outputs.fail == 'true'
+        env:
+          TG_ALERTS_BOT_TOKEN: ${{ secrets.TG_ALERTS_BOT_TOKEN }}
+          # Chat ID is not a secret (just a group identifier), but kept here for clarity.
+          # If the supergroup is migrated/replaced, update this value.
+          TG_ALERTS_CHAT_ID: '-1003876352953'
+        run: |
+          if [ -z "$TG_ALERTS_BOT_TOKEN" ]; then
+            echo "::error::TG_ALERTS_BOT_TOKEN secret not set in repo settings"
+            exit 1
+          fi
+
+          STATUS="${{ steps.probe.outputs.status }}"
+          BODY="${{ steps.probe.outputs.body }}"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          # Single-line message; Beacon parses [UPTIME-ALERT] prefix per its context doctrine.
+          MSG="[UPTIME-ALERT] dev.puregoldclassictranslation.com/api/health is DOWN. HTTP=${STATUS}. Body=${BODY:-empty}. Source: GitHub Actions probe ${RUN_URL}. @Beacon please diagnose."
+
+          # POST to Telegram. Use --fail so non-2xx from Telegram bubbles a step error.
+          curl -sS --fail -X POST \
+            "https://api.telegram.org/bot${TG_ALERTS_BOT_TOKEN}/sendMessage" \
+            -H 'Content-Type: application/json' \
+            -d "$(jq -nc \
+                  --arg chat_id "$TG_ALERTS_CHAT_ID" \
+                  --arg text "$MSG" \
+                  '{chat_id: $chat_id, text: $text}')"
+
+          echo
+          echo "Alert sent to Telegram supergroup $TG_ALERTS_CHAT_ID"
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ steps.probe.outputs.fail }}" = "true" ]; then
+            echo "::warning::Probe FAILED, alert sent to Beacon group"
+          else
+            echo "::notice::Probe OK, no alert needed"
+          fi
