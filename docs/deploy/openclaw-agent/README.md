@@ -24,7 +24,7 @@ Beacon 的设计目标：**能在相同甚至更复杂的故障面前读日志�
 ║  Layer 1: External Observer   ║   ║  Layer 2: Internal Self-Heal  ║
 ║  (你的眼睛)                   ║   ║  (Beacon 的手)                ║
 ╠═══════════════════════════════╣   ╠═══════════════════════════════╣
-║ GH Actions cron every 5min    ║   ║ openclaw cron every 1min      ║
+║ GH Actions cron every 5min    ║   ║ openclaw cron every 5min      ║
 ║   ↓ probe /api/health         ║   ║   ↓ probe /api/health         ║
 ║   ↓ if fail (200 + status:ok) ║   ║   ↓ if fail (same probe)      ║
 ║ Telegram Bot API sendMessage  ║   ║ Beacon agent turn (isolated)  ║
@@ -103,7 +103,7 @@ Beacon 的设计目标：**能在相同甚至更复杂的故障面前读日志�
 - **Beacon 已部署并通过毕业测试**：`launchctl unload` 注入 cloudflared 故障 → Beacon 诊断 + self-correct + 恢复公网 200 + 写 repair log，全程 ~10 秒无人工介入
 - **watchdog 已退役**：原计划 1 周并存过渡，实际当晚就清理。理由：watchdog 在并存期会成为 Beacon 的"学习样本窃贼"——每 2 分钟硬探测 + 2 次失败立即 kickstart 把所有真实故障都拦截了，Beacon 的长期记忆没法在真实样本上生长。Beacon 已通过毕业测试 + 外部监控接入 + zsy666 信任 → 直接退役 watchdog，让 Beacon 独占故障样本
 - **Layer 1 — External alert (GitHub Actions cron)**：`.github/workflows/sandbox-uptime-probe.yml`，每 5 min probe `/api/health`，失败时用 Beacon bot token 直接 POST `sendMessage` 到 zsy666 DM (chat_id `7242492853`)。一条 one-way notification。Secret `TG_BEACON_BOT_TOKEN` 在 repo settings
-- **Layer 2 — Internal self-healing (OpenClaw cron)**：cron job `lifeline-probe` (id `41288933-...`)，every 1 min，运行 lifeline agent turn。Agent 用 `exec/read` 工具自己 probe 公网，PASS 静默，FAIL 自主诊断+恢复+写 `~/.openclaw/logs/lifeline-repair.jsonl`。**完全沉默**，不发任何外部通知（避免跟 Layer 1 重复）
+- **Layer 2 — Internal self-healing (OpenClaw cron)**：cron job `lifeline-probe` (id `41288933-9aec-4b5a-a209-158421e53366`)，schedule `*/5 * * * *`（5 min cadence，跟 Layer 1 同频），运行 lifeline agent turn。Agent 用 `exec/read` 工具自己 probe 公网，PASS 静默，FAIL 自主诊断+恢复+写 `~/.openclaw/logs/lifeline-repair.jsonl`。**完全沉默**，不发任何外部通知（避免跟 Layer 1 重复）。最初实验时用 `--every 1m` 但每分钟一轮 ~6500 token 太频，改成 5 min 在故障检测延迟和资源消耗之间取平衡。手动 fire 用 `openclaw cron run <id>`
 - **UptimeRobot**（独立第三层）：Monitor ID 802810234，5 min interval，**只发 email** 给 zsy666 gmail。free tier 没 webhook，作为冗余 backup（如果 Beacon **和** GH Actions 同时挂了，UR email 仍能告警）
 - **Cold spare**（不动）：Discord channel + Telegram supergroup + alerts bot 全部在 OpenClaw config 里 `enabled` 但无活动源
 - **Tailscale 僵尸节点**：2026-04-09 清理完成
