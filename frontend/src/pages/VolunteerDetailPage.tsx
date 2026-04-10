@@ -109,10 +109,11 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
   // (someone else's REJECTED records are not surfaced).
   const { stats, heatmap, monthlyGroups } = useMemo(() => {
     const now = new Date();
-    const yearStart = new Date(now.getFullYear(), 0, 1);
-    let yearHours = 0;
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    let monthHours = 0;
+    let monthCount = 0;
     let totalHours = 0;
-    let activeCount = 0;
+    let totalCount = 0;
 
     const heatmapMap = new Map<string, number>();
     const ninetyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 89);
@@ -121,12 +122,12 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
 
     for (const s of supports) {
       if (s.status !== 'ACTIVE') continue;
-      activeCount += 1;
+      totalCount += 1;
       const dur = s.duration || 0;
       totalHours += dur;
       const d = parseLocalDate(s.serviceDate);
       if (!d) continue;
-      if (d >= yearStart) yearHours += dur;
+      if (d >= monthStart) { monthHours += dur; monthCount += 1; }
       if (d >= ninetyDaysAgo && d <= now) {
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         heatmapMap.set(key, (heatmapMap.get(key) || 0) + dur);
@@ -150,7 +151,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
     const groups = Array.from(groupMap.values()).sort((a, b) => (a.key < b.key ? 1 : -1));
 
     return {
-      stats: { totalHours, yearHours, activeCount },
+      stats: { totalHours, totalCount, monthHours, monthCount },
       heatmap: heatmapArr,
       monthlyGroups: groups,
     };
@@ -221,39 +222,30 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
             </div>
           </div>
 
-          {/* Stat tiles: 累计 / 本年 / 条数 — only when authed (anonymous can't fetch) */}
+          {/* Stat tiles: 本月 / 累计 — only when authed (anonymous can't fetch) */}
           {isAuthenticated && (
-            <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-4 sm:gap-3">
-              {[
-                { label: '累计', value: stats.totalHours, suffix: 'h', emphasized: true },
-                { label: '本年', value: stats.yearHours, suffix: 'h' },
-                { label: '条数', value: stats.activeCount, suffix: '' },
-              ].map((tile) => (
-                <div
-                  key={tile.label}
-                  className={cn(
-                    'rounded-xl border px-3 py-2.5 text-center',
-                    tile.emphasized ? 'border-primary/30 bg-primary/5' : 'border-border bg-muted/30',
-                  )}
-                >
-                  <p className="font-serif text-2xl font-semibold tabular-nums leading-none text-foreground">
-                    {tile.value}
-                    {tile.suffix && (
-                      <span className="ml-0.5 text-sm font-normal text-muted-foreground">
-                        {tile.suffix}
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
-                    {tile.label}
-                  </p>
-                </div>
-              ))}
+            <div className="mt-5 grid grid-cols-2 gap-2 border-t border-border pt-4 sm:gap-3">
+              <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-center">
+                <p className="font-serif text-lg font-semibold tabular-nums leading-none text-foreground">
+                  {stats.monthCount}<span className="text-xs font-normal text-muted-foreground">次</span>
+                  <span className="mx-1 text-xs font-normal text-muted-foreground">·</span>
+                  {stats.monthHours}<span className="text-xs font-normal text-muted-foreground">h</span>
+                </p>
+                <p className="mt-1.5 text-[11px] tracking-wider text-muted-foreground">本月</p>
+              </div>
+              <div className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5 text-center">
+                <p className="font-serif text-lg font-semibold tabular-nums leading-none text-foreground">
+                  {stats.totalCount}<span className="text-xs font-normal text-muted-foreground">次</span>
+                  <span className="mx-1 text-xs font-normal text-muted-foreground">·</span>
+                  {stats.totalHours}<span className="text-xs font-normal text-muted-foreground">h</span>
+                </p>
+                <p className="mt-1.5 text-[11px] tracking-wider text-muted-foreground">累计</p>
+              </div>
             </div>
           )}
 
           {/* 90 天活跃热力条 */}
-          {isAuthenticated && stats.activeCount > 0 && (
+          {isAuthenticated && stats.totalCount > 0 && (
             <div className="mt-3">
               <div className="mb-1.5 flex items-center justify-between text-[11px] text-muted-foreground">
                 <span>近 90 天</span>
@@ -360,7 +352,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
           <h2 className="font-serif text-base font-semibold text-foreground">
             项目支援记录{' '}
             {isAuthenticated && (
-              <span className="text-muted-foreground">({stats.activeCount})</span>
+              <span className="text-muted-foreground">({stats.totalCount})</span>
             )}
           </h2>
         </div>

@@ -23,6 +23,7 @@
 // Admin role gets the AdminCenter inline (separate page coming in phase E).
 
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Briefcase,
   Calendar,
@@ -32,6 +33,7 @@ import {
   LogOut,
   MapPin,
   PlusCircle,
+  Send,
   User as UserIcon,
   XCircle,
 } from 'lucide-react';
@@ -185,10 +187,12 @@ const PendingProxyCard: React.FC<{
 
 function MePage({ onBackHome }: MePageProps) {
   const { account, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
   const isSystemAdmin = account?.role === 'admin';
 
   const [volunteer, setVolunteer] = useState<Volunteer | null>(null);
   const [supports, setSupports] = useState<ProjectSupport[]>([]);
+  const [proxyForOthers, setProxyForOthers] = useState<ProjectSupport[]>([]);
   const [pendingForMe, setPendingForMe] = useState<ProjectSupport[]>([]);
   const [serviceItemsGrouped, setServiceItemsGrouped] = useState<ServiceItemsByDepartment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -201,15 +205,20 @@ function MePage({ onBackHome }: MePageProps) {
     if (!account?.volunteerId) return;
     setLoading(true);
     try {
-      const [vRes, sRes, pRes, itemsRes] = await Promise.all([
+      const [vRes, sRes, pRes, proxyRes, itemsRes] = await Promise.all([
         volunteerService.getVolunteerById(account.volunteerId),
         projectSupportService.list({ volunteerId: account.volunteerId, limit: 50 }),
         projectSupportService.listPendingForMe(),
+        projectSupportService.list({ submittedById: account.volunteerId, limit: 50 }),
         serviceItemService.listGrouped(),
       ]);
       if (vRes?.success && vRes.data) setVolunteer(vRes.data);
       if (sRes?.success && sRes.data?.records) setSupports(sRes.data.records);
       if (pRes?.success && pRes.data) setPendingForMe(pRes.data);
+      // Filter proxy results: only records submitted for someone else
+      if (proxyRes?.success && proxyRes.data?.records) {
+        setProxyForOthers(proxyRes.data.records.filter((r: ProjectSupport) => r.isProxy));
+      }
       if (itemsRes?.success && itemsRes.data) setServiceItemsGrouped(itemsRes.data);
     } catch (err: any) {
       toast({ title: '加载失败', description: err?.message || '未知错误', variant: 'destructive' });
@@ -309,12 +318,12 @@ function MePage({ onBackHome }: MePageProps) {
   // number of times instead of recomputing on every render.
   const { stats, heatmap, statusCounts, filteredGroups } = useMemo(() => {
     const now = new Date();
-    const yearStart = new Date(now.getFullYear(), 0, 1);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     let monthHours = 0;
-    let yearHours = 0;
+    let monthCount = 0;
     let totalHours = 0;
+    let totalCount = 0;
     const counts = { ACTIVE: 0, PENDING: 0, HISTORY: 0 };
 
     // 90-day heatmap: build a date→hours map keyed by YYYY-MM-DD (local)
@@ -331,10 +340,10 @@ function MePage({ onBackHome }: MePageProps) {
       if (s.status !== 'ACTIVE') continue;
       const dur = s.duration || 0;
       totalHours += dur;
+      totalCount += 1;
       const d = parseLocalDate(s.serviceDate);
       if (!d) continue;
-      if (d >= yearStart) yearHours += dur;
-      if (d >= monthStart) monthHours += dur;
+      if (d >= monthStart) { monthHours += dur; monthCount += 1; }
       if (d >= ninetyDaysAgo && d <= now) {
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         heatmapMap.set(key, (heatmapMap.get(key) || 0) + dur);
@@ -370,7 +379,7 @@ function MePage({ onBackHome }: MePageProps) {
     const groups = Array.from(groupMap.values()).sort((a, b) => (a.key < b.key ? 1 : -1));
 
     return {
-      stats: { monthHours, yearHours, totalHours, totalCount: counts.ACTIVE },
+      stats: { monthHours, monthCount, totalHours, totalCount },
       heatmap: heatmapArr,
       statusCounts: counts,
       filteredGroups: groups,
@@ -420,29 +429,30 @@ function MePage({ onBackHome }: MePageProps) {
             </Button>
           </div>
 
-          {/* Stat tiles: 本月 / 本年 / 累计 */}
+          {/* Stat tiles: 本月 / 累计 / 代提交 */}
           <div className="mt-5 grid grid-cols-3 gap-2 border-t border-border pt-4 sm:gap-3">
-            {[
-              { label: '本月', value: stats.monthHours },
-              { label: '本年', value: stats.yearHours },
-              { label: '累计', value: stats.totalHours, emphasized: true },
-            ].map((tile) => (
-              <div
-                key={tile.label}
-                className={cn(
-                  'rounded-xl border px-3 py-2.5 text-center',
-                  tile.emphasized ? 'border-primary/30 bg-primary/5' : 'border-border bg-muted/30',
-                )}
-              >
-                <p className="font-serif text-2xl font-semibold tabular-nums leading-none text-foreground">
-                  {tile.value}
-                  <span className="ml-0.5 text-sm font-normal text-muted-foreground">h</span>
-                </p>
-                <p className="mt-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
-                  {tile.label}
-                </p>
-              </div>
-            ))}
+            <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-center">
+              <p className="font-serif text-lg font-semibold tabular-nums leading-none text-foreground">
+                {stats.monthCount}<span className="text-xs font-normal text-muted-foreground">次</span>
+                <span className="mx-1 text-xs font-normal text-muted-foreground">·</span>
+                {stats.monthHours}<span className="text-xs font-normal text-muted-foreground">h</span>
+              </p>
+              <p className="mt-1.5 text-[11px] tracking-wider text-muted-foreground">本月</p>
+            </div>
+            <div className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2.5 text-center">
+              <p className="font-serif text-lg font-semibold tabular-nums leading-none text-foreground">
+                {stats.totalCount}<span className="text-xs font-normal text-muted-foreground">次</span>
+                <span className="mx-1 text-xs font-normal text-muted-foreground">·</span>
+                {stats.totalHours}<span className="text-xs font-normal text-muted-foreground">h</span>
+              </p>
+              <p className="mt-1.5 text-[11px] tracking-wider text-muted-foreground">累计</p>
+            </div>
+            <div className="rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5 text-center">
+              <p className="font-serif text-lg font-semibold tabular-nums leading-none text-accent">
+                {proxyForOthers.length}<span className="text-xs font-normal text-accent/70">次</span>
+              </p>
+              <p className="mt-1.5 text-[11px] tracking-wider text-muted-foreground">为他人提交</p>
+            </div>
           </div>
 
           {/* 90 天活跃热力条 */}
@@ -591,10 +601,10 @@ function MePage({ onBackHome }: MePageProps) {
             该筛选下暂无记录
           </p>
         ) : (
-          <div className="space-y-5">
+          <div className="max-h-[28rem] overflow-y-auto space-y-5 rounded-xl border border-border bg-card p-3">
             {filteredGroups.map((g) => (
               <div key={g.key} className="space-y-2.5">
-                <div className="sticky top-14 z-10 -mx-1 flex items-baseline justify-between border-b border-border/60 bg-background/85 px-1 py-1.5 backdrop-blur-sm">
+                <div className="sticky top-0 z-10 -mx-1 flex items-baseline justify-between border-b border-border/60 bg-card/95 px-1 py-1.5 backdrop-blur-sm">
                   <h3 className="font-serif text-sm font-semibold text-foreground">{g.label}</h3>
                   <p className="text-xs text-muted-foreground tabular-nums">
                     {g.hours}h · {g.count} 条
@@ -610,6 +620,51 @@ function MePage({ onBackHome }: MePageProps) {
           </div>
         )}
       </section>
+
+      {/* ─── Proxy submissions I made for others ──────────────────────────── */}
+      {proxyForOthers.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <h2 className="font-serif text-base font-semibold text-foreground">
+              为他人提交 <span className="text-accent">({proxyForOthers.length})</span>
+            </h2>
+          </div>
+          <div className="max-h-[22rem] overflow-y-auto space-y-2 rounded-xl border border-border bg-card p-3">
+            {proxyForOthers.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => navigate(`/volunteers/${s.volunteerId}`)}
+                className="group flex w-full items-center gap-3 rounded-lg p-2.5 text-left transition-colors hover:bg-muted/60"
+              >
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                  <Send className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-foreground">
+                      {s.volunteer?.chineseName}
+                    </span>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {s.volunteer?.volunteerCode}
+                    </span>
+                    <Badge
+                      variant={s.status === 'ACTIVE' ? 'success' : s.status === 'PENDING_CONFIRMATION' ? 'outline' : 'destructive'}
+                      className="ml-auto text-[10px] py-0"
+                    >
+                      {s.statusDisplay}
+                    </Badge>
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground truncate">
+                    {s.serviceItem?.name} · {formatLocalDate(s.serviceDate)} · {s.duration}h
+                  </p>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ─── Footer link to home ─────────────────────────────────────────── */}
       <button

@@ -3,7 +3,7 @@
 // read-only). The `showDelete` prop gates the delete button — pages decide
 // based on ownership / role.
 
-import { Calendar, Clock3, Trash2 } from 'lucide-react';
+import { Calendar, Clock3, Send, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ProjectSupport } from '@services/types';
@@ -14,6 +14,7 @@ export interface SupportRecordCardProps {
   onDelete?: (supportId: string) => void;
   busy?: boolean;
   showDelete?: boolean;
+  showId?: boolean;
 }
 
 export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
@@ -21,14 +22,17 @@ export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
   onDelete,
   busy = false,
   showDelete = true,
+  showId = true,
 }) => (
   <div className="rounded-xl border border-border bg-card p-3.5 space-y-2">
     <div className="flex items-start justify-between gap-2">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-            {support.supportId}
-          </span>
+          {showId && (
+            <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+              {support.supportId}
+            </span>
+          )}
           <Badge
             variant={support.status === 'ACTIVE' ? 'success' : 'outline'}
             className="text-[10px] py-0.5"
@@ -66,6 +70,12 @@ export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
       )}
     </div>
     <p className="text-xs text-muted-foreground line-clamp-2">{support.description}</p>
+    {support.isProxy && support.submittedBy && (
+      <p className="flex items-center gap-1 text-[11px] text-accent">
+        <Send className="h-3 w-3" />
+        来源：{support.submittedBy.chineseName}（{support.submittedBy.volunteerCode}）
+      </p>
+    )}
   </div>
 );
 
