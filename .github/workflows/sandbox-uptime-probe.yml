@@ -1,8 +1,16 @@
-name: Sandbox Uptime Probe → Beacon Alert
+name: Sandbox Uptime Probe → Discord Alert
 
 # 5-min cron probe of dev.puregoldclassictranslation.com/api/health
-# On failure: POST to alerts bot's sendMessage → supergroup → Beacon picks up
-# Beacon reads [UPTIME-ALERT] prefix and auto-diagnoses (per its context.md doctrine).
+# On failure: POST to Discord webhook → #sandbox-alerts channel
+#
+# Architecture (2026-04-09):
+#   - This workflow is the EXTERNAL observer. Truly decoupled from Mac mini.
+#   - Discord channel acts as a notification dashboard. zsy666's phone Discord
+#     app pushes alerts; zsy666 then DMs Beacon on Telegram to trigger diagnosis.
+#   - Beacon's Discord-channel ingest path is NOT YET WORKING (OpenClaw issue,
+#     needs investigation). For now this is a hybrid: external alert →
+#     human-in-loop → Beacon DM (which IS verified working).
+#   - Telegram remains as a working spare path; not actively used by this workflow.
 #
 # Why GitHub Actions instead of UptimeRobot/BetterStack:
 #   - Truly external observer (runs on GitHub infra, not Mac mini → no shared fate)
@@ -11,11 +19,9 @@ name: Sandbox Uptime Probe → Beacon Alert
 #   - 5-min minimum schedule + ~5-15 min jitter (acceptable for sandbox)
 #
 # What this DOESN'T do:
-#   - State tracking. Each run is independent. Site down for 30 min → 6 alerts in group.
-#     Beacon will see all 6 and (after the first) probably treat them as no-ops since
-#     it's already working on it. If too noisy in practice, add gist-based dedup later.
-#   - Recovery notifications. Absence of new alerts == recovery signal. Beacon's repair
-#     log on Mac mini is the canonical record of what was done.
+#   - State tracking. Each run is independent. Site down for 30 min → 6 alerts.
+#     If too noisy in practice, add gist-based dedup later.
+#   - Recovery notifications. Absence of new alerts == recovery signal.
 
 on:
   schedule:
@@ -61,16 +67,13 @@ jobs:
             echo "fail=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Send Telegram alert (only on failure)
+      - name: Send Discord alert (only on failure)
         if: steps.probe.outputs.fail == 'true'
         env:
-          TG_ALERTS_BOT_TOKEN: ${{ secrets.TG_ALERTS_BOT_TOKEN }}
-          # Chat ID is not a secret (just a group identifier), but kept here for clarity.
-          # If the supergroup is migrated/replaced, update this value.
-          TG_ALERTS_CHAT_ID: '-1003876352953'
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          if [ -z "$TG_ALERTS_BOT_TOKEN" ]; then
-            echo "::error::TG_ALERTS_BOT_TOKEN secret not set in repo settings"
+          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
+            echo "::error::DISCORD_WEBHOOK_URL secret not set in repo settings"
             exit 1
           fi
 
@@ -78,20 +81,23 @@ jobs:
           BODY="${{ steps.probe.outputs.body }}"
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
-          # Single-line message; Beacon parses [UPTIME-ALERT] prefix per its context doctrine.
-          MSG="[UPTIME-ALERT] dev.puregoldclassictranslation.com/api/health is DOWN. HTTP=${STATUS}. Body=${BODY:-empty}. Source: GitHub Actions probe ${RUN_URL}. @Beacon please diagnose."
+          # Single-line message. Discord channel is configured as a notification dashboard
+          # that zsy666's phone Discord app pushes; zsy666 then DMs Beacon on Telegram to
+          # trigger diagnosis (Beacon DM ingest is verified working; Discord ingest is
+          # pending — see docs/deploy/openclaw-agent/README.md). The [UPTIME-ALERT]
+          # prefix remains because Beacon's context doctrine still parses it.
+          MSG="[UPTIME-ALERT] dev.puregoldclassictranslation.com/api/health is DOWN. HTTP=${STATUS}. Body=${BODY:-empty}. Source: GitHub Actions probe ${RUN_URL}. zsy666: tell Beacon (Telegram DM) to diagnose."
 
-          # POST to Telegram. Use --fail so non-2xx from Telegram bubbles a step error.
           curl -sS --fail -X POST \
-            "https://api.telegram.org/bot${TG_ALERTS_BOT_TOKEN}/sendMessage" \
+            "$DISCORD_WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
             -d "$(jq -nc \
-                  --arg chat_id "$TG_ALERTS_CHAT_ID" \
-                  --arg text "$MSG" \
-                  '{chat_id: $chat_id, text: $text}')"
+                  --arg content "$MSG" \
+                  --arg username 'GitHub Actions Probe' \
+                  '{content: $content, username: $username}')"
 
           echo
-          echo "Alert sent to Telegram supergroup $TG_ALERTS_CHAT_ID"
+          echo "Alert sent to Discord channel via webhook"
 
       - name: Summary
         if: always()

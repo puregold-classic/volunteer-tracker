@@ -18,22 +18,28 @@ Beacon 的设计目标：**能在相同甚至更复杂的故障面前读日志�
 ## 核心设计
 
 ```
-[GitHub Actions cron 5min]    [UptimeRobot 5min, email backup]
-        │                              │
-        │ probe /api/health            │ probe /api/health
-        │ if !200 → curl alerts bot    │ if !200 → email zsy666 gmail
-        ▼                              ▼
-POST api.telegram.org/bot<ALERTS>/sendMessage      [zsy666 inbox]
+[GitHub Actions cron 5min]      [UptimeRobot 5min, email backup]
+        │                                │
+        │ probe /api/health              │ probe /api/health
+        │ if !200 → curl Discord webhook │ if !200 → email zsy666 gmail
+        ▼                                ▼
+POST discord.com/webhooks/<id>/<token>          [zsy666 gmail inbox]
         │
         ▼
-[Telegram supergroup -1003876352953]
-   │   │             │
-   │   │             │
-zsy666 Beacon       Alerts bot
-(human) (agent)     (sender, 不读)
+[Discord channel #sandbox-alerts (guild OpenClaw Lab)]
         │
-        │ getUpdates long-poll
+        │ Discord mobile app push
         ▼
+   [zsy666 phone notification]
+        │
+        │ zsy666 opens Telegram, DMs Beacon "看一下"
+        ▼
+┌────────────────────────────────┐
+│ Telegram DM: zsy666 ↔ Beacon   │
+│  (verified working)             │
+└────────────────┬───────────────┘
+                 │ getUpdates polling
+                 ▼
 ┌────────────────────────────────┐
 │  OpenClaw gateway (18790)       │
 │  ┌───────────────────────────┐  │
@@ -42,8 +48,6 @@ zsy666 Beacon       Alerts bot
 │  │ Backend: api.z.ai/anthropic│ │
 │  └───────────────────────────┘  │
 └────────────────┬───────────────┘
-        │ 检测 [UPTIME-ALERT] 前缀 → 自动诊断
-        │
         │ tools:read/exec/sessions_send
         ▼
    [Mac mini 宿主 sudoers 边界]
@@ -59,6 +63,10 @@ zsy666 Beacon       Alerts bot
         ▼
 [repair log → 长期记忆 → 收敛]
 ```
+
+> **架构现状（2026-04-09 EOD）**：当前是 **hybrid (human-in-the-loop)** 模式。完全自动化路径（外部告警 → Beacon 自动 ack）需要 OpenClaw 的 Discord channel ingest 工作，但 2026-04-09 调试发现 OpenClaw Discord WebSocket 连上之后**不接收 MESSAGE_CREATE events**（即使 Server Members Intent 和 Message Content Intent 都开了），原因待 OpenClaw 源码或 maintainer 介入。短期 hybrid 已经满足核心需求（zsy666 离家也能从手机看到告警 + 通过 Telegram DM 触发 Beacon 修复）。Discord channel ingest 是下一个 session 的待办。
+>
+> **保留 Telegram 路径**作为冷备：alerts bot + supergroup + Beacon group config 仍然 enabled 但不接告警源（GH Actions 已切到 Discord）。如果 Discord ingest 修复后想全自动，把 GH Actions workflow 的 webhook URL 切回来即可。
 
 **为什么走 GitHub Actions 而非 UptimeRobot/BetterStack/Healthchecks 的 webhook**：
 - **UR free tier 在 2025 年把 webhook 移到了付费 plan**——只剩 email/SMS/voice/push 不够触发 Beacon
