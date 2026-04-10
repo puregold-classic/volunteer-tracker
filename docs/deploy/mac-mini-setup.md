@@ -243,58 +243,13 @@ tail /Library/Logs/com.cloudflare.cloudflared.err.log
 # 不应该看到 "Use 'cloudflared tunnel run' to start tunnel..."
 ```
 
-### 4.7 装 tunnel watchdog（**强烈建议**）
+### 4.7 cloudflared 边缘抖动的处理
 
-cloudflared 有个 launchd `KeepAlive` 抓不到的盲区：进程活着但跟 edge 的 4 条连接全断了，对外就 HTTP 530 / err 1033。已经踩过一次 11 小时没人发现，所以装一个端到端的健康探测 daemon：每 2 分钟 curl 一次公网 URL，连续 2 次失败就 `launchctl kickstart -k` 把 cloudflared 硬重启，**并通过 ntfy.sh 推送通知到手机**。
+cloudflared 有个 launchd `KeepAlive` 抓不到的盲区：进程活着但跟 edge 的 4 条连接全 stale，对外就 HTTP 530 / err 1033。**标准恢复**：`sudo launchctl kickstart -k system/com.cloudflare.cloudflared`，等 30-60 秒让 4 条边缘连接重建，公网恢复。
 
-脚本和 plist 模板已经在 repo 里：
+历史上这个 sandbox 用过一个硬编码 watchdog 脚本（`tunnel-watchdog.sh`）做自动 kickstart，**已于 2026-04-09 退役**，由 OpenClaw lifeline agent (Beacon) 取代——agent 能读日志推理根因、识别 unloaded vs stopped 的差异、记录修复历史并形成长期记忆。详情和理由见 `docs/deploy/openclaw-agent/README.md`。
 
-```bash
-cd ~/srv/volunteer-tracker  # 假设这是你 Mac mini 上的 PROJECT_ROOT
-
-# 把 plist 模板里两个 {{...}} 占位符填好，写到系统 LaunchDaemons
-# - {{PROJECT_ROOT}}: 当前 checkout 路径
-# - {{NTFY_TOPIC}}:   ntfy.sh topic（用于通知，不是密码但当口令对待）
-sudo sed -e "s|{{PROJECT_ROOT}}|$(pwd)|g" \
-         -e "s|{{NTFY_TOPIC}}|vt-sandbox-circleooneblood|g" \
-  scripts/deploy/com.volunteer-tracker.tunnel-watchdog.plist.template \
-  | sudo tee /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist > /dev/null
-
-sudo chown root:wheel /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
-sudo chmod 644 /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
-
-# bootstrap 加载到 launchd（RunAtLoad=true，会立即跑一次）
-sudo launchctl bootstrap system /Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist
-```
-
-> **关于 NTFY_TOPIC**：`vt-sandbox-circleooneblood` 是 [ntfy.sh](https://ntfy.sh) 上的 public topic 名字。任何知道这个字符串的人都能往里推消息或订阅它，所以**不要用于敏感告警**——它只发"网站挂了/恢复了"这种 ephemeral 状态。要轮换 topic，编辑 `/Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist` 里的 `NTFY_TOPIC` 字段，然后 `bootout` + `bootstrap` 重载。手机端记得 ntfy app 里订阅同名 topic。
-
-验证：
-
-```bash
-# 1. plist 已注册（PID 应该是非 0 数字或 -，第二列应该是 0）
-sudo launchctl list | grep volunteer-tracker.tunnel-watchdog
-
-# 2. 立即跑了一次健康检查（probe ok 时啥都不打印；只在状态变化时写一行）
-ls -la /Library/Logs/volunteer-tracker-tunnel-watchdog.log
-
-# 3. 手动跑一次脚本看输出 + 日志
-sudo /bin/bash scripts/deploy/tunnel-watchdog.sh && \
-  tail /Library/Logs/volunteer-tracker-tunnel-watchdog.log
-
-# 4. 故障注入测试（**会让公网短暂不可达 10-30s**）：手动让 cloudflared 假死，
-#    把 connection 全断掉，等 watchdog 检测 → kickstart → 恢复。
-#    最简单的办法是直接 stop 然后立即 sleep 5 min 再观察恢复曲线。
-sudo launchctl kill SIGSTOP system/com.cloudflare.cloudflared
-# 等约 4-5 分钟（2 min 探测 × 2 次失败阈值 + 重启时间），看公网恢复
-curl -sS -o /dev/null -w "HTTP %{http_code}\n" https://dev.puregoldclassictranslation.com/
-# watchdog 这条 kickstart 不会救活被 STOP 住的进程，需要手动 CONT
-sudo launchctl kill SIGCONT system/com.cloudflare.cloudflared  # 收尾
-```
-
-> **注意**：watchdog 用 `launchctl kickstart -k` 强重启 cloudflared，被 SIGSTOP 暂停的场景救不了；真实故障（连接断开、客户端 bug、process hang）都能救。要更完整的故障注入，可以临时把 cloudflared 进程 kill 掉看 launchd 自己拉起 vs watchdog 介入的时序。
-
-调参：编辑 `/Library/LaunchDaemons/com.volunteer-tracker.tunnel-watchdog.plist` 改 `StartInterval`（探测间隔），或者改 `EnvironmentVariables` 加 `FAILURE_THRESHOLD` / `PROBE_URL` 等环境变量。改完要 `bootout` + `bootstrap` 重新加载。
+外部独立监控：UptimeRobot 5 分钟探测 `https://dev.puregoldclassictranslation.com/api/health`，失败时 webhook 到 Telegram bot `@puregold_sandbox_bot`，Beacon 收到告警自动诊断+恢复。这是 sandbox 唯一的故障自愈链路。
 
 ---
 

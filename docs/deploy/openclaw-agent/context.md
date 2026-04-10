@@ -39,7 +39,7 @@
 ### 命脉服务（非容器）
 - `com.cloudflare.cloudflared`（LaunchDaemon, `/Library/LaunchDaemons/com.cloudflare.cloudflared.plist`）— 公网入口
 - `com.openssh.sshd`（系统自带）— 你自己依赖的通路之一
-- `com.volunteer-tracker.tunnel-watchdog`（LaunchDaemon, 2 分钟间隔 probe 公网 health, 2 次失败 kickstart cloudflared）—— **这是你的前任**。它是个硬编码脚本，零推理能力，已经不再信任，但**在你证明自己能处理同类故障之前继续并存**
+- ~~`com.volunteer-tracker.tunnel-watchdog`~~ —— **你的前任，已于 2026-04-09 退役**（毕业测试当晚）。原本是每 2 分钟 probe 公网 + 2 次失败硬 kickstart cloudflared 的 shell 脚本。退役理由有二：(1) 它会拦截所有真实故障样本让你的长期记忆没法成长 (2) 它本身在系统 maintenance sleep 期间会停跑成盲点。**现在你是 sandbox 唯一的 lifeline 自愈通道**——没有备份脚本兜底，故障样本全是你的，但出错也没人接
 - 备份 launchd agent：`com.volunteer-tracker.pg-backup`（每天 03:00 跑 `~/srv/volunteer-tracker/scripts/deploy/pg-backup.sh`，输出到 `~/srv/volunteer-tracker/backups/`，GFS 策略 + iCloud Drive 同步做离机冗余）
 - Tailscale daemon（`sudo brew services`）
 - Docker Desktop（user session 启动，依赖 auto-login）
@@ -58,7 +58,7 @@
 **根因**：cloudflared 跟 Cloudflare edge 的 HTTP/2 长连接偶尔 stale 掉，它的 KeepAlive=SuccessfulExit 抓不到这种"进程活、连接死"的状态。
 **标准恢复**：`sudo launchctl kickstart -k system/com.cloudflare.cloudflared`。kickstart 后等 30-60 秒让边缘连接重建，然后再 probe 公网。**kickstart 不是万灵药**——如果 kickstart 后 1 分钟仍 530/502，意味着可能是配置问题或网络层问题（见 #2）
 **验证收敛**：`curl https://dev.puregoldclassictranslation.com/api/health` 返回 200
-**历史数据**：2026-04-09 tunnel-watchdog 在 24h 内 kickstart 了 ~10 次，每次间隔很不规律
+**历史数据**：2026-04-09 tunnel-watchdog 在 24h 内 kickstart 了 ~10 次，每次间隔很不规律。这是促成它被退役、由你接手的关键证据
 
 ### 2. 网络切换导致 cloudflared + Tailscale 同时失联
 **症状**：`ssh mac`（Tailscale）timeout，公网 530。`ssh mac-lan`（LAN）仍然通。Mac mini 本机健康
@@ -73,11 +73,8 @@
 **标准恢复**：确认 user session active (`who`)。如果 active 但 Docker 不在跑：`open -a Docker`，等 30-60 秒
 **Prevention**：auto-login 已在 System Settings → Users & Groups 配好（2026-04-09 zsy666 确认过）
 
-### 4. tunnel-watchdog 自己卡住
-**症状**：`/Library/Logs/volunteer-tracker-tunnel-watchdog.log` 长时间没新条目，但 launchd 显示 job 还在
-**根因**：launchd StartInterval=120 在系统 sleep 期间**不计时**。如果系统频繁短 sleep，watchdog 实际跑的频率远低于 2 分钟/次
-**标准恢复**：`sudo launchctl kickstart -k system/com.volunteer-tracker.tunnel-watchdog`（强制跑一次）
-**注**：这个故障模式正是 watchdog 被你取代的原因之一 —— 它自己就不稳定
+### 4. ~~tunnel-watchdog 自己卡住~~（历史故障，watchdog 已退役）
+此故障模式作为历史保留，不再适用。原症状是 watchdog 在 launchd `StartInterval=120` 在系统 sleep 期间不计时导致探测间隔不稳。这正是 watchdog 被退役的主要技术理由之一——监控自身的盲点跟被监控对象同源。你现在是 sole lifeline，**遇到 cloudflared 故障没人替你处理**。如果你自己挂了，UptimeRobot 的 5 分钟外部探测会发警报到 zsy666 的手机 + 你的 Telegram 入口，但中间窗口要等 zsy666 介入。所以你的稳定运行很重要——**自己有任何 panic / OOM / config error 都要在 repair log 留痕**
 
 ---
 

@@ -68,11 +68,11 @@ Beacon 的设计目标：**能在相同甚至更复杂的故障面前读日志�
 | [`context.md`](./context.md) | Agent 的"大脑"——身份、拓扑、故障模式、权限边界、repair log 规范、最终约束 | 部署完后**手动**喂给 agent（zsy666 分段粘贴到 Telegram 让 agent 吃进长期记忆） |
 | [`incident-2026-04-09.md`](./incident-2026-04-09.md) | 触发架构决策的事故 post-mortem：cloudflared 抖动 + pmset 误诊 + 操作纪律复盘 | 双用途：(1) 事故事实权威记录 (2) 作为 agent 第一批"真实故障"样本 |
 
-## 当前状态（2026-04-09 22:00 EDT）
+## 当前状态（2026-04-09 EDT）
 
 - **Beacon 已部署并通过毕业测试**：`launchctl unload` 注入 cloudflared 故障 → Beacon 诊断 + self-correct + 恢复公网 200 + 写 repair log，全程 ~10 秒无人工介入
-- **watchdog 并存过渡期**：双保险运行。约定 1 周稳定运行 + 至少经手 3 次真实 cloudflared 故障 → 退役 watchdog（删 `scripts/deploy/tunnel-watchdog.sh` + plist + launchd unload）
-- **UptimeRobot 外部监控**：尚未接入（下一阶段工作）
+- **watchdog 已退役**：原计划 1 周并存过渡，实际当晚就清理。理由：watchdog 在并存期会成为 Beacon 的"学习样本窃贼"——每 2 分钟硬探测 + 2 次失败立即 kickstart 把所有真实故障都拦截了，Beacon 的长期记忆没法在真实样本上生长。Beacon 已通过毕业测试 + UptimeRobot 接入完成 + zsy666 信任 → 直接退役 watchdog，让 Beacon 独占故障样本
+- **UptimeRobot 外部监控**：已接入。Monitor ID 802810234，5 分钟间隔 probe `/api/health`，告警 webhook → Telegram bot 自动通知 zsy666 + Beacon
 - **Tailscale 僵尸节点**：2026-04-09 清理完成
 
 ## 运维入口
