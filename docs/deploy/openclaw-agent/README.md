@@ -18,67 +18,70 @@ Beacon 的设计目标：**能在相同甚至更复杂的故障面前读日志�
 ## 核心设计
 
 ```
-[GitHub Actions cron 5min]      [UptimeRobot 5min, email backup]
-        │                                │
-        │ probe /api/health              │ probe /api/health
-        │ if !200 → curl Discord webhook │ if !200 → email zsy666 gmail
-        ▼                                ▼
-POST discord.com/webhooks/<id>/<token>          [zsy666 gmail inbox]
-        │
-        ▼
-[Discord channel #sandbox-alerts (guild OpenClaw Lab)]
-        │
-        │ Discord mobile app push
-        ▼
-   [zsy666 phone notification]
-        │
-        │ zsy666 opens Telegram, DMs Beacon "看一下"
-        ▼
-┌────────────────────────────────┐
-│ Telegram DM: zsy666 ↔ Beacon   │
-│  (verified working)             │
-└────────────────┬───────────────┘
-                 │ getUpdates polling
-                 ▼
-┌────────────────────────────────┐
-│  OpenClaw gateway (18790)       │
-│  ┌───────────────────────────┐  │
-│  │ Agent: lifeline (Beacon)  │  │
-│  │ Model: glm-5-turbo        │  │
-│  │ Backend: api.z.ai/anthropic│ │
-│  └───────────────────────────┘  │
-└────────────────┬───────────────┘
-        │ tools:read/exec/sessions_send
-        ▼
-   [Mac mini 宿主 sudoers 边界]
-┌────────────────────────────────┐
-│  ALLOW: launchctl, docker,      │
-│         brew services, pmset -g,│
-│         logs read               │
-│  DENY:  pmset -a, dd, fdisk,    │
-│         diskutil erase, brew    │
-│         uninstall               │
-└────────────────────────────────┘
-        │
-        ▼
-[repair log → 长期记忆 → 收敛]
+两条独立 outbound 通道，故障域不相交，对同一故障同时反应：
+
+╔═══════════════════════════════╗   ╔═══════════════════════════════╗
+║  Layer 1: External Observer   ║   ║  Layer 2: Internal Self-Heal  ║
+║  (你的眼睛)                   ║   ║  (Beacon 的手)                ║
+╠═══════════════════════════════╣   ╠═══════════════════════════════╣
+║ GH Actions cron every 5min    ║   ║ openclaw cron every 1min      ║
+║   ↓ probe /api/health         ║   ║   ↓ probe /api/health         ║
+║   ↓ if fail (200 + status:ok) ║   ║   ↓ if fail (same probe)      ║
+║ Telegram Bot API sendMessage  ║   ║ Beacon agent turn (isolated)  ║
+║   token: Beacon's bot token   ║   ║   - read cloudflared logs     ║
+║   chat_id: zsy666 (7242492853)║   ║   - launchctl bootstrap+kick  ║
+║   ↓                           ║   ║   - verify HTTP 200           ║
+║ zsy666 phone Telegram push    ║   ║   - write JSONL repair log    ║
+║ "[UPTIME-ALERT] DOWN..."      ║   ║   (silent — no external msg)  ║
+╚═══════════════════════════════╝   ╚═══════════════════════════════╝
+              ║                                  ║
+              ║                                  ║
+              ╚══════════════╦═══════════════════╝
+                             ║ 同时反应同一故障
+                             ║ 跨 GitHub infra ↔ Mac mini 故障域
+                             ▼
+              你拿出手机看 alert → 公网通常已经被 Beacon 修好了
+              人工 override：DM Beacon 直接对话 (Telegram channel,
+              dmPolicy: allowlist → only zsy666)
+
+              ┌──────────────────────────────────┐
+              │  Beacon (lifeline agent) on Mac  │
+              │  · gateway 18790 (loopback)      │
+              │  · model: glm-5-turbo            │
+              │  · backend: api.z.ai/anthropic   │
+              │  · cron: every 1min, exec+read   │
+              │  · DM channel: zsy666 only       │
+              └────────┬─────────────────────────┘
+                       │
+                       ▼
+         /etc/sudoers.d/openclaw-agent
+         ALLOW: launchctl, docker, brew services,
+                pmset -g, logs read
+         DENY:  pmset -a, dd, fdisk, diskutil erase,
+                brew uninstall
+                       │
+                       ▼
+         ~/.openclaw/logs/lifeline-repair.jsonl
+         (audit trail + 长期记忆收敛)
 ```
 
-> **架构现状（2026-04-09 EOD）**：当前是 **hybrid (human-in-the-loop)** 模式。完全自动化路径（外部告警 → Beacon 自动 ack）需要 OpenClaw 的 Discord channel ingest 工作，但 2026-04-09 调试发现 OpenClaw Discord WebSocket 连上之后**不接收 MESSAGE_CREATE events**（即使 Server Members Intent 和 Message Content Intent 都开了），原因待 OpenClaw 源码或 maintainer 介入。短期 hybrid 已经满足核心需求（zsy666 离家也能从手机看到告警 + 通过 Telegram DM 触发 Beacon 修复）。Discord channel ingest 是下一个 session 的待办。
+> **架构最终形态（2026-04-09 EOD）**：**双层独立 outbound** 架构。两层在故障域上解耦——Layer 1 在 GitHub 基础设施上，Layer 2 在 Mac mini 上。同时对故障反应，不互相依赖。
 >
-> **保留 Telegram 路径**作为冷备：alerts bot + supergroup + Beacon group config 仍然 enabled 但不接告警源（GH Actions 已切到 Discord）。如果 Discord ingest 修复后想全自动，把 GH Actions workflow 的 webhook URL 切回来即可。
+> **关键反思**：本来还想做"GH Actions push → Beacon 自动 ack"的全自动路径，需要 channel ingest（Discord 或 Telegram supergroup）。但所有 inbound-style 的方案都违反"不能依赖 inbound"的根本约束（ssh/任何监听端口恰恰是出问题的层）。最终架构**全 outbound**：Beacon 内部 cron 主动 poll，GH Actions 也是主动 poll + 主动 push notification。**bot 看不到自己发的消息**这个 Telegram 限制对 one-way notification 完全无害——zsy666 只需"看到"，不需要 bot 自己处理这条 alert。
+>
+> **冷备**：早期试过的 Discord channel + Telegram supergroup + alerts bot 全部仍然在 OpenClaw config 里 `enabled` 但**没有任何源在 push 消息**。standby spare 不动它们。如果未来想做"channel ingest 自动 ack"那条路径，需要先解决 OpenClaw 的 Discord MESSAGE_CREATE ingest 不工作问题——本 session 没解，待 OpenClaw 源码深读或 upstream issue。
 
 **为什么走 GitHub Actions 而非 UptimeRobot/BetterStack/Healthchecks 的 webhook**：
-- **UR free tier 在 2025 年把 webhook 移到了付费 plan**——只剩 email/SMS/voice/push 不够触发 Beacon
-- **BetterStack** 的 webhook UI 路径不直观（Integration tab 藏在多层菜单里）
+- **UR free tier 在 2025 年把 webhook 移到了付费 plan**——只剩 email/SMS/voice/push
+- **BetterStack** 的 webhook UI 路径不直观，未完成 setup
 - **Healthchecks.io** 是 dead-man-switch 模型（要被监控对象主动 ping 它），跟我们"外部主动 probe 公网"的需求不匹配
-- **GitHub Actions cron** 的优势：(1) repo 已经在 GitHub，零新平台；(2) workflow yaml 在 git 里可 review；(3) 完全 free（public 无限分钟，private 也每月 2000 分钟够用）；(4) 真外部（跑在 GitHub 基础设施上，跟 Mac mini 解耦）；(5) 只需 1 个 GitHub secret + 1 个 yaml 文件
+- **GitHub Actions cron**：repo 已在 GitHub，零新平台；workflow yaml 在 git 里可 review；完全 free；真外部；只需 1 个 GH secret + 1 个 yaml 文件
 
-**为什么 alerts bot + supergroup 这层没省掉**：Telegram bot API 设计上 bot **看不到自己发的消息**。如果 GH Actions 直接用 Beacon 的 token 给 zsy666 发 DM，zsy666 能收到但 Beacon 自己 getUpdates 流里没有。所以必须用第二个 bot（alerts）发到一个**两个 bot 都在的 group**——alerts bot 的消息在 Beacon 看来是"另一个 bot 发的"，能被 ingest。这是 Telegram API 硬限制，不是 OpenClaw 设计选择。
+**为什么不用 ssh 注入 message 到 Beacon**：理论上 GH Actions 可以通过 Tailscale + ssh + `openclaw agent --message` 直接戳穿 gateway 给 Beacon 注入 turn。但**ssh 恰恰是最容易出问题的层**——ssh 不通的时候才特别需要 lifeline。如果恢复路径依赖 ssh，相当于 single-point-of-failure 套娃。最终架构**两层都 outbound**：GH Actions → Telegram bot API；Beacon → 自身 cron 内调用。Mac mini 只需要 outbound HTTPS 这个最低基线。
 
 **硬隔离在哪里**：
-- **Channel 层 (DM)**：`dmPolicy: allowlist` + `allowFrom: [<TELEGRAM_USER_ID>]`，只有 zsy666 一个 peer 能跟 Beacon DM，其它消息直接 drop
-- **Channel 层 (group)**：`groupPolicy: allowlist` + `groups.<id>.allowFrom: [zsy666, alerts_bot]`，supergroup 里只接两个特定 user_id 的消息
+- **Channel 层 (DM)**：`dmPolicy: allowlist` + `allowFrom: [<TELEGRAM_USER_ID>]`，只有 zsy666 一个 peer 能跟 Beacon DM 双向对话，其它消息直接 drop。GH Actions 用 Beacon bot token 给 zsy666 DM 发的 alert 是 one-way 的（bot 自己不接收，没影响）
+- **Channel 层 (cold spare)**：Telegram supergroup + alerts bot + Discord channel 全部 enabled 但无活动源
 - **Sudoers 层**：广义工具 + 硬 deny list（见 `/etc/sudoers.d/openclaw-agent` + `deploy-plan.md` Phase 3）
 - **数据红线**：`context.md` 末尾的"最终约束"——任何可能破坏 PostgreSQL PITR 的操作都是 agent 的 showstopper，哪怕技术上有权限
 
@@ -99,10 +102,10 @@ POST discord.com/webhooks/<id>/<token>          [zsy666 gmail inbox]
 
 - **Beacon 已部署并通过毕业测试**：`launchctl unload` 注入 cloudflared 故障 → Beacon 诊断 + self-correct + 恢复公网 200 + 写 repair log，全程 ~10 秒无人工介入
 - **watchdog 已退役**：原计划 1 周并存过渡，实际当晚就清理。理由：watchdog 在并存期会成为 Beacon 的"学习样本窃贼"——每 2 分钟硬探测 + 2 次失败立即 kickstart 把所有真实故障都拦截了，Beacon 的长期记忆没法在真实样本上生长。Beacon 已通过毕业测试 + 外部监控接入 + zsy666 信任 → 直接退役 watchdog，让 Beacon 独占故障样本
-- **外部监控接入**：
-  - **GitHub Actions cron**（主路径）：`.github/workflows/sandbox-uptime-probe.yml`，每 5 min probe `/api/health`，失败时 POST 到 alerts bot sendMessage 进 supergroup，Beacon 自动 ack。secret `TG_ALERTS_BOT_TOKEN` 在 repo settings
-  - **UptimeRobot**（备份路径）：Monitor ID 802810234，5 min interval，**只发 email** 给 zsy666 gmail（free tier 没 webhook，作为冗余 backup 不要求 Beacon 介入）
-  - **Telegram supergroup `-1003876352953`**：zsy666 + Beacon (`@puregold_sandbox_bot`) + Alerts bot (`@puregold_sandbox_alerts_bot`)。Beacon group config: `groupPolicy: allowlist`, `requireMention: false`, `allowFrom: [zsy666, alerts_bot]`
+- **Layer 1 — External alert (GitHub Actions cron)**：`.github/workflows/sandbox-uptime-probe.yml`，每 5 min probe `/api/health`，失败时用 Beacon bot token 直接 POST `sendMessage` 到 zsy666 DM (chat_id `7242492853`)。一条 one-way notification。Secret `TG_BEACON_BOT_TOKEN` 在 repo settings
+- **Layer 2 — Internal self-healing (OpenClaw cron)**：cron job `lifeline-probe` (id `41288933-...`)，every 1 min，运行 lifeline agent turn。Agent 用 `exec/read` 工具自己 probe 公网，PASS 静默，FAIL 自主诊断+恢复+写 `~/.openclaw/logs/lifeline-repair.jsonl`。**完全沉默**，不发任何外部通知（避免跟 Layer 1 重复）
+- **UptimeRobot**（独立第三层）：Monitor ID 802810234，5 min interval，**只发 email** 给 zsy666 gmail。free tier 没 webhook，作为冗余 backup（如果 Beacon **和** GH Actions 同时挂了，UR email 仍能告警）
+- **Cold spare**（不动）：Discord channel + Telegram supergroup + alerts bot 全部在 OpenClaw config 里 `enabled` 但无活动源
 - **Tailscale 僵尸节点**：2026-04-09 清理完成
 
 ## 运维入口
@@ -119,6 +122,9 @@ ssh mac-lan 'cat ~/.openclaw/logs/lifeline-repair.jsonl'
 
 # Beacon 进程状态
 ssh mac-lan 'launchctl list | grep openclaw'
+
+# 看 Beacon 自愈 cron 历史
+ssh mac-lan 'bash -lc "export PATH=/opt/homebrew/bin:\$PATH && openclaw cron list && openclaw cron runs --id 41288933-9aec-4b5a-a209-158421e53366"'
 
 # 重启 Beacon（配置改动后）
 ssh mac-lan 'launchctl unload ~/Library/LaunchAgents/ai.openclaw.gateway.plist && launchctl load ~/Library/LaunchAgents/ai.openclaw.gateway.plist'

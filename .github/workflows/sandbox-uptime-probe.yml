@@ -1,16 +1,21 @@
-name: Sandbox Uptime Probe → Discord Alert
+name: Sandbox Uptime Probe → Telegram Alert
 
 # 5-min cron probe of dev.puregoldclassictranslation.com/api/health
-# On failure: POST to Discord webhook → #sandbox-alerts channel
+# On failure: POST to Telegram Bot API sendMessage → zsy666's DM with @puregold_sandbox_bot
 #
-# Architecture (2026-04-09):
+# Architecture (2026-04-09 final):
 #   - This workflow is the EXTERNAL observer. Truly decoupled from Mac mini.
-#   - Discord channel acts as a notification dashboard. zsy666's phone Discord
-#     app pushes alerts; zsy666 then DMs Beacon on Telegram to trigger diagnosis.
-#   - Beacon's Discord-channel ingest path is NOT YET WORKING (OpenClaw issue,
-#     needs investigation). For now this is a hybrid: external alert →
-#     human-in-loop → Beacon DM (which IS verified working).
-#   - Telegram remains as a working spare path; not actively used by this workflow.
+#   - On failure: POST sendMessage with Beacon's bot token to zsy666's chat_id.
+#     The message arrives in zsy666's Telegram DM with @puregold_sandbox_bot
+#     (Beacon's bot itself; bots can't see their own outgoing messages, but
+#     zsy666 receives it normally — that's all we need for one-way notification).
+#   - In parallel, Beacon runs an internal `openclaw cron` job every 1 minute
+#     that probes the same URL and silently self-heals on failure (writing to
+#     ~/.openclaw/logs/lifeline-repair.jsonl). That cron job lives entirely on
+#     Mac mini and doesn't depend on this workflow.
+#   - Both layers are intentionally decoupled and overlap: zsy666 gets notified
+#     even if Beacon's cron handles the recovery. By the time zsy666 looks,
+#     site is usually already 200.
 #
 # Why GitHub Actions instead of UptimeRobot/BetterStack:
 #   - Truly external observer (runs on GitHub infra, not Mac mini → no shared fate)
@@ -20,8 +25,9 @@ name: Sandbox Uptime Probe → Discord Alert
 #
 # What this DOESN'T do:
 #   - State tracking. Each run is independent. Site down for 30 min → 6 alerts.
-#     If too noisy in practice, add gist-based dedup later.
-#   - Recovery notifications. Absence of new alerts == recovery signal.
+#     Beacon's cron typically heals within 2 min, so practical alert volume is low.
+#   - Recovery notifications. Absence of new alerts == recovery signal. Beacon's
+#     repair log on Mac mini is the canonical record of what was done.
 
 on:
   schedule:
@@ -67,13 +73,15 @@ jobs:
             echo "fail=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Send Discord alert (only on failure)
+      - name: Send Telegram alert (only on failure)
         if: steps.probe.outputs.fail == 'true'
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TG_BEACON_BOT_TOKEN: ${{ secrets.TG_BEACON_BOT_TOKEN }}
+          # zsy666's Telegram user_id. Not a secret (just a peer identifier).
+          TG_USER_CHAT_ID: '7242492853'
         run: |
-          if [ -z "$DISCORD_WEBHOOK_URL" ]; then
-            echo "::error::DISCORD_WEBHOOK_URL secret not set in repo settings"
+          if [ -z "$TG_BEACON_BOT_TOKEN" ]; then
+            echo "::error::TG_BEACON_BOT_TOKEN secret not set in repo settings"
             exit 1
           fi
 
@@ -81,23 +89,22 @@ jobs:
           BODY="${{ steps.probe.outputs.body }}"
           RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
-          # Single-line message. Discord channel is configured as a notification dashboard
-          # that zsy666's phone Discord app pushes; zsy666 then DMs Beacon on Telegram to
-          # trigger diagnosis (Beacon DM ingest is verified working; Discord ingest is
-          # pending — see docs/deploy/openclaw-agent/README.md). The [UPTIME-ALERT]
-          # prefix remains because Beacon's context doctrine still parses it.
-          MSG="[UPTIME-ALERT] dev.puregoldclassictranslation.com/api/health is DOWN. HTTP=${STATUS}. Body=${BODY:-empty}. Source: GitHub Actions probe ${RUN_URL}. zsy666: tell Beacon (Telegram DM) to diagnose."
+          # One-way notification: GitHub Actions → Telegram Bot API → zsy666's DM
+          # with @puregold_sandbox_bot. Beacon's cron job will be handling the
+          # actual recovery in parallel; this message is purely for human
+          # awareness. By the time zsy666 reads it, site is often already healed.
+          MSG="[UPTIME-ALERT] dev.puregoldclassictranslation.com/api/health is DOWN. HTTP=${STATUS}. Body=${BODY:-empty}. Beacon's cron is handling self-recovery in parallel. Source: ${RUN_URL}"
 
           curl -sS --fail -X POST \
-            "$DISCORD_WEBHOOK_URL" \
+            "https://api.telegram.org/bot${TG_BEACON_BOT_TOKEN}/sendMessage" \
             -H 'Content-Type: application/json' \
             -d "$(jq -nc \
-                  --arg content "$MSG" \
-                  --arg username 'GitHub Actions Probe' \
-                  '{content: $content, username: $username}')"
+                  --arg chat_id "$TG_USER_CHAT_ID" \
+                  --arg text "$MSG" \
+                  '{chat_id: $chat_id, text: $text}')"
 
           echo
-          echo "Alert sent to Discord channel via webhook"
+          echo "Alert sent to zsy666 Telegram DM via Beacon bot"
 
       - name: Summary
         if: always()
