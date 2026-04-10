@@ -102,13 +102,20 @@ export const ledgerService = {
     return api.get('/support-ledger/overview', { params });
   },
 
-  timeSeries: async (months = 12): Promise<ApiResponse<LedgerTimeSeriesPoint[]>> => {
-    return api.get('/support-ledger/time-series', { params: { months } });
+  timeSeries: async (params: {
+    months?: number;
+    dateFrom?: string;
+    dateTo?: string;
+    departmentId?: string;
+    granularity?: 'month' | 'day';
+  } = {}): Promise<ApiResponse<LedgerTimeSeriesPoint[]>> => {
+    return api.get('/support-ledger/time-series', { params });
   },
 
   proxyContributions: async (params: {
     dateFrom?: string;
     dateTo?: string;
+    departmentId?: string;
   } = {}): Promise<ApiResponse<ProxyContribution[]>> => {
     return api.get('/support-ledger/proxy-contributions', { params });
   },
@@ -116,6 +123,8 @@ export const ledgerService = {
   recentActivity: async (params: {
     limit?: number;
     action?: string;
+    dateFrom?: string;
+    dateTo?: string;
   } = {}): Promise<ApiResponse<RecentActivityEntry[]>> => {
     return api.get('/support-ledger/recent-activity', { params });
   },

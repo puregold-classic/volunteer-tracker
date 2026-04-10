@@ -17,32 +17,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock3, FileText, Layers3, TrendingUp } from 'lucide-react';
 import ledgerService, {
-  LedgerOverview,
-  LedgerTimeSeriesPoint,
-  ProxyContribution,
-  RecentActivityEntry,
-  VolunteerLedgerDetail,
+  type LedgerOverview,
+  type LedgerTimeSeriesPoint,
+  type ProxyContribution,
+  type RecentActivityEntry,
 } from '@services/ledgerService';
+import projectSupportService from '@services/projectSupportService';
 import departmentService from '@services/departmentService';
-import type { Department, ProjectSupport } from '@services/types';
+import volunteerService from '@services/volunteerService';
+import serviceItemService from '@services/serviceItemService';
+import type { Department, ProjectSupport, ServiceItemsByDepartment } from '@services/types';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
-import { formatLocalDate, parseLocalDate, rangeToBounds, type DateRangeKey } from '@/lib/date-utils';
-import { HeroAvatar } from '@/components/shared/hero-avatar';
+import { formatLocalDate, rangeToBounds, type DateRangeKey } from '@/lib/date-utils';
+import { SupportRecordCard } from '@/components/shared/support-record-card';
 
 interface ReviewPageProps {
   isReviewer: boolean;
 }
 
-type DimensionTab = 'department' | 'volunteer' | 'service';
-
-type VolunteerSortKey = 'rank' | 'count' | 'totalHours' | 'lastDate';
-interface VolunteerSort {
-  key: VolunteerSortKey;
-  dir: 'asc' | 'desc';
-}
+type ExploreTab = 'department' | 'volunteer';
 
 const DATE_RANGE_OPTIONS: Array<{ key: DateRangeKey; label: string }> = [
   { key: 'all', label: '全部时间' },
@@ -55,6 +51,7 @@ const DATE_RANGE_OPTIONS: Array<{ key: DateRangeKey; label: string }> = [
 
 function ReviewPage({ isReviewer }: ReviewPageProps) {
   const { isAuthenticated } = useAuth();
+  // Filtered data (follows filter bar)
   const [overview, setOverview] = useState<LedgerOverview | null>(null);
   const [series, setSeries] = useState<LedgerTimeSeriesPoint[]>([]);
   const [proxies, setProxies] = useState<ProxyContribution[]>([]);
@@ -62,11 +59,25 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<DimensionTab>('department');
-  const [volunteerSort, setVolunteerSort] = useState<VolunteerSort>({ key: 'totalHours', dir: 'desc' });
   // Filter state
   const [dateRange, setDateRange] = useState<DateRangeKey>('all');
   const [filterDeptId, setFilterDeptId] = useState<string>('');
+
+  // Independent exploration area (own date filter, separate from top filter bar)
+  const [globalOverview, setGlobalOverview] = useState<LedgerOverview | null>(null);
+  const [exploreTab, setExploreTab] = useState<ExploreTab>('department');
+  const [exploreRange, setExploreRange] = useState<'all' | '30d'>('all');
+  const [expandedDept, setExpandedDept] = useState<string | null>(null);
+
+  // Records drill-down dialog
+  const [recordsDialogTitle, setRecordsDialogTitle] = useState('');
+  const [recordsDialogOpen, setRecordsDialogOpen] = useState(false);
+  const [recordsList, setRecordsList] = useState<ProjectSupport[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [recordsPage, setRecordsPage] = useState(1);
+  const [recordsTotalPages, setRecordsTotalPages] = useState(1);
+  const [recordsFilters, setRecordsFilters] = useState<Record<string, string>>({});
+  const RECORDS_PAGE_SIZE = 10;
 
   // Department list — fetched once for the filter select.
   useEffect(() => {
@@ -76,25 +87,63 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
     });
   }, [isAuthenticated, isReviewer]);
 
-  // Overview + time-series — refetch on filter change. timeSeries is
-  // intentionally NOT filtered (it's a 12-month rolling trend, independent
-  // of the dimension filters).
+  // All volunteers — for 0-value display in explore charts.
+  const [allVolunteers, setAllVolunteers] = useState<Array<{ id: string; volunteerCode: string; chineseName: string; departmentId: string }>>([]);
+
+  // All service items grouped by department — for full list display in drill-down.
+  const [allServiceItems, setAllServiceItems] = useState<ServiceItemsByDepartment[]>([]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !isReviewer) return;
+    serviceItemService.listGrouped().then((res) => {
+      if (res?.success && res.data) setAllServiceItems(res.data);
+    });
+  }, [isAuthenticated, isReviewer]);
+
+  // All volunteers — fetched once.
+  useEffect(() => {
+    if (!isAuthenticated || !isReviewer) return;
+    volunteerService.getAllVolunteers({ limit: 200 }).then((res) => {
+      if (res?.success && res.data) {
+        setAllVolunteers(res.data.map((v) => ({
+          id: v.id,
+          volunteerCode: v.volunteerCode,
+          chineseName: v.chineseName,
+          departmentId: v.departmentId || v.department?.id || '',
+        })));
+      }
+    });
+  }, [isAuthenticated, isReviewer]);
+
+  // Exploration overview — refetches when exploreRange changes.
+  useEffect(() => {
+    if (!isAuthenticated || !isReviewer) return;
+    const bounds = rangeToBounds(exploreRange);
+    ledgerService.overview(bounds).then((res) => {
+      if (res?.success && res.data) setGlobalOverview(res.data);
+    });
+  }, [isAuthenticated, isReviewer, exploreRange]);
+
+  // All 4 data sources share the same filter params (date + department).
   useEffect(() => {
     if (!isAuthenticated || !isReviewer) return;
     let cancelled = false;
     setLoading(true);
     setError('');
     const bounds = rangeToBounds(dateRange);
-    const overviewParams = {
+    const sharedParams = {
       ...bounds,
       ...(filterDeptId ? { departmentId: filterDeptId } : {}),
     };
-    // Side panels reuse the date filter; recentActivity is global (no filter).
+    // Short ranges use daily granularity; wider ranges use monthly
+    const isDailyRange = ['7d', '30d', 'thisMonth'].includes(dateRange);
+    const granularity = isDailyRange ? 'day' as const : 'month' as const;
+
     Promise.all([
-      ledgerService.overview(overviewParams),
-      ledgerService.timeSeries(12),
-      ledgerService.proxyContributions(bounds),
-      ledgerService.recentActivity({ limit: 12 }),
+      ledgerService.overview(sharedParams),
+      ledgerService.timeSeries({ months: 12, ...sharedParams, granularity }),
+      ledgerService.proxyContributions(sharedParams),
+      ledgerService.recentActivity({ limit: 12, ...bounds }),
     ])
       .then(([oRes, tRes, pRes, aRes]) => {
         if (cancelled) return;
@@ -121,37 +170,41 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
     setFilterDeptId('');
   };
 
-  // ─── Drill-down sheet state ──────────────────────────────────────────────
-  const [drillVolunteerId, setDrillVolunteerId] = useState<string | null>(null);
-  const [drillDetail, setDrillDetail] = useState<VolunteerLedgerDetail | null>(null);
-  const [drillLoading, setDrillLoading] = useState(false);
-
-  useEffect(() => {
-    if (!drillVolunteerId) {
-      setDrillDetail(null);
-      return;
+  // ─── Records dialog helpers ────────────────────────────────────────────────
+  const fetchRecordsPage = async (filters: Record<string, string>, page: number) => {
+    setRecordsLoading(true);
+    try {
+      const res = await projectSupportService.list({ ...filters, status: 'ACTIVE', limit: RECORDS_PAGE_SIZE, page });
+      if (res?.success && res.data) {
+        setRecordsList(res.data.records);
+        setRecordsTotalPages(res.data.pagination?.totalPages || 1);
+      }
+    } finally {
+      setRecordsLoading(false);
     }
-    let cancelled = false;
-    setDrillLoading(true);
-    setDrillDetail(null);
-    ledgerService
-      .volunteerDetail(drillVolunteerId)
-      .then((res) => {
-        if (cancelled) return;
-        if (res?.success && res.data) setDrillDetail(res.data);
-      })
-      .finally(() => {
-        if (!cancelled) setDrillLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [drillVolunteerId]);
+  };
+
+  const openRecordsDialog = async (title: string, filters: Record<string, string>) => {
+    setRecordsDialogTitle(title);
+    setRecordsDialogOpen(true);
+    setRecordsList([]);
+    setRecordsPage(1);
+    setRecordsTotalPages(1);
+    setRecordsFilters(filters);
+    await fetchRecordsPage(filters, 1);
+  };
+
+  const handleRecordsPageChange = (newPage: number) => {
+    setRecordsPage(newPage);
+    void fetchRecordsPage(recordsFilters, newPage);
+  };
 
   // ─── Derived data ─────────────────────────────────────────────────────────
 
-  // Build 12-month bucket array. Backend only returns months that have data,
-  // so we fill the gaps with zeros to render a continuous chart.
+  // Build bucket array based on current granularity. Backend only returns
+  // periods that have data, so we fill the gaps with zeros.
+  const isDailyRange = ['7d', '30d', 'thisMonth'].includes(dateRange);
+
   const sparklineBuckets = useMemo(() => {
     const map = new Map<string, { count: number; totalHours: number }>();
     for (const p of series) {
@@ -159,85 +212,102 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
     }
     const now = new Date();
     const buckets: Array<{ period: string; label: string; count: number; totalHours: number }> = [];
-    for (let i = 11; i >= 0; i -= 1) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const label = `${d.getFullYear()}/${d.getMonth() + 1}`;
-      const v = map.get(period) || { count: 0, totalHours: 0 };
-      buckets.push({ period, label, count: v.count, totalHours: v.totalHours });
+
+    if (isDailyRange) {
+      // Daily buckets: fill the range with individual days
+      const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : now.getDate();
+      for (let i = days - 1; i >= 0; i -= 1) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+        const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const label = `${d.getMonth() + 1}/${d.getDate()}`;
+        const v = map.get(period) || { count: 0, totalHours: 0 };
+        buckets.push({ period, label, count: v.count, totalHours: v.totalHours });
+      }
+    } else {
+      // Monthly buckets: rolling 12 months (or less if filtered)
+      const monthCount = dateRange === 'thisYear' ? now.getMonth() + 1 : 12;
+      for (let i = monthCount - 1; i >= 0; i -= 1) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const label = `${d.getFullYear()}/${d.getMonth() + 1}`;
+        const v = map.get(period) || { count: 0, totalHours: 0 };
+        buckets.push({ period, label, count: v.count, totalHours: v.totalHours });
+      }
     }
     return buckets;
-  }, [series]);
+  }, [series, isDailyRange, dateRange]);
 
   const sparklineMax = useMemo(
     () => Math.max(1, ...sparklineBuckets.map((b) => b.totalHours)),
     [sparklineBuckets]
   );
 
-  // Department bars: derive percentages off the max so the longest bar fills.
-  const departmentBars = useMemo(() => {
-    if (!overview) return [];
-    const max = Math.max(1, ...overview.byDepartment.map((d) => Number(d.totalHours) || 0));
-    return overview.byDepartment
-      .map((d) => ({
-        ...d,
-        totalHours: Number(d.totalHours) || 0,
-        pct: ((Number(d.totalHours) || 0) / max) * 100,
-      }))
-      .sort((a, b) => b.totalHours - a.totalHours);
-  }, [overview]);
+  // ─── Global (unfiltered) derived data for exploration area ──────────────
 
-  const sortedVolunteers = useMemo(() => {
-    if (!overview) return [];
-    const arr = overview.byVolunteer.map((v, i) => ({
-      ...v,
-      totalHours: Number(v.totalHours) || 0,
-      originalRank: i + 1,
-    }));
-    const dir = volunteerSort.dir === 'asc' ? 1 : -1;
-    arr.sort((a, b) => {
-      switch (volunteerSort.key) {
-        case 'rank':
-          return (a.originalRank - b.originalRank) * dir;
-        case 'count':
-          return (a.count - b.count) * dir;
-        case 'totalHours':
-          return (a.totalHours - b.totalHours) * dir;
-        case 'lastDate': {
-          const ad = a.lastDate ? parseLocalDate(a.lastDate)?.getTime() ?? 0 : 0;
-          const bd = b.lastDate ? parseLocalDate(b.lastDate)?.getTime() ?? 0 : 0;
-          return (ad - bd) * dir;
-        }
-        default:
-          return 0;
-      }
+  // Merge departments with overview data — include 0-value departments
+  const globalDeptBars = useMemo(() => {
+    if (!departments.length) return [];
+    const dataMap = new Map(
+      (globalOverview?.byDepartment || []).map((d) => [d.departmentId, d])
+    );
+    const merged = departments.map((d) => {
+      const data = dataMap.get(d.id);
+      return {
+        departmentId: d.id,
+        departmentName: d.name,
+        totalHours: Number(data?.totalHours) || 0,
+        count: data?.count || 0,
+      };
     });
-    return arr;
-  }, [overview, volunteerSort]);
+    const max = Math.max(1, ...merged.map((d) => d.totalHours));
+    return merged.map((d) => ({ ...d, pct: (d.totalHours / max) * 100 }));
+  }, [globalOverview, departments]);
 
-  // Group service items by department for the third tab.
-  const serviceItemGroups = useMemo(() => {
-    if (!overview) return [];
-    const byDept = new Map<string, { departmentName: string; items: Array<{ id: string; name: string; count: number; totalHours: number }> }>();
-    for (const s of overview.byServiceItem) {
-      const g = byDept.get(s.departmentName) || { departmentName: s.departmentName, items: [] };
-      g.items.push({
-        id: s.serviceItemId,
-        name: s.serviceItemName,
-        count: s.count,
-        totalHours: Number(s.totalHours) || 0,
-      });
-      byDept.set(s.departmentName, g);
-    }
-    return Array.from(byDept.values());
-  }, [overview]);
-
-  const toggleVolunteerSort = (key: VolunteerSortKey) => {
-    setVolunteerSort((prev) => {
-      if (prev.key === key) return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
-      return { key, dir: key === 'rank' ? 'asc' : 'desc' };
+  // Service items for the expanded department — all items including 0 values
+  const expandedDeptItems = useMemo(() => {
+    if (!expandedDept || !allServiceItems.length) return [];
+    // Find the department group from the full service items list
+    const deptGroup = allServiceItems.find((g) => g.department.name === expandedDept);
+    if (!deptGroup) return [];
+    // Build a lookup from overview data
+    const dataMap = new Map(
+      (globalOverview?.byServiceItem || [])
+        .filter((s) => s.departmentName === expandedDept)
+        .map((s) => [s.serviceItemId, { totalHours: Number(s.totalHours) || 0, count: s.count }])
+    );
+    return deptGroup.items.map((it) => {
+      const data = dataMap.get(it.id);
+      return {
+        serviceItemId: it.id,
+        serviceItemName: it.name,
+        totalHours: data?.totalHours || 0,
+        count: data?.count || 0,
+      };
     });
-  };
+  }, [expandedDept, allServiceItems, globalOverview]);
+
+  // Merge all volunteers with overview data — include 0-value volunteers
+  const globalVolunteers = useMemo(() => {
+    const dataMap = new Map(
+      (globalOverview?.byVolunteer || []).map((v) => [v.volunteerId, v])
+    );
+    const merged = allVolunteers.map((v) => {
+      const data = dataMap.get(v.id);
+      return {
+        volunteerId: v.id,
+        volunteerCode: v.volunteerCode,
+        chineseName: v.chineseName,
+        departmentId: v.departmentId,
+        totalHours: Number(data?.totalHours) || 0,
+        count: data?.count || 0,
+        lastDate: data?.lastDate || null,
+      };
+    });
+    // Sort by totalHours desc, then assign ranks
+    merged.sort((a, b) => b.totalHours - a.totalHours);
+    return merged.map((v, i) => ({ ...v, originalRank: i + 1 }));
+  }, [globalOverview, allVolunteers]);
+
 
   // ─── Render guards ────────────────────────────────────────────────────────
 
@@ -308,7 +378,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
             onChange={(e) => setFilterDeptId(e.target.value)}
             className="h-7 rounded-full border border-border bg-card px-2.5 text-xs font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <option value="">全部部门</option>
+            <option value="">全部</option>
             {departments.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
@@ -405,7 +475,11 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
       {/* ─── Time-series sparkline ───────────────────────────────────────── */}
       <Card variant="elevated" className="p-5 sm:p-6">
         <div className="flex items-baseline justify-between">
-          <h2 className="font-serif text-base font-semibold text-foreground">近 12 月时长趋势</h2>
+          <h2 className="font-serif text-base font-semibold text-foreground">
+            {isDailyRange
+              ? `${dateRange === '7d' ? '近 7 天' : dateRange === '30d' ? '近 30 天' : '本月'}时长趋势`
+              : `${dateRange === 'thisYear' ? '本年' : dateRange === '90d' ? '近 3 月' : '近 12 月'}时长趋势`}
+          </h2>
           <p className="text-[11px] text-muted-foreground">单位：小时</p>
         </div>
         <div className="mt-4">
@@ -415,7 +489,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
             The earlier wrapper-div approach gave wrappers no height, which
             collapsed every bar to 0. items-end aligns them to the bottom.
           */}
-          <div className="flex h-32 items-end gap-1.5 sm:gap-2">
+          <div className={cn('flex h-32 items-end', sparklineBuckets.length > 15 ? 'gap-0.5 sm:gap-1' : 'gap-1.5 sm:gap-2')}>
             {sparklineBuckets.map((b) => {
               const h = (b.totalHours / sparklineMax) * 100;
               return (
@@ -433,331 +507,42 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
               );
             })}
           </div>
-          {/* X-axis labels */}
-          <div className="mt-2 flex gap-1.5 sm:gap-2">
-            {sparklineBuckets.map((b) => (
-              <div
-                key={`l-${b.period}`}
-                className="flex-1 text-center text-[9px] tabular-nums text-muted-foreground sm:text-[10px]"
-              >
-                {b.label}
-              </div>
-            ))}
+          {/* X-axis labels — sparse when bucket count is high */}
+          <div className={cn('mt-2 flex', sparklineBuckets.length > 15 ? 'gap-0.5 sm:gap-1' : 'gap-1.5 sm:gap-2')}>
+            {sparklineBuckets.map((b, i) => {
+              // Show every Nth label to avoid crowding
+              const total = sparklineBuckets.length;
+              const step = total <= 12 ? 1 : total <= 15 ? 2 : total <= 20 ? 3 : 5;
+              const showLabel = i % step === 0 || i === total - 1;
+              return (
+                <div
+                  key={`l-${b.period}`}
+                  className="flex-1 text-center text-[9px] tabular-nums text-muted-foreground sm:text-[10px]"
+                >
+                  {showLabel ? b.label : ''}
+                </div>
+              );
+            })}
           </div>
         </div>
       </Card>
 
-      {/* ─── Dimension tabs ──────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-1">
-        {(
-          [
-            { key: 'department' as const, label: '按部门' },
-            { key: 'volunteer' as const, label: '按志愿者' },
-            { key: 'service' as const, label: '按服务项' },
-          ]
-        ).map((t) => {
-          const isActive = activeTab === t.key;
-          return (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setActiveTab(t.key)}
-              className={cn(
-                'inline-flex h-9 items-center rounded-full px-4 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'border border-border bg-card text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ─── Tab content ─────────────────────────────────────────────────── */}
-      {activeTab === 'department' && (
-        <Card variant="elevated" className="p-5 sm:p-6">
-          {departmentBars.length === 0 ? (
-            <p className="text-center text-sm text-muted-foreground">暂无数据</p>
-          ) : (
-            <ul className="space-y-3">
-              {departmentBars.map((d, i) => (
-                <li key={d.departmentId} className="space-y-1">
-                  <div className="flex items-baseline justify-between gap-3 text-sm">
-                    <span className="flex items-baseline gap-2 truncate">
-                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold tabular-nums text-muted-foreground">
-                        {i + 1}
-                      </span>
-                      <span className="font-medium text-foreground truncate">{d.departmentName}</span>
-                    </span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      <span className="font-semibold text-foreground">{d.totalHours}</span>h ·{' '}
-                      {d.count} 条
-                    </span>
-                  </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn(
-                        'h-full rounded-full transition-all',
-                        i === 0 ? 'bg-primary' : 'bg-primary/60',
-                      )}
-                      style={{ width: `${Math.max(d.pct, 2)}%` }}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      )}
-
-      {activeTab === 'volunteer' && (
-        <Card variant="elevated" className="overflow-hidden">
-          {sortedVolunteers.length === 0 ? (
-            <p className="p-6 text-center text-sm text-muted-foreground">暂无数据</p>
-          ) : (
-            <>
-            {/* Mobile: card list (table is unwieldy on narrow screens) */}
-            <ul className="divide-y divide-border/60 sm:hidden">
-              {sortedVolunteers.map((v) => (
-                <li
-                  key={`m-${v.volunteerCode}`}
-                  className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
-                  onClick={() => setDrillVolunteerId(v.volunteerId)}
-                >
-                  {v.originalRank <= 3 ? (
-                    <span
-                      className={cn(
-                        'inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums',
-                        v.originalRank === 1 && 'bg-amber-400/20 text-amber-700 dark:text-amber-300',
-                        v.originalRank === 2 && 'bg-zinc-400/20 text-zinc-600 dark:text-zinc-300',
-                        v.originalRank === 3 && 'bg-orange-400/20 text-orange-700 dark:text-orange-300',
-                      )}
-                    >
-                      {v.originalRank}
-                    </span>
-                  ) : (
-                    <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] tabular-nums text-muted-foreground">
-                      {v.originalRank}
-                    </span>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-foreground">
-                      {v.chineseName}
-                      <span className="ml-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">
-                        {v.volunteerCode}
-                      </span>
-                    </p>
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {v.departmentId}
-                      {v.lastDate && (
-                        <span className="ml-1.5 tabular-nums">· 最近 {formatLocalDate(v.lastDate)}</span>
-                      )}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="font-serif text-base font-semibold tabular-nums text-foreground">
-                      {v.totalHours}
-                      <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">h</span>
-                    </p>
-                    <p className="text-[10px] tabular-nums text-muted-foreground">{v.count} 条</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            {/* Desktop / tablet: full sortable table */}
-            <div className="hidden overflow-x-auto sm:block">
-              <table className="w-full text-sm">
-                <thead className="border-b border-border bg-muted/40">
-                  <tr className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                    <SortableTh
-                      sortKey="rank"
-                      currentSort={volunteerSort}
-                      onClick={toggleVolunteerSort}
-                      className="w-12"
-                    >
-                      #
-                    </SortableTh>
-                    <th className="px-3 py-2.5 text-left font-medium">姓名</th>
-                    <th className="px-3 py-2.5 text-left font-medium">部门</th>
-                    <SortableTh
-                      sortKey="count"
-                      currentSort={volunteerSort}
-                      onClick={toggleVolunteerSort}
-                      className="text-right"
-                    >
-                      条数
-                    </SortableTh>
-                    <SortableTh
-                      sortKey="totalHours"
-                      currentSort={volunteerSort}
-                      onClick={toggleVolunteerSort}
-                      className="text-right"
-                    >
-                      时长
-                    </SortableTh>
-                    <SortableTh
-                      sortKey="lastDate"
-                      currentSort={volunteerSort}
-                      onClick={toggleVolunteerSort}
-                      className="text-right"
-                    >
-                      最近
-                    </SortableTh>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedVolunteers.map((v) => (
-                    <tr
-                      key={v.volunteerCode}
-                      onClick={() => setDrillVolunteerId(v.volunteerId)}
-                      className="cursor-pointer border-b border-border/60 last:border-b-0 transition-colors hover:bg-muted/40"
-                    >
-                      <td className="px-3 py-2.5">
-                        {v.originalRank <= 3 ? (
-                          <span
-                            className={cn(
-                              'inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold tabular-nums',
-                              v.originalRank === 1 && 'bg-amber-400/20 text-amber-700 dark:text-amber-300',
-                              v.originalRank === 2 && 'bg-zinc-400/20 text-zinc-600 dark:text-zinc-300',
-                              v.originalRank === 3 && 'bg-orange-400/20 text-orange-700 dark:text-orange-300',
-                            )}
-                          >
-                            {v.originalRank}
-                          </span>
-                        ) : (
-                          <span className="text-xs tabular-nums text-muted-foreground">{v.originalRank}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2.5 font-medium text-foreground">
-                        {v.chineseName}
-                        <span className="ml-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">
-                          {v.volunteerCode}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-xs text-muted-foreground">{v.departmentId}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{v.count}</td>
-                      <td className="px-3 py-2.5 text-right font-semibold tabular-nums">
-                        {v.totalHours}
-                        <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">h</span>
-                      </td>
-                      <td className="px-3 py-2.5 text-right text-xs tabular-nums text-muted-foreground">
-                        {v.lastDate ? formatLocalDate(v.lastDate) : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p className="border-t border-border bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
-              显示前 {sortedVolunteers.length} 名（按总时长降序）
-            </p>
-            </>
-          )}
-        </Card>
-      )}
-
-      {activeTab === 'service' && (
-        <div className="space-y-3">
-          {serviceItemGroups.length === 0 ? (
-            <Card variant="elevated" className="p-6 text-center text-sm text-muted-foreground">
-              暂无数据
-            </Card>
-          ) : (
-            serviceItemGroups.map((g) => (
-              <Card key={g.departmentName} variant="elevated" className="overflow-hidden">
-                <div className="border-b border-border bg-muted/30 px-4 py-2.5">
-                  <h3 className="font-serif text-sm font-semibold text-foreground">
-                    {g.departmentName}{' '}
-                    <span className="ml-1 text-xs font-normal text-muted-foreground tabular-nums">
-                      ({g.items.length} 个服务项)
-                    </span>
-                  </h3>
-                </div>
-                <ul className="divide-y divide-border/60">
-                  {g.items.map((it) => (
-                    <li key={it.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                      <span className="truncate font-medium text-foreground">{it.name}</span>
-                      <span className="ml-3 shrink-0 text-xs text-muted-foreground tabular-nums">
-                        <span className="font-semibold text-foreground">{it.totalHours}</span>h ·{' '}
-                        {it.count} 条
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* ─── Side panels: 代提交贡献榜 + 最近活动 ─────────────────────── */}
+      {/* ─── Side panels: 最近活动 + 代提交贡献榜 (left-right) ────────── */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* Proxy contributions leaderboard */}
-        <Card variant="elevated" className="overflow-hidden">
-          <div className="border-b border-border bg-muted/30 px-4 py-2.5">
-            <h3 className="font-serif text-sm font-semibold text-foreground">
-              代提交贡献榜
-              <span className="ml-1 text-[11px] font-normal text-muted-foreground">
-                (帮他人录入次数)
-              </span>
-            </h3>
-          </div>
-          {proxies.length === 0 ? (
-            <p className="py-8 text-center text-xs text-muted-foreground">暂无代提交记录</p>
-          ) : (
-            <ul className="divide-y divide-border/60">
-              {proxies.slice(0, 8).map((p, i) => (
-                <li
-                  key={p.volunteerCode}
-                  className="flex items-center gap-3 px-4 py-2.5 text-sm"
-                >
-                  <span
-                    className={cn(
-                      'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tabular-nums',
-                      i === 0 && 'bg-amber-400/20 text-amber-700 dark:text-amber-300',
-                      i === 1 && 'bg-zinc-400/20 text-zinc-600 dark:text-zinc-300',
-                      i === 2 && 'bg-orange-400/20 text-orange-700 dark:text-orange-300',
-                      i > 2 && 'bg-muted text-muted-foreground',
-                    )}
-                  >
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1 truncate">
-                    <span className="font-medium text-foreground">{p.chineseName}</span>
-                    <span className="ml-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">
-                      {p.volunteerCode}
-                    </span>
-                  </div>
-                  <span className="shrink-0 text-xs tabular-nums">
-                    <span className="font-semibold text-foreground">{Number(p.proxyCount) || 0}</span>{' '}
-                    <span className="text-muted-foreground">次</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-
-        {/* Recent activity timeline */}
+        {/* Recent activity (left) */}
         <Card variant="elevated" className="overflow-hidden">
           <div className="border-b border-border bg-muted/30 px-4 py-2.5">
             <h3 className="font-serif text-sm font-semibold text-foreground">最近活动</h3>
           </div>
           {activity.length === 0 ? (
-            <p className="py-8 text-center text-xs text-muted-foreground">暂无活动</p>
+            <p className="py-6 text-center text-xs text-muted-foreground">暂无活动</p>
           ) : (
             <ul className="divide-y divide-border/60">
               {activity.map((a) => (
                 <li key={a.id} className="px-4 py-2.5 text-sm">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-medium text-foreground">
-                      {actionLabel(a.action)}
-                    </span>
-                    <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-                      {formatRelative(a.timestamp)}
-                    </span>
+                    <span className="font-medium text-foreground">{actionLabel(a.action)}</span>
+                    <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{formatRelative(a.timestamp)}</span>
                   </div>
                   <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                     {a.operator?.name || '系统'}
@@ -770,164 +555,280 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
             </ul>
           )}
         </Card>
+
+        {/* Proxy contributions leaderboard (right) */}
+        <Card variant="elevated" className="overflow-hidden">
+          <div className="border-b border-border bg-muted/30 px-4 py-2.5">
+            <h3 className="font-serif text-sm font-semibold text-foreground">
+              代提交贡献榜
+              <span className="ml-1 text-[11px] font-normal text-muted-foreground">(帮他人录入次数)</span>
+            </h3>
+          </div>
+          {proxies.length === 0 ? (
+            <p className="py-6 text-center text-xs text-muted-foreground">暂无代提交记录</p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {proxies.slice(0, 8).map((p, i) => (
+                <li key={p.volunteerCode} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <span className={cn(
+                    'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tabular-nums',
+                    i === 0 && 'bg-amber-400/20 text-amber-700',
+                    i === 1 && 'bg-zinc-400/20 text-zinc-600',
+                    i === 2 && 'bg-orange-400/20 text-orange-700',
+                    i > 2 && 'bg-muted text-muted-foreground',
+                  )}>{i + 1}</span>
+                  <div className="min-w-0 flex-1 truncate">
+                    <span className="font-medium text-foreground">{p.chineseName}</span>
+                    <span className="ml-1.5 font-mono text-[10px] tabular-nums text-muted-foreground">{p.volunteerCode}</span>
+                  </div>
+                  <span className="shrink-0 text-xs tabular-nums">
+                    <span className="font-semibold text-foreground">{Number(p.proxyCount) || 0}</span>{' '}
+                    <span className="text-muted-foreground">次</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
       </div>
 
-      {/* ─── Drill-down sheet ────────────────────────────────────────────── */}
+      {/* ─── Exploration area (independent, unfiltered) ───────────────────── */}
+      <div className="border-t border-border pt-5">
+        <div className="flex flex-wrap items-center gap-2 px-1 mb-4">
+          <h2 className="font-serif text-lg font-semibold text-foreground mr-3">数据探索</h2>
+          {([
+            { key: 'department' as const, label: '按部门' },
+            { key: 'volunteer' as const, label: '按志愿者' },
+          ]).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => { setExploreTab(t.key); setExpandedDept(null); }}
+              className={cn(
+                'inline-flex h-9 items-center rounded-full px-4 text-sm font-medium transition-colors',
+                exploreTab === t.key
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'border border-border bg-card text-muted-foreground hover:text-foreground',
+              )}
+            >{t.label}</button>
+          ))}
+          <span className="mx-1 text-border">|</span>
+          {([
+            { key: 'all' as const, label: '累计' },
+            { key: '30d' as const, label: '近 30 天' },
+          ]).map((r) => (
+            <button
+              key={r.key}
+              type="button"
+              onClick={() => setExploreRange(r.key)}
+              className={cn(
+                'inline-flex h-7 items-center rounded-full px-2.5 text-xs font-medium transition-colors',
+                exploreRange === r.key
+                  ? 'bg-accent text-accent-foreground shadow-sm'
+                  : 'border border-border bg-card text-muted-foreground hover:text-foreground',
+              )}
+            >{r.label}</button>
+          ))}
+        </div>
+
+        {/* ─── Department bar chart + click-to-expand service items ──────── */}
+        {exploreTab === 'department' && (
+          <div className="space-y-4">
+            <Card variant="elevated" className="p-5 sm:p-6">
+              <div className="flex items-baseline justify-between mb-4">
+                <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">部门服务时长</h3>
+                <p className="text-[11px] text-muted-foreground">点击柱子查看服务项</p>
+              </div>
+              {globalDeptBars.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground">暂无数据</p>
+              ) : (
+                <div>
+                  <div className="flex h-40 items-end gap-2 sm:gap-3">
+                    {globalDeptBars.map((d) => {
+                      const deptMax = Math.max(1, ...globalDeptBars.map((x) => x.totalHours));
+                      const h = (d.totalHours / deptMax) * 100;
+                      const isExpanded = expandedDept === d.departmentName;
+                      return (
+                        <div key={d.departmentId} className="flex-1" style={{ height: `${Math.max(h, d.totalHours > 0 ? 6 : 4)}%` }}>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedDept(isExpanded ? null : d.departmentName)}
+                            className={cn(
+                              'h-full w-full rounded-t-md transition-all',
+                              isExpanded ? 'bg-primary' : d.totalHours > 0 ? 'bg-primary/60 hover:bg-primary/80' : 'bg-muted hover:bg-muted-foreground/20',
+                            )}
+                            title={`${d.departmentName} · ${d.totalHours}h · ${d.count} 条`}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 flex gap-2 sm:gap-3">
+                    {globalDeptBars.map((d) => (
+                      <div key={`l-${d.departmentId}`} className="flex-1 text-center">
+                        <p className="text-[8px] leading-tight text-muted-foreground truncate sm:text-[9px]">{d.departmentName.replace(/部$/, '')}</p>
+                        <p className="text-[9px] tabular-nums text-foreground font-medium">{d.totalHours}h</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            {/* Expanded: all service items for the selected department */}
+            {expandedDept && (
+              <Card variant="elevated" className="p-5 sm:p-6">
+                <div className="flex items-baseline justify-between mb-4">
+                  <h4 className="font-serif text-sm font-semibold text-foreground">
+                    {expandedDept}
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">服务项分布</span>
+                  </h4>
+                  <p className="text-[11px] text-muted-foreground">点击柱子查看记录</p>
+                </div>
+                {expandedDeptItems.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground">暂无服务项</p>
+                ) : (
+                  <div className={cn(expandedDeptItems.length > 10 && 'overflow-x-auto')}>
+                    <div
+                      className="flex h-28 items-end gap-1.5 sm:h-36"
+                      style={expandedDeptItems.length > 10 ? { minWidth: `${expandedDeptItems.length * 3}rem` } : undefined}
+                    >
+                      {expandedDeptItems.map((it) => {
+                        const itemMax = Math.max(1, ...expandedDeptItems.map((x) => x.totalHours));
+                        const h = (it.totalHours / itemMax) * 100;
+                        return (
+                          <div key={it.serviceItemId} className="flex-1" style={{ height: `${Math.max(h, it.totalHours > 0 ? 6 : 4)}%` }}>
+                            <button
+                              type="button"
+                              onClick={() => openRecordsDialog(`${expandedDept} / ${it.serviceItemName}`, { serviceItemId: it.serviceItemId })}
+                              className={cn(
+                                'h-full w-full rounded-t-md transition-colors',
+                                it.totalHours > 0 ? 'bg-accent/60 hover:bg-accent' : 'bg-muted hover:bg-muted-foreground/20',
+                              )}
+                              title={`${it.serviceItemName} · ${it.totalHours}h · ${it.count} 条`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div
+                      className="mt-2 flex gap-1.5"
+                      style={expandedDeptItems.length > 10 ? { minWidth: `${expandedDeptItems.length * 3}rem` } : undefined}
+                    >
+                      {expandedDeptItems.map((it) => (
+                        <div key={`l-${it.serviceItemId}`} className="flex-1 text-center">
+                          <p className="text-[8px] leading-tight text-muted-foreground truncate sm:text-[9px]">{it.serviceItemName}</p>
+                          <p className="text-[9px] tabular-nums text-foreground font-medium">{it.totalHours}h</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+          </div>
+        )}
+
+        {/* ─── Volunteer bar chart ───────────────────────────────────────── */}
+        {exploreTab === 'volunteer' && (
+          <Card variant="elevated" className="p-5 sm:p-6">
+            <div className="flex items-baseline justify-between mb-4">
+              <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                志愿者服务时长 <span className="normal-case">({globalVolunteers.length} 人)</span>
+              </h3>
+              <p className="text-[11px] text-muted-foreground">点击柱子查看记录</p>
+            </div>
+            {globalVolunteers.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground">暂无数据</p>
+            ) : (
+              <div className={cn(globalVolunteers.length > 10 && 'overflow-x-auto')}>
+                <div
+                  className="flex h-32 items-end gap-1.5 sm:h-40"
+                  style={globalVolunteers.length > 10 ? { minWidth: `${globalVolunteers.length * 3}rem` } : undefined}
+                >
+                  {globalVolunteers.map((v) => {
+                    const volMax = Math.max(1, ...globalVolunteers.map((x) => x.totalHours));
+                    const h = (v.totalHours / volMax) * 100;
+                    return (
+                      <div key={v.volunteerId} className="flex-1" style={{ height: `${Math.max(h, v.totalHours > 0 ? 6 : 4)}%` }}>
+                        <button
+                          type="button"
+                          onClick={() => openRecordsDialog(v.chineseName, { volunteerId: v.volunteerId })}
+                          className={cn(
+                            'h-full w-full rounded-t-md transition-colors',
+                            v.totalHours > 0 ? 'bg-primary/60 hover:bg-primary' : 'bg-muted hover:bg-muted-foreground/20',
+                          )}
+                          title={`${v.chineseName} (${v.volunteerCode}) · ${v.totalHours}h · ${v.count} 条`}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div
+                  className="mt-2 flex gap-1.5"
+                  style={globalVolunteers.length > 10 ? { minWidth: `${globalVolunteers.length * 3}rem` } : undefined}
+                >
+                  {globalVolunteers.map((v) => (
+                    <div key={`l-${v.volunteerId}`} className="flex-1 text-center">
+                      <p className="text-[8px] leading-tight text-muted-foreground truncate sm:text-[9px]">{v.chineseName}</p>
+                      <p className="text-[9px] tabular-nums text-foreground font-medium">{v.totalHours}h</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        )}
+      </div>
+
+      {/* ─── Records list dialog ──────────────────────────────────────────── */}
       <Dialog
-        open={!!drillVolunteerId}
-        onOpenChange={(o) => !o && setDrillVolunteerId(null)}
-        className="sm:max-w-2xl"
+        open={recordsDialogOpen}
+        onOpenChange={setRecordsDialogOpen}
+        title={recordsDialogTitle}
+        description="项目支援记录"
+        className="sm:max-w-xl"
       >
-        <VolunteerDrillContent loading={drillLoading} detail={drillDetail} />
+        {recordsLoading ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">加载中…</p>
+        ) : recordsList.length === 0 ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">暂无记录</p>
+        ) : (
+          <>
+            <div className="max-h-[28rem] overflow-y-auto space-y-2.5 pr-1">
+              {recordsList.map((r) => (
+                <SupportRecordCard key={r.id} support={r} showDelete={false} showId={false} />
+              ))}
+            </div>
+            {recordsTotalPages > 1 && (
+              <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+                <button
+                  type="button"
+                  disabled={recordsPage <= 1}
+                  onClick={() => handleRecordsPageChange(recordsPage - 1)}
+                  className="inline-flex h-7 items-center rounded-md px-2.5 text-xs font-medium text-foreground disabled:opacity-40 disabled:pointer-events-none hover:bg-muted"
+                >
+                  上一页
+                </button>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  第 {recordsPage}/{recordsTotalPages} 页
+                </span>
+                <button
+                  type="button"
+                  disabled={recordsPage >= recordsTotalPages}
+                  onClick={() => handleRecordsPageChange(recordsPage + 1)}
+                  className="inline-flex h-7 items-center rounded-md px-2.5 text-xs font-medium text-foreground disabled:opacity-40 disabled:pointer-events-none hover:bg-muted"
+                >
+                  下一页
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </Dialog>
     </div>
   );
 }
-
-// ─── Drill-down sheet content ───────────────────────────────────────────────
-
-const VolunteerDrillContent: React.FC<{
-  loading: boolean;
-  detail: VolunteerLedgerDetail | null;
-}> = ({ loading, detail }) => {
-  // Sort byMonth ASC for the bar chart (oldest → newest); backend returns DESC.
-  const months = useMemo(() => {
-    if (!detail) return [] as Array<{ period: string; count: number; totalHours: number }>;
-    return [...detail.byMonth]
-      .map((m) => ({ ...m, totalHours: Number(m.totalHours) || 0 }))
-      .sort((a, b) => (a.period < b.period ? -1 : 1));
-  }, [detail]);
-  const monthMax = useMemo(
-    () => Math.max(1, ...months.map((m) => m.totalHours)),
-    [months]
-  );
-
-  if (loading || !detail) {
-    return <p className="py-12 text-center text-sm text-muted-foreground">加载中…</p>;
-  }
-
-  const { volunteer, summary, byServiceItem, recentRecords } = detail;
-  const recent = recentRecords as ProjectSupport[];
-
-  return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-start gap-3">
-        <HeroAvatar name={volunteer.chineseName} code={volunteer.volunteerCode} size="md" />
-        <div className="min-w-0 flex-1">
-          <h3 className="font-serif text-lg font-semibold text-foreground">{volunteer.chineseName}</h3>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-mono tabular-nums">{volunteer.volunteerCode}</span>
-            {volunteer.department && <span> · {volunteer.department.name}</span>}
-          </p>
-        </div>
-      </div>
-
-      {/* Stat row */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {[
-          { label: '总条数', value: summary.totalRecords, suffix: '' },
-          { label: '累计时长', value: Number(summary.totalHours) || 0, suffix: 'h' },
-          { label: '平均', value: summary.avgDuration, suffix: 'h/条' },
-          { label: '代他人提交', value: summary.proxyContributions, suffix: '次' },
-        ].map((s) => (
-          <div key={s.label} className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-center">
-            <p className="font-serif text-base font-semibold tabular-nums leading-tight text-foreground">
-              {s.value}
-              {s.suffix && <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">{s.suffix}</span>}
-            </p>
-            <p className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Monthly bar chart */}
-      {months.length > 0 && (
-        <div>
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            按月时长（近 {months.length} 月）
-          </h4>
-          <div className="mt-2 flex h-20 items-end gap-1">
-            {months.map((m) => {
-              const h = (m.totalHours / monthMax) * 100;
-              return (
-                <div
-                  key={m.period}
-                  className={cn(
-                    'flex-1 rounded-t-md transition-colors',
-                    m.totalHours > 0 ? 'bg-primary/70 hover:bg-primary' : 'bg-muted',
-                  )}
-                  style={{ height: `${Math.max(h, m.totalHours > 0 ? 8 : 5)}%` }}
-                  title={`${m.period} · ${m.totalHours}h · ${m.count} 条`}
-                />
-              );
-            })}
-          </div>
-          <div className="mt-1 flex gap-1">
-            {months.map((m) => (
-              <div key={`l-${m.period}`} className="flex-1 text-center text-[9px] tabular-nums text-muted-foreground">
-                {m.period.slice(2)}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* By service item */}
-      {byServiceItem.length > 0 && (
-        <div>
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">按服务项</h4>
-          <ul className="mt-2 divide-y divide-border/60 rounded-lg border border-border">
-            {byServiceItem.map((s, i) => (
-              <li key={`${s.departmentName}-${s.serviceItemName}-${i}`} className="flex items-center justify-between px-3 py-2 text-sm">
-                <span className="truncate">
-                  <span className="text-xs text-muted-foreground">{s.departmentName} / </span>
-                  <span className="font-medium text-foreground">{s.serviceItemName}</span>
-                </span>
-                <span className="ml-3 shrink-0 text-xs tabular-nums text-muted-foreground">
-                  <span className="font-semibold text-foreground">{Number(s.totalHours) || 0}</span>h ·{' '}
-                  {s.count} 条
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Recent records */}
-      {recent.length > 0 && (
-        <div>
-          <h4 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            最近 {recent.length} 条记录
-          </h4>
-          <ul className="mt-2 space-y-2">
-            {recent.map((r) => (
-              <li key={r.id} className="rounded-lg border border-border bg-card p-2.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {r.serviceItem?.departmentName} / {r.serviceItem?.name}
-                  </p>
-                  <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                    <span className="font-semibold text-foreground">{r.duration}</span>h
-                  </span>
-                </div>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  <span className="tabular-nums">{formatLocalDate(r.serviceDate)}</span>
-                  {r.isProxy && r.submittedBy && (
-                    <span className="ml-2">· 由 {r.submittedBy.chineseName} 代提交</span>
-                  )}
-                </p>
-                {r.description && (
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{r.description}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-};
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -964,31 +865,5 @@ function formatRelative(iso: string): string {
   if (d < 30) return `${d} 天前`;
   return formatLocalDate(iso);
 }
-
-const SortableTh: React.FC<{
-  sortKey: VolunteerSortKey;
-  currentSort: VolunteerSort;
-  onClick: (key: VolunteerSortKey) => void;
-  className?: string;
-  children: React.ReactNode;
-}> = ({ sortKey, currentSort, onClick, className, children }) => {
-  const isActive = currentSort.key === sortKey;
-  const arrow = isActive ? (currentSort.dir === 'asc' ? '↑' : '↓') : '';
-  return (
-    <th className={cn('px-3 py-2.5 font-medium', className)}>
-      <button
-        type="button"
-        onClick={() => onClick(sortKey)}
-        className={cn(
-          'inline-flex items-center gap-1 transition-colors',
-          isActive ? 'text-foreground' : 'hover:text-foreground',
-        )}
-      >
-        {children}
-        <span className="text-[10px]">{arrow}</span>
-      </button>
-    </th>
-  );
-};
 
 export default ReviewPage;

@@ -123,15 +123,38 @@ class SupportLedgerService {
 
   /**
    * Time-series trend (monthly buckets). Used for the trend chart.
+   * Respects the same dateFrom/dateTo/departmentId filters as overview.
+   * Falls back to a 12-month rolling window when no date range is given.
    */
-  static async timeSeries({ months = 12 } = {}) {
+  /**
+   * @param {object} opts
+   * @param {number}  [opts.months=12]       Fallback rolling window when no dateFrom
+   * @param {string}  [opts.dateFrom]        ISO date lower bound
+   * @param {string}  [opts.dateTo]          ISO date upper bound
+   * @param {string}  [opts.departmentId]    Optional department filter
+   * @param {'month'|'day'} [opts.granularity='month']  Bucket size
+   */
+  static async timeSeries({ months = 12, dateFrom, dateTo, departmentId, granularity = 'month' } = {}) {
+    const from = dateFrom ? new Date(dateFrom) : null;
+    let to = null;
+    if (dateTo) {
+      to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+    }
+    const dept = departmentId || null;
+    const effectiveFrom = from || new Date(Date.now() - months * 30 * 24 * 60 * 60 * 1000);
+    const fmt = granularity === 'day' ? 'YYYY-MM-DD' : 'YYYY-MM';
+
     return prisma.$queryRaw`
-      SELECT TO_CHAR("serviceDate", 'YYYY-MM') AS period,
-             COUNT(*)::int                       AS count,
-             SUM(duration)                       AS "totalHours"
-      FROM project_supports
-      WHERE status = 'ACTIVE'
-        AND "serviceDate" >= NOW() - (${months} || ' months')::interval
+      SELECT TO_CHAR(p."serviceDate", ${fmt}) AS period,
+             COUNT(*)::int                     AS count,
+             SUM(p.duration)                   AS "totalHours"
+      FROM project_supports p
+      JOIN service_items si ON si.id = p."serviceItemId"
+      WHERE p.status = 'ACTIVE'
+        AND p."serviceDate" >= ${effectiveFrom}::timestamp
+        AND p."serviceDate" <= COALESCE(${to}::timestamp, p."serviceDate")
+        AND si."departmentId" = COALESCE(${dept}::text, si."departmentId")
       GROUP BY period
       ORDER BY period ASC
     `;
@@ -145,19 +168,22 @@ class SupportLedgerService {
    * COALESCE inside the SQL collapses the optional bounds into single
    * comparisons, which keeps the query as one safe tagged template.
    */
-  static async proxyContributions({ dateFrom, dateTo } = {}) {
+  static async proxyContributions({ dateFrom, dateTo, departmentId } = {}) {
     const from = dateFrom ? new Date(dateFrom) : null;
     const to = dateTo ? new Date(dateTo) : null;
+    const dept = departmentId || null;
     return prisma.$queryRaw`
       SELECT s."volunteerCode",
              s."chineseName",
              COUNT(*)::int AS "proxyCount"
       FROM project_supports p
       JOIN volunteers s ON s.id = p."submittedById"
+      JOIN service_items si ON si.id = p."serviceItemId"
       WHERE p.status = 'ACTIVE'
         AND p."volunteerId" != p."submittedById"
         AND p."serviceDate" >= COALESCE(${from}::timestamp, p."serviceDate")
         AND p."serviceDate" <= COALESCE(${to}::timestamp, p."serviceDate")
+        AND si."departmentId" = COALESCE(${dept}::text, si."departmentId")
       GROUP BY s."volunteerCode", s."chineseName"
       ORDER BY "proxyCount" DESC
       LIMIT 50
@@ -168,11 +194,20 @@ class SupportLedgerService {
    * Recent activity feed for admins — drawn from AuditLog filtered to
    * ProjectSupport actions.
    */
-  static async recentActivity({ limit = 50, action } = {}) {
+  static async recentActivity({ limit = 50, action, dateFrom, dateTo } = {}) {
     const where = { targetType: 'ProjectSupport' };
     if (action) {
       if (Array.isArray(action)) where.action = { in: action };
       else where.action = action;
+    }
+    if (dateFrom || dateTo) {
+      where.timestamp = {};
+      if (dateFrom) where.timestamp.gte = new Date(dateFrom);
+      if (dateTo) {
+        const to = new Date(dateTo);
+        to.setHours(23, 59, 59, 999);
+        where.timestamp.lte = to;
+      }
     }
     const logs = await prisma.auditLog.findMany({
       where,

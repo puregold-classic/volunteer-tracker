@@ -23,8 +23,13 @@ class SupportLedgerController {
 
   static async timeSeries(req, res) {
     try {
-      const months = parseInt(req.query.months || '12', 10);
-      const data = await SupportLedgerService.timeSeries({ months });
+      const data = await SupportLedgerService.timeSeries({
+        months: parseInt(req.query.months || '12', 10),
+        dateFrom: req.query.dateFrom,
+        dateTo: req.query.dateTo,
+        departmentId: req.query.departmentId,
+        granularity: req.query.granularity === 'day' ? 'day' : 'month',
+      });
       return ok(res, data);
     } catch (err) {
       return fail(res, 500, err.message);
@@ -36,6 +41,7 @@ class SupportLedgerController {
       const data = await SupportLedgerService.proxyContributions({
         dateFrom: req.query.dateFrom,
         dateTo: req.query.dateTo,
+        departmentId: req.query.departmentId,
       });
       return ok(res, data);
     } catch (err) {
@@ -48,6 +54,8 @@ class SupportLedgerController {
       const data = await SupportLedgerService.recentActivity({
         limit: parseInt(req.query.limit || '50', 10),
         action: req.query.action,
+        dateFrom: req.query.dateFrom,
+        dateTo: req.query.dateTo,
       });
       return ok(res, data);
     } catch (err) {
