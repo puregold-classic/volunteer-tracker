@@ -30,7 +30,6 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const VolunteerDetailPage = lazy(() => import('./pages/VolunteerDetailPage'));
 import { useHomeState, QUICK_FOCUS_OPTIONS } from './hooks/useHomeState';
 import { useAuth } from './context/AuthContext';
-import { toast } from '@/hooks/use-toast';
 import { resolveVolunteerCardTarget } from '@/lib/routing';
 
 // Inline route fallback while a code-split chunk is loading.
@@ -83,9 +82,6 @@ function HomePageContainer() {
       ownVolunteerId: account?.volunteerId,
       targetVolunteerId: id,
     });
-    if (target.needsLogin) {
-      toast({ title: '请先登录', description: '登录后即可查看志愿者详情' });
-    }
     navigate(target.route);
   };
   return (

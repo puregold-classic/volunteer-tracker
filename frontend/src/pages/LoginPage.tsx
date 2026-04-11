@@ -36,7 +36,6 @@ function LoginPage() {
     setError('');
     try {
       await login(email, password, rememberMe);
-      toast({ title: '登录成功', description: '欢迎回来' });
       // Resume original target if redirected here from a protected page
       const state = location.state as LocationState | undefined;
       const next = state?.from?.pathname || '/me';
