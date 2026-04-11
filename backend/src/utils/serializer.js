@@ -110,6 +110,42 @@ export function serializeVolunteer(v) {
   };
 }
 
+/**
+ * Strip PII (email, phone) from an already-serialized volunteer object.
+ * Use when a request is anonymous or the viewer is not the volunteer themselves
+ * / not an admin. Idempotent — safe to apply multiple times.
+ */
+export function stripVolunteerPII(v) {
+  if (!v) return null;
+  const { email: _e, phone: _p, ...rest } = v;
+  return rest;
+}
+
+const PRIVILEGED_ROLES = new Set(['admin', 'a_admin', 'b_admin']);
+
+/**
+ * Decide whether `viewer` (req.user, may be undefined) is allowed to see
+ * the full volunteer record (including email/phone) for `volunteer`.
+ * - Admin/reviewer roles: always yes
+ * - Regular users viewing their own volunteer profile: yes
+ * - Anonymous or someone else: no
+ */
+export function canViewVolunteerPII(viewer, volunteer) {
+  if (!viewer || !volunteer) return false;
+  if (PRIVILEGED_ROLES.has(viewer.role)) return true;
+  return viewer.volunteerId && viewer.volunteerId === volunteer.id;
+}
+
+/**
+ * Convenience wrapper: returns `volunteer` as-is if the viewer is allowed to
+ * see PII, otherwise returns a stripped copy. Works on both raw and already-
+ * serialized volunteer shapes (both have `email` and `phone` at top level).
+ */
+export function volunteerForViewer(viewer, volunteer) {
+  if (!volunteer) return null;
+  return canViewVolunteerPII(viewer, volunteer) ? volunteer : stripVolunteerPII(volunteer);
+}
+
 export function serializeDepartment(d) {
   if (!d) return null;
   return {
