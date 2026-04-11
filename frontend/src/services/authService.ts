@@ -77,8 +77,16 @@ export const authService = {
     return publicApi.post('/auth/register', payload);
   },
 
-  login: async (email: string, password: string): Promise<ApiResponse<LoginResponse>> => {
-    const response = (await publicApi.post('/auth/login', { email, password })) as ApiResponse<LoginResponse>;
+  login: async (
+    email: string,
+    password: string,
+    rememberMe: boolean = false,
+  ): Promise<ApiResponse<LoginResponse>> => {
+    const response = (await publicApi.post('/auth/login', {
+      email,
+      password,
+      rememberMe,
+    })) as ApiResponse<LoginResponse>;
     if (response?.success && response?.data?.token) {
       localStorage.setItem(AUTH_TOKEN_KEY, response.data.token);
     }

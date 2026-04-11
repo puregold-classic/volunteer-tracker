@@ -42,7 +42,12 @@ class AuthController {
   }
 
   static async logout(req, res) {
-    return res.status(200).json({ success: true, message: '已登出（客户端请删除 token）' });
+    try {
+      await AuthService.logout(req.user.accountId);
+      return res.status(200).json({ success: true, message: '已登出' });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: '登出失败' });
+    }
   }
 }
 

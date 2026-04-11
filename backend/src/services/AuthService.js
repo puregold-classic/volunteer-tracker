@@ -11,10 +11,15 @@ import prisma from '../utils/prismaClient.js';
 import { hashPassword, verifyPassword } from '../utils/passwordUtils.js';
 import { serializeAccount } from '../utils/serializer.js';
 
-export const signToken = (account) => {
+export const signToken = (account, { rememberMe = false } = {}) => {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) throw new Error('JWT_SECRET is not configured');
-  const expiresIn = process.env.JWT_EXPIRES_IN || '8h';
+  // Short-lived token by default. If the user checked "remember me" at login
+  // we extend it — tokenValidAfter on Account + logout invalidation makes
+  // this reasonably safe to the session-theft risk of long-lived JWTs.
+  const expiresIn = rememberMe
+    ? process.env.JWT_EXPIRES_IN_REMEMBER || '30d'
+    : process.env.JWT_EXPIRES_IN || '8h';
   return jwt.sign(
     {
       sub: account.id,
@@ -69,7 +74,7 @@ export const register = async ({ email, password, name, volunteerCode }) => {
   return { account: serializeAccount(account) };
 };
 
-export const login = async ({ email, password }) => {
+export const login = async ({ email, password, rememberMe = false }) => {
   if (!email || !password) return { missingFields: true };
 
   const account = await prisma.account.findUnique({
@@ -86,8 +91,21 @@ export const login = async ({ email, password }) => {
     data: { lastLoginAt: new Date() },
     include: { volunteer: { include: { department: true } } },
   });
-  const token = signToken(updated);
+  const token = signToken(updated, { rememberMe: !!rememberMe });
   return { token, account: serializeAccount(updated) };
+};
+
+/**
+ * Logout: bump tokenValidAfter to now, which invalidates every JWT issued
+ * before this moment (authenticate middleware rejects tokens with
+ * `iat < tokenValidAfter`). Idempotent.
+ */
+export const logout = async (accountId) => {
+  if (!accountId) return;
+  await prisma.account.update({
+    where: { id: accountId },
+    data: { tokenValidAfter: new Date() },
+  });
 };
 
 export const getMe = async (accountId) => {

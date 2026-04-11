@@ -47,6 +47,19 @@ export const authenticate = async (req, res, next) => {
       });
     }
 
+    // Lightweight JWT revocation: reject tokens issued before tokenValidAfter.
+    // jwt.sign() puts iat (issued-at) in seconds; Date.getTime() is ms.
+    if (account.tokenValidAfter) {
+      const iatMs = (payload.iat || 0) * 1000;
+      if (iatMs < account.tokenValidAfter.getTime()) {
+        return res.status(401).json({
+          success: false,
+          error: '令牌已失效，请重新登录',
+          code: 'TOKEN_REVOKED',
+        });
+      }
+    }
+
     req.user = {
       accountId: account.id,
       email: account.email,

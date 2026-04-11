@@ -24,7 +24,8 @@ vi.mock('../utils/passwordUtils.js', () => mockHash);
 process.env.JWT_SECRET = 'vitest-secret-padding-32-chars-min';
 process.env.JWT_EXPIRES_IN = '1h';
 
-import { register, login, getMe } from '../services/AuthService.js';
+import jwt from 'jsonwebtoken';
+import { register, login, logout, getMe } from '../services/AuthService.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -143,6 +144,45 @@ describe('AuthService.login', () => {
   it('returns missingFields when email or password absent', async () => {
     expect((await login({ email: '', password: 'x' })).missingFields).toBe(true);
     expect((await login({ email: 'a@b.com', password: '' })).missingFields).toBe(true);
+  });
+
+  it('rememberMe=true issues a longer-lived token', async () => {
+    const accountRow = {
+      id: 'acc-r', email: 'r@vt.local', passwordHash: '$hashed$',
+      name: '记', role: 'user', volunteerId: 'v1', isActive: true,
+      volunteer: { volunteerCode: 'PG-0001' },
+    };
+    mockPrisma.account.findUnique.mockResolvedValue(accountRow);
+    mockHash.verifyPassword.mockResolvedValue(true);
+    mockPrisma.account.update.mockResolvedValue(accountRow);
+
+    const rShort = await login({ email: 'r@vt.local', password: 'goodpass' });
+    const rLong = await login({ email: 'r@vt.local', password: 'goodpass', rememberMe: true });
+
+    const shortExp = jwt.decode(rShort.token).exp;
+    const longExp = jwt.decode(rLong.token).exp;
+    // Long-lived token should expire strictly after the short-lived one
+    expect(longExp).toBeGreaterThan(shortExp);
+    // And span at least ~7 days more (default 8h vs 30d)
+    expect(longExp - shortExp).toBeGreaterThan(7 * 24 * 3600);
+  });
+});
+
+// ─── logout ──────────────────────────────────────────────────────────────────
+
+describe('AuthService.logout', () => {
+  it('bumps tokenValidAfter on the account', async () => {
+    mockPrisma.account.update.mockResolvedValue({ id: 'a', tokenValidAfter: new Date() });
+    await logout('a');
+    expect(mockPrisma.account.update).toHaveBeenCalledWith({
+      where: { id: 'a' },
+      data: { tokenValidAfter: expect.any(Date) },
+    });
+  });
+
+  it('is a no-op when called without accountId', async () => {
+    await logout(null);
+    expect(mockPrisma.account.update).not.toHaveBeenCalled();
   });
 });
 

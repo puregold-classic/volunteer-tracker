@@ -6,7 +6,7 @@ interface AuthContextValue {
   account: Account | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
@@ -64,8 +64,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const result = await authService.login(email, password);
+  const login = async (email: string, password: string, rememberMe = false) => {
+    const result = await authService.login(email, password, rememberMe);
     if (!result?.success || !result.data) {
       throw new Error(result?.message || (result as any)?.error || '登录失败');
     }

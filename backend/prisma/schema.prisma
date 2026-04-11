@@ -139,6 +139,10 @@ model Account {
   volunteer    Volunteer? @relation(fields: [volunteerId], references: [id])
   isActive     Boolean    @default(true)
   lastLoginAt  DateTime?
+  // Any JWT with iat < tokenValidAfter is rejected. Updated on logout and
+  // password change so those actions effectively revoke existing tokens
+  // without needing a blacklist table.
+  tokenValidAfter DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 

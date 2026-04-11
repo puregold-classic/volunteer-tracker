@@ -21,6 +21,7 @@ function LoginPage() {
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -34,7 +35,7 @@ function LoginPage() {
     setSubmitting(true);
     setError('');
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
       toast({ title: '登录成功', description: '欢迎回来' });
       // Resume original target if redirected here from a protected page
       const state = location.state as LocationState | undefined;
@@ -99,6 +100,16 @@ function LoginPage() {
               error={!!error && !password}
             />
           </div>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              disabled={submitting}
+              className="h-4 w-4 rounded border-border text-primary focus:ring-ring focus:ring-offset-0"
+            />
+            <span>记住我（30 天内免登录）</span>
+          </label>
           {error && (
             <p className="text-sm text-destructive" role="alert">
               {error}
