@@ -45,7 +45,18 @@ app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS
+// Behind Cloudflare tunnel — trust X-Forwarded-* headers so rate-limit
+// and other middleware see real client IP instead of the Cloudflare edge IP.
+app.set('trust proxy', 1);
+
+// CORS — exact-match whitelist. Do NOT use .includes() substring checks:
+// origin.includes('localhost') would match evil.localhost.com.
+const DEV_ORIGINS = new Set([
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+]);
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
   .split(',')
   .map((s) => s.trim())
@@ -54,9 +65,7 @@ app.use(
   cors({
     origin(origin, callback) {
       if (!origin) return callback(null, true);
-      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-        return callback(null, true);
-      }
+      if (DEV_ORIGINS.has(origin)) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error(`CORS not allowed: ${origin}`));
     },
@@ -75,7 +84,7 @@ app.use('/api/v1/support-ledger', supportLedgerRoutes);
 app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/exports', exportRoutes);
 
-// Health check
+// Health check — in production return minimal info (no version/env fingerprint).
 app.get('/api/health', async (req, res) => {
   let pgStatus = 'unknown';
   try {
@@ -84,13 +93,19 @@ app.get('/api/health', async (req, res) => {
   } catch {
     pgStatus = 'disconnected';
   }
-  res.json({
+  if (pgStatus !== 'connected') {
+    return res.status(503).json({ status: 'degraded' });
+  }
+  const isDev = process.env.NODE_ENV !== 'production';
+  return res.json({
     status: 'ok',
-    message: '志愿者管理系统 API 正常运行',
-    schemaVersion: '2.1',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    postgresql: pgStatus,
+    ...(isDev && {
+      message: '志愿者管理系统 API 正常运行',
+      schemaVersion: '2.1',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      postgresql: pgStatus,
+    }),
   });
 });
 
