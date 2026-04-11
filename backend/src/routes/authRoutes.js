@@ -8,12 +8,13 @@ import express from 'express';
 import AuthController from '../controllers/authController.js';
 import AdminController from '../controllers/adminController.js';
 import { authenticate, authorizeRoles } from '../middleware/authenticate.js';
+import { authLimiter } from '../middleware/rateLimit.js';
 
 const router = express.Router();
 
 // Public
-router.post('/register', AuthController.register);
-router.post('/login', AuthController.login);
+router.post('/register', authLimiter, AuthController.register);
+router.post('/login', authLimiter, AuthController.login);
 router.post('/logout', authenticate, AuthController.logout);
 router.get('/me', authenticate, AuthController.me);
 
