@@ -32,6 +32,15 @@ export type ProjectSupportStatus =
   | 'REJECTED_BY_OWNER'
   | 'DELETED';
 
+// v3 三大板块 + 受训考勤. Category drives submission UI tabbing and ledger
+// grouping. TRAINING_ATTENDANCE items are blocked from individual submission
+// and only reachable via the project-level batch entry endpoint (wave 2).
+export type ServiceCategory =
+  | 'PROJECT_MGMT'
+  | 'PROJECT_TRAINING'
+  | 'PROJECT_SUPPORT'
+  | 'TRAINING_ATTENDANCE';
+
 // ─── Reference data ───────────────────────────────────────────────────────────
 
 export interface Department {
@@ -46,6 +55,7 @@ export interface ServiceItem {
   departmentId: string;
   departmentName?: string | null;
   name: string;
+  category: ServiceCategory;
   displayOrder: number;
   isActive: boolean;
   createdAt?: string;
@@ -53,7 +63,7 @@ export interface ServiceItem {
 
 export interface ServiceItemsByDepartment {
   department: Pick<Department, 'id' | 'name' | 'displayOrder'>;
-  items: Pick<ServiceItem, 'id' | 'name' | 'displayOrder'>[];
+  items: Pick<ServiceItem, 'id' | 'name' | 'category' | 'displayOrder'>[];
 }
 
 // ─── Identity ─────────────────────────────────────────────────────────────────

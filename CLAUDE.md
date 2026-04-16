@@ -2,12 +2,15 @@
 
 全球志愿者可视化管理系统。地图展示分布、按部门组织、自管 + 代提交项目支援记录。
 
-**当前 schema 版本**：**v2.1**（2026-04-08 落地）。详见 `backend/prisma/schema.prisma`。
+**当前 schema 版本**：**v2.1 + v3 增量**（v2.1 于 2026-04-08 落地；v3 `service_category` 迁移于 2026-04-17）。详见 `backend/prisma/schema.prisma`。
 
-## v2.1 核心模型（最重要）
+## 核心模型（最重要）
 
-- **Department**：10 个固定部门（笔译项目部 / 口译项目部 / XZT / 笔译培训部 / 口译培训部 / 文档部 / 推广部 / 技术部 / 人文部 / 管理部）。id 是人类可读 code（"BY_PROJECT" 等），不是 cuid
-- **ServiceItem**：~50 个服务项，FK 到 Department，replace 了 v1 的 `ServiceType` enum（翻译/校对/管理/技术）
+- **Department**：12 个固定部门（笔译项目部 / 口译项目部 / XZT / 笔译培训部 / 口译培训部 / 文档部 / 推广部 / 技术部 / 人文部 / 管理部 / 共读会 / 视频部）。id 是人类可读 code（"BY_PROJECT" 等），不是 cuid。v3 新增 `READING_CLUB` / `VIDEO`
+- **ServiceItem**：~60 个服务项，FK 到 Department，replace 了 v1 的 `ServiceType` enum。v3 加了 `category: ServiceCategory`：
+  - `PROJECT_MGMT` / `PROJECT_TRAINING` / `PROJECT_SUPPORT` / `TRAINING_ATTENDANCE` 四大类
+  - Category 放 ServiceItem 级（不是 Department 级），因为 TECH / CARE 内部横跨 培训 + 支持
+  - `TRAINING_ATTENDANCE`（受训考勤）**个人提交被 service 层拦截**，只能走 wave 2 的项目级批量录入
 - **Volunteer**：1:1 绑 Department；`volunteerCode` 是人类 ID（"PG-0001"），`id` 是 cuid（PK）。注意 v1 的 `services[]` 数组、`role` 字段、`nonProjectHours/Count` 累加器都已删除
 - **Account ↔ Volunteer**：FK 强约束 1:1。CHECK constraint `role = 'admin' OR volunteerId IS NOT NULL` —— 非 admin 必须绑 volunteer
 - **ProjectSupport**（v1 的 `NonProjectService` 改名）：状态机 `ACTIVE / PENDING_CONFIRMATION / REJECTED_BY_OWNER / DELETED`；自提交直接 ACTIVE，代提交（`submittedById ≠ volunteerId`）落到 PENDING_CONFIRMATION 等 owner confirm；partial unique index `(volunteerId, serviceDate, serviceItemId, duration, description) WHERE status='ACTIVE'` 防重
@@ -78,7 +81,9 @@ volunteer-tracker/
 │       ├── schema.prisma   # v2.1 模型
 │       ├── seed.js         # 10 部门 + 50 服务项 + 4 sample 账号
 │       └── migrations/
-│           └── 20260408..._schema_v2_1/  # 第 3 个 migration，含手工 SQL patch
+│           ├── 20260408..._schema_v2_1/      # 破坏性 reset + 手工 SQL patch
+│           ├── 20260411..._add_token_valid_after/  # JWT revoke 字段
+│           └── 20260417..._service_category/ # v3: ServiceCategory enum + 回填
 ├── scripts/deploy/         # pg-backup.sh / pg-restore.sh / launchd plist 模板
 ├── docs/
 │   ├── README.md           # 文档索引 + 项目总览

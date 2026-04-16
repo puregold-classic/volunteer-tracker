@@ -40,6 +40,7 @@ class ServiceItemService {
       items: d.serviceItems.map((s) => ({
         id: s.id,
         name: s.name,
+        category: s.category,
         displayOrder: s.displayOrder,
       })),
     }));

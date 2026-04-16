@@ -163,6 +163,7 @@ export function serializeServiceItem(s) {
     departmentId: s.departmentId,
     departmentName: s.department?.name ?? null,
     name: s.name,
+    category: s.category,
     displayOrder: s.displayOrder,
     isActive: s.isActive,
     createdAt: s.createdAt,

@@ -1,13 +1,15 @@
-// prisma/seed.js — v2.1
+// prisma/seed.js — v3 (12 departments + ServiceCategory)
 //
 // Idempotent reference data + a few sample accounts for the dev sandbox.
 // Run: `npx prisma db seed` (configured in package.json prisma.seed)
 //
 // What this does:
-// 1. Upsert 10 fixed Departments (by id code).
-// 2. Upsert ~50 ServiceItems scoped under each department.
-// 3. Ensure SystemSettings singleton row exists (migration also does this).
-// 4. Create a small set of sample volunteer accounts for testing
+// 1. Upsert 12 fixed Departments (by id code).
+// 2. Upsert ~60 ServiceItems (name + category) scoped under each department.
+// 3. Soft-disable any orphan items — items in the DB that are no longer in
+//    the canonical list (e.g. v2 TECH."培训" consolidated into 技术培训).
+// 4. Ensure SystemSettings singleton row exists (migration also does this).
+// 5. Create a small set of sample volunteer accounts for testing
 //    (only if their email isn't already taken).
 //
 // What this DOES NOT do:
@@ -22,29 +24,111 @@ const prisma = new PrismaClient();
 // ─── Reference data (organizational truth) ────────────────────────────────────
 
 const DEPARTMENTS = [
-  { id: 'BY_PROJECT',  name: '笔译项目部', displayOrder: 1 },
-  { id: 'KY_PROJECT',  name: '口译项目部', displayOrder: 2 },
-  { id: 'XZT',         name: 'XZT',         displayOrder: 3 },
-  { id: 'BY_TRAINING', name: '笔译培训部', displayOrder: 4 },
-  { id: 'KY_TRAINING', name: '口译培训部', displayOrder: 5 },
-  { id: 'DOCS',        name: '文档部',     displayOrder: 6 },
-  { id: 'PROMO',       name: '推广部',     displayOrder: 7 },
-  { id: 'TECH',        name: '技术部',     displayOrder: 8 },
-  { id: 'CARE',        name: '人文部',     displayOrder: 9 },
-  { id: 'MGMT',        name: '管理部',     displayOrder: 10 },
+  { id: 'BY_PROJECT',   name: '笔译项目部', displayOrder: 1 },
+  { id: 'KY_PROJECT',   name: '口译项目部', displayOrder: 2 },
+  { id: 'XZT',          name: 'XZT',         displayOrder: 3 },
+  { id: 'BY_TRAINING',  name: '笔译培训部', displayOrder: 4 },
+  { id: 'KY_TRAINING',  name: '口译培训部', displayOrder: 5 },
+  { id: 'DOCS',         name: '文档部',     displayOrder: 6 },
+  { id: 'PROMO',        name: '推广部',     displayOrder: 7 },
+  { id: 'TECH',         name: '技术部',     displayOrder: 8 },
+  { id: 'CARE',         name: '人文部',     displayOrder: 9 },
+  { id: 'MGMT',         name: '管理部',     displayOrder: 10 },
+  { id: 'READING_CLUB', name: '共读会',     displayOrder: 11 },
+  { id: 'VIDEO',        name: '视频部',     displayOrder: 12 },
 ];
 
+// ServiceItem shape: { name, category }
+// Category values: PROJECT_MGMT / PROJECT_TRAINING / PROJECT_SUPPORT / TRAINING_ATTENDANCE
+// TRAINING_ATTENDANCE items are only accepted by the wave-2 project-level batch
+// entry endpoint — individual submission is rejected at the service layer.
 const SERVICE_ITEMS = {
-  BY_PROJECT:  ['服务统计', '沟通反馈', '管理策划'],
-  KY_PROJECT:  ['服务统计', '沟通反馈'],
-  XZT:         ['录制', '笔记', 'PM', '信息传递', '服务统计', '沟通反馈'],
-  BY_TRAINING: ['策划', '对外联络', '沟通与记录', '项目执行', '服务统计'],
-  KY_TRAINING: ['策划', '对外联络', '沟通与记录', '项目执行', '服务统计'],
-  DOCS:        ['国宝录入', '文件改名', '文件整理归档', '服务统计'],
-  PROMO:       ['统筹', '策划', '文案', '海报', '推广', '运营', '服务统计'],
-  TECH:        ['计时', '播放', '聚焦', '录制', '分组', '培训', '服务统计', '技术培训'],
-  CARE:        ['信息更新', '人文关怀', '沟通管理', '服务统计', '人文培训'],
-  MGMT:        ['组织设计', '培训设计', '制度建立', '流程改善', '服务统计'],
+  BY_PROJECT: [
+    { name: '服务统计', category: 'PROJECT_MGMT' },
+    { name: '沟通反馈', category: 'PROJECT_MGMT' },
+    { name: '管理策划', category: 'PROJECT_MGMT' },
+  ],
+  KY_PROJECT: [
+    { name: '服务统计', category: 'PROJECT_MGMT' },
+    { name: '沟通反馈', category: 'PROJECT_MGMT' },
+    { name: '管理策划', category: 'PROJECT_MGMT' },
+  ],
+  XZT: [
+    { name: '录制',     category: 'PROJECT_MGMT' },
+    { name: '笔记',     category: 'PROJECT_MGMT' },
+    { name: 'PM',       category: 'PROJECT_MGMT' },
+    { name: '信息传递', category: 'PROJECT_MGMT' },
+    { name: '服务统计', category: 'PROJECT_MGMT' },
+    { name: '沟通反馈', category: 'PROJECT_MGMT' },
+  ],
+  BY_TRAINING: [
+    { name: '策划',       category: 'PROJECT_TRAINING' },
+    { name: '对外联络',   category: 'PROJECT_TRAINING' },
+    { name: '沟通与记录', category: 'PROJECT_TRAINING' },
+    { name: '项目执行',   category: 'PROJECT_TRAINING' },
+    { name: '服务统计',   category: 'PROJECT_TRAINING' },
+    { name: '受训',       category: 'TRAINING_ATTENDANCE' },
+  ],
+  KY_TRAINING: [
+    { name: '策划',       category: 'PROJECT_TRAINING' },
+    { name: '对外联络',   category: 'PROJECT_TRAINING' },
+    { name: '沟通与记录', category: 'PROJECT_TRAINING' },
+    { name: '项目执行',   category: 'PROJECT_TRAINING' },
+    { name: '服务统计',   category: 'PROJECT_TRAINING' },
+    { name: '受训',       category: 'TRAINING_ATTENDANCE' },
+  ],
+  DOCS: [
+    { name: '国宝录入',     category: 'PROJECT_SUPPORT' },
+    { name: '文件改名',     category: 'PROJECT_SUPPORT' },
+    { name: '文件整理归档', category: 'PROJECT_SUPPORT' },
+    { name: '服务统计',     category: 'PROJECT_SUPPORT' },
+  ],
+  PROMO: [
+    { name: '统筹',     category: 'PROJECT_SUPPORT' },
+    { name: '策划',     category: 'PROJECT_SUPPORT' },
+    { name: '文案',     category: 'PROJECT_SUPPORT' },
+    { name: '海报',     category: 'PROJECT_SUPPORT' },
+    { name: '推广',     category: 'PROJECT_SUPPORT' },
+    { name: '运营',     category: 'PROJECT_SUPPORT' },
+    { name: '服务统计', category: 'PROJECT_SUPPORT' },
+  ],
+  // v2 "培训" consolidated into 技术培训 per v3 (user confirmed they're the same).
+  // Any existing rows still pointing to TECH."培训" remain in the DB for audit
+  // but the item itself is soft-disabled by orphan sweep below so it cannot be
+  // selected for new submissions.
+  TECH: [
+    { name: '计时',     category: 'PROJECT_SUPPORT' },
+    { name: '播放',     category: 'PROJECT_SUPPORT' },
+    { name: '聚焦',     category: 'PROJECT_SUPPORT' },
+    { name: '录制',     category: 'PROJECT_SUPPORT' },
+    { name: '分组',     category: 'PROJECT_SUPPORT' },
+    { name: '服务统计', category: 'PROJECT_SUPPORT' },
+    { name: '技术培训', category: 'PROJECT_TRAINING' },
+    { name: '受训',     category: 'TRAINING_ATTENDANCE' },
+  ],
+  CARE: [
+    { name: '信息更新', category: 'PROJECT_SUPPORT' },
+    { name: '人文关怀', category: 'PROJECT_SUPPORT' },
+    { name: '沟通管理', category: 'PROJECT_SUPPORT' },
+    { name: '服务统计', category: 'PROJECT_SUPPORT' },
+    { name: '人文培训', category: 'PROJECT_TRAINING' },
+    { name: '受训',     category: 'TRAINING_ATTENDANCE' },
+  ],
+  MGMT: [
+    { name: '组织设计', category: 'PROJECT_SUPPORT' },
+    { name: '培训设计', category: 'PROJECT_SUPPORT' },
+    { name: '制度建立', category: 'PROJECT_SUPPORT' },
+    { name: '流程改善', category: 'PROJECT_SUPPORT' },
+    { name: '服务统计', category: 'PROJECT_SUPPORT' },
+  ],
+  READING_CLUB: [
+    { name: '策划共读', category: 'PROJECT_TRAINING' },
+    { name: '组织共读', category: 'PROJECT_TRAINING' },
+    { name: '受训',     category: 'TRAINING_ATTENDANCE' },
+  ],
+  VIDEO: [
+    { name: '视频剪辑', category: 'PROJECT_SUPPORT' },
+  ],
 };
 
 // ─── Sample volunteer accounts for sandbox testing ────────────────────────────
@@ -121,29 +205,56 @@ async function seedDepartments() {
 
 async function seedServiceItems() {
   console.log('→ seeding service items…');
-  let totalCount = 0;
+  let upserted = 0;
+  let deactivated = 0;
+
   for (const [departmentId, items] of Object.entries(SERVICE_ITEMS)) {
+    const wantedNames = new Set(items.map((it) => it.name));
+
     for (let i = 0; i < items.length; i += 1) {
-      const name = items[i];
+      const { name, category } = items[i];
       const displayOrder = i + 1;
-      // Upsert by composite (departmentId, name) — this is the natural key
+
       const existing = await prisma.serviceItem.findUnique({
         where: { departmentId_name: { departmentId, name } },
       });
       if (existing) {
         await prisma.serviceItem.update({
           where: { id: existing.id },
-          data: { displayOrder, isActive: true },
+          data: { displayOrder, category, isActive: true },
         });
       } else {
         await prisma.serviceItem.create({
-          data: { departmentId, name, displayOrder, isActive: true },
+          data: { departmentId, name, category, displayOrder, isActive: true },
         });
       }
-      totalCount += 1;
+      upserted += 1;
+    }
+
+    // Soft-disable orphans — items that existed before but are no longer in
+    // the canonical list. Records pointing at them remain readable for audit;
+    // they're just not selectable for new submissions.
+    const orphans = await prisma.serviceItem.findMany({
+      where: {
+        departmentId,
+        isActive: true,
+        NOT: { name: { in: Array.from(wantedNames) } },
+      },
+    });
+    for (const orphan of orphans) {
+      await prisma.serviceItem.update({
+        where: { id: orphan.id },
+        data: { isActive: false },
+      });
+      deactivated += 1;
+      console.log(`    ⚠ soft-disabled orphan: ${departmentId}.${orphan.name}`);
     }
   }
-  console.log(`  ✓ ${totalCount} service items across ${Object.keys(SERVICE_ITEMS).length} departments`);
+
+  console.log(`  ✓ ${upserted} items upserted across ${Object.keys(SERVICE_ITEMS).length} departments`);
+  if (deactivated > 0) {
+    console.log(`  ⚠ ${deactivated} orphan items soft-disabled`);
+  }
 }
 
 async function ensureSystemSettings() {

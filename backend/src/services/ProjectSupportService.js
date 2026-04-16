@@ -257,6 +257,11 @@ class ProjectSupportService {
     ]);
     if (!owner) return { validationError: `志愿者不存在: ${volunteerId}` };
     if (!item || !item.isActive) return { validationError: `服务项不存在或已停用: ${serviceItemId}` };
+    // 受训考勤只能通过项目级批量录入进入系统（wave 2 的 batch-entry 路径）。
+    // 走个人提交通道会违背"受训是考勤、由组织方统一录入"的产品语义。
+    if (item.category === 'TRAINING_ATTENDANCE') {
+      return { validationError: '受训类服务项仅支持项目级批量录入，不能个人提交' };
+    }
 
     // Determine status: self-submit → ACTIVE; proxy → PENDING_CONFIRMATION.
     // Admin acting on someone else's behalf is also a proxy unless they bypass

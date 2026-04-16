@@ -86,6 +86,7 @@ const sampleServiceItem = {
   id: 'svc-tech-recording',
   name: '录制',
   departmentId: 'TECH',
+  category: 'PROJECT_SUPPORT',
   isActive: true,
 };
 
@@ -225,6 +226,18 @@ describe('ProjectSupportService.create', () => {
     mockPrisma.serviceItem.findUnique.mockResolvedValue({ ...sampleServiceItem, isActive: false });
     const result = await ProjectSupportService.create(baseInput, userOperator);
     expect(result.validationError).toMatch(/已停用|不存在/);
+  });
+
+  it('rejects TRAINING_ATTENDANCE item (only project-level batch accepted)', async () => {
+    mockPrisma.volunteer.findUnique.mockResolvedValue(sampleVolunteer);
+    mockPrisma.serviceItem.findUnique.mockResolvedValue({
+      ...sampleServiceItem,
+      name: '受训',
+      category: 'TRAINING_ATTENDANCE',
+    });
+    const result = await ProjectSupportService.create(baseInput, userOperator);
+    expect(result.validationError).toMatch(/受训|项目级/);
+    expect(mockPrisma.projectSupport.create).not.toHaveBeenCalled();
   });
 
   it('catches P2002 dedup violation as friendly error', async () => {

@@ -94,6 +94,21 @@ enum AuditAction {
   seed_import
 }
 
+// Classifies a ServiceItem into the v3 三大板块 buckets. Category is assigned
+// per ServiceItem rather than per Department because a few departments (TECH,
+// CARE) span multiple categories via their individual items (e.g. TECH has
+// both 技术培训 which is PROJECT_TRAINING and 计时/播放 which are PROJECT_SUPPORT).
+// TRAINING_ATTENDANCE records are only produced via project-level batch entry
+// (wave 2); individual submission is service-layer blocked.
+enum ServiceCategory {
+  PROJECT_MGMT
+  PROJECT_TRAINING
+  PROJECT_SUPPORT
+  TRAINING_ATTENDANCE
+
+  @@map("ServiceCategory")
+}
+
 // ─── Reference data ───────────────────────────────────────────────────────────
 
 model Department {
@@ -110,18 +125,23 @@ model Department {
 }
 
 model ServiceItem {
-  id           String     @id @default(cuid())
+  id           String          @id @default(cuid())
   departmentId String
-  department   Department @relation(fields: [departmentId], references: [id])
+  department   Department      @relation(fields: [departmentId], references: [id])
   name         String
+  // Category drives the 三大板块 tabbing in the submission UI and the ledger.
+  // TRAINING_ATTENDANCE items are blocked from individual submission by
+  // ProjectSupportService.create; they are populated via batch-entry only.
+  category     ServiceCategory @default(PROJECT_SUPPORT)
   displayOrder Int
-  isActive     Boolean    @default(true)
-  createdAt    DateTime   @default(now())
+  isActive     Boolean         @default(true)
+  createdAt    DateTime        @default(now())
 
   projectSupports ProjectSupport[]
 
   @@unique([departmentId, name])
   @@index([departmentId, displayOrder])
+  @@index([category])
   @@map("service_items")
 }
 
