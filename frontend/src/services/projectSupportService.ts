@@ -46,6 +46,9 @@ export interface UpdateProjectSupportPayload {
   serviceDate?: string;
   duration?: number;
   description?: string;
+  // v3 wave-2 step 3: link / unlink a ProjectSupport to a Project (tagging).
+  // Pass null to unlink, a Project.id to link.
+  projectId?: string | null;
 }
 
 export const projectSupportService = {

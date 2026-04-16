@@ -56,6 +56,7 @@ import { parseLocalDate, formatLocalDate } from '@/lib/date-utils';
 import { HeroAvatar } from '@/components/shared/hero-avatar';
 import { SupportRecordCard } from '@/components/shared/support-record-card';
 import { SubmitFormDialog } from '@/components/shared/submit-form-dialog';
+import { LinkProjectDialog } from '@/components/shared/link-project-dialog';
 
 interface MePageProps {
   onBackHome: () => void;
@@ -200,6 +201,7 @@ function MePage({ onBackHome }: MePageProps) {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [recordFilter, setRecordFilter] = useState<'ACTIVE' | 'PENDING' | 'HISTORY'>('ACTIVE');
+  const [linkingSupport, setLinkingSupport] = useState<ProjectSupport | null>(null);
 
   const refresh = async () => {
     if (!account?.volunteerId) return;
@@ -612,7 +614,13 @@ function MePage({ onBackHome }: MePageProps) {
                 </div>
                 <div className="space-y-2.5">
                   {g.records.map((s) => (
-                    <SupportRecordCard key={s.id} support={s} onDelete={handleDelete} busy={busy} />
+                    <SupportRecordCard
+                      key={s.id}
+                      support={s}
+                      onDelete={handleDelete}
+                      onLinkProject={setLinkingSupport}
+                      busy={busy}
+                    />
                   ))}
                 </div>
               </div>
@@ -689,6 +697,14 @@ function MePage({ onBackHome }: MePageProps) {
         supportId={rejectingId}
         onConfirm={handleRejectProxy}
         onClose={() => setRejectingId(null)}
+      />
+
+      {/* ─── Link-project dialog (v3 wave-2 step 3) ──────────────────────── */}
+      <LinkProjectDialog
+        open={!!linkingSupport}
+        support={linkingSupport}
+        onOpenChange={(v) => { if (!v) setLinkingSupport(null); }}
+        onChanged={() => void refresh()}
       />
     </div>
   );
