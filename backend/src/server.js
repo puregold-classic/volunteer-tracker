@@ -49,14 +49,18 @@ app.use(express.urlencoded({ extended: true }));
 // and other middleware see real client IP instead of the Cloudflare edge IP.
 app.set('trust proxy', 1);
 
-// CORS — exact-match whitelist. Do NOT use .includes() substring checks:
-// origin.includes('localhost') would match evil.localhost.com.
-const DEV_ORIGINS = new Set([
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:5173',
-]);
+// CORS — exact-match pattern, anchored. Do NOT use .includes() substring
+// checks: origin.includes('localhost') would match evil.localhost.com.
+//
+// In dev / test, any localhost / 127.0.0.1 port is allowed — Vite sometimes
+// falls back to 3001+ when the default port is taken, and a real user
+// experience should not hinge on which port npm run dev landed on. The
+// anchored regex below rejects evil.localhost.com because it requires the
+// entire host to be "localhost" or "127.0.0.1" (no subdomain / suffix).
+//
+// In production only CORS_ALLOWED_ORIGINS is honored — no localhost shortcut.
+const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const isDevOrTest = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
   .split(',')
   .map((s) => s.trim())
@@ -65,7 +69,7 @@ app.use(
   cors({
     origin(origin, callback) {
       if (!origin) return callback(null, true);
-      if (DEV_ORIGINS.has(origin)) return callback(null, true);
+      if (isDevOrTest && LOCALHOST_ORIGIN.test(origin)) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error(`CORS not allowed: ${origin}`));
     },

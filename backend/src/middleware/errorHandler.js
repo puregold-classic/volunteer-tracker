@@ -65,6 +65,12 @@ export const errorHandler = (err, req, res, _next) => {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   let message = err.message;
 
+  // Always log the underlying error server-side — the response body carries
+  // the stack in dev but that's client-visible only; a server log ensures
+  // operators see every 5xx without needing the browser console.
+  console.error(`[errorHandler] ${req.method} ${req.originalUrl} → ${err.name || 'Error'}: ${err.message}`);
+  if (err.stack) console.error(err.stack);
+
   // Prisma 错误处理
   const prismaMessage = parsePrismaError(err);
   if (prismaMessage) {
