@@ -71,3 +71,15 @@ export const deleteProject = async (req, res) => {
     return fail(res, 500, err.message);
   }
 };
+
+export const batchAttendance = async (req, res) => {
+  try {
+    const result = await ProjectService.batchAttendance(req.params.id, req.body || {}, req.user);
+    if (result.notFound) return fail(res, 404, `项目不存在: ${req.params.id}`);
+    if (result.forbidden) return fail(res, 403, result.forbidden);
+    if (result.validationError) return fail(res, 400, result.validationError);
+    return ok(res, result);
+  } catch (err) {
+    return fail(res, 500, err.message);
+  }
+};

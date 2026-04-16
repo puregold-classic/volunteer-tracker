@@ -20,6 +20,12 @@ const { mockPrisma, mockIDGen } = vi.hoisted(() => {
       update: vi.fn(),
       delete: vi.fn(),
     },
+    projectSupport: {
+      findMany: vi.fn(),
+      create: vi.fn(),
+    },
+    serviceItem: { findUnique: vi.fn() },
+    volunteer: { findMany: vi.fn() },
     department: { findUnique: vi.fn() },
     auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
@@ -29,6 +35,7 @@ const { mockPrisma, mockIDGen } = vi.hoisted(() => {
     mockPrisma: prisma,
     mockIDGen: {
       generateProjectCode: vi.fn(async () => 'PROJ-0001'),
+      generateSupportId: vi.fn(async (code) => `PS-${code}-001`),
       generateAuditId: vi.fn(() => 'AUDIT-deadbeef'),
     },
   };
@@ -194,6 +201,171 @@ describe('ProjectService.remove', () => {
   it('returns notFound when project does not exist', async () => {
     mockPrisma.project.findUnique.mockResolvedValue(null);
     const result = await ProjectService.remove('no-such-id', aAdmin);
+    expect(result.notFound).toBe(true);
+  });
+});
+
+// ─── batchAttendance() ───────────────────────────────────────────────────────
+
+describe('ProjectService.batchAttendance', () => {
+  const attendanceItem = {
+    id: 'svc-training-attend',
+    name: '受训',
+    departmentId: 'BY_TRAINING',
+    category: 'TRAINING_ATTENDANCE',
+    isActive: true,
+  };
+
+  const projectRow = {
+    id: 'proj-1',
+    projectCode: 'PROJ-0001',
+    name: '2026-04 笔译培训 第 12 期',
+    category: 'TRAINING_ATTENDANCE',
+    departmentId: 'BY_TRAINING',
+    sessionDate: new Date('2026-04-10'),
+    sessionDuration: 2,
+    attributes: {},
+  };
+
+  const volA = { id: 'vol-a', volunteerCode: 'PG-0010', chineseName: '王一', englishName: 'Wang Yi' };
+  const volB = { id: 'vol-b', volunteerCode: 'PG-0011', chineseName: '李二', englishName: 'Li Er' };
+  // Two volunteers share 中文名 to exercise the ambiguous-match path
+  const volCduplicate1 = { id: 'vol-c1', volunteerCode: 'PG-0020', chineseName: '同名', englishName: 'Tong Ming A' };
+  const volCduplicate2 = { id: 'vol-c2', volunteerCode: 'PG-0021', chineseName: '同名', englishName: 'Tong Ming B' };
+
+  beforeEach(() => {
+    mockPrisma.project.findUnique.mockResolvedValue(projectRow);
+    mockPrisma.serviceItem.findUnique.mockResolvedValue(attendanceItem);
+    mockPrisma.volunteer.findMany.mockResolvedValue([volA, volB, volCduplicate1, volCduplicate2]);
+    mockPrisma.projectSupport.findMany.mockResolvedValue([]); // nothing recorded yet
+    mockPrisma.projectSupport.create.mockImplementation(async ({ data, select }) => ({
+      id: `ps-${data.volunteerId}`,
+      supportId: `PS-MOCK-${data.volunteerId}`,
+      volunteerId: data.volunteerId,
+    }));
+  });
+
+  it('creates records for matched names, skips unmatched, records all in audit', async () => {
+    const result = await ProjectService.batchAttendance(
+      'proj-1',
+      { names: ['王一', 'PG-0011', 'unknown-name'], serviceItemId: attendanceItem.id },
+      aAdmin,
+    );
+    expect(result.total).toBe(3);
+    expect(result.created).toHaveLength(2);
+    expect(result.created.map((c) => c.volunteer.volunteerCode).sort()).toEqual(['PG-0010', 'PG-0011']);
+    expect(result.unmatched).toEqual(['unknown-name']);
+    expect(mockPrisma.projectSupport.create).toHaveBeenCalledTimes(2);
+
+    const auditArgs = mockPrisma.auditLog.create.mock.calls[0][0];
+    expect(auditArgs.data.action).toBe('project_attendance_batch');
+    expect(auditArgs.data.actionDetails).toMatchObject({
+      projectCode: 'PROJ-0001',
+      created: 2,
+      unmatched: 1,
+    });
+  });
+
+  it('reports ambiguous names with candidates instead of creating', async () => {
+    const result = await ProjectService.batchAttendance(
+      'proj-1',
+      { names: ['同名'], serviceItemId: attendanceItem.id },
+      aAdmin,
+    );
+    expect(result.created).toHaveLength(0);
+    expect(result.ambiguous).toHaveLength(1);
+    expect(result.ambiguous[0].candidates.map((v) => v.volunteerCode).sort()).toEqual(['PG-0020', 'PG-0021']);
+    expect(mockPrisma.projectSupport.create).not.toHaveBeenCalled();
+  });
+
+  it('skips volunteers already recorded for this project (re-paste is safe)', async () => {
+    mockPrisma.projectSupport.findMany.mockResolvedValue([{ volunteerId: 'vol-a' }]);
+
+    const result = await ProjectService.batchAttendance(
+      'proj-1',
+      { names: ['王一', '李二'], serviceItemId: attendanceItem.id },
+      aAdmin,
+    );
+    expect(result.created).toHaveLength(1);
+    expect(result.created[0].volunteer.volunteerCode).toBe('PG-0011');
+    expect(result.alreadyRecorded).toHaveLength(1);
+    expect(result.alreadyRecorded[0].volunteer.volunteerCode).toBe('PG-0010');
+  });
+
+  it('dedupes identical input names (same name pasted twice counts once)', async () => {
+    const result = await ProjectService.batchAttendance(
+      'proj-1',
+      { names: ['王一', '王一', 'PG-0010'], serviceItemId: attendanceItem.id },
+      aAdmin,
+    );
+    // 王一 and PG-0010 both refer to volA; after normalization there are 2 unique
+    // inputs but they match the same person → only one create
+    expect(result.total).toBe(2);
+    expect(result.created).toHaveLength(1);
+  });
+
+  it('rejects non-TRAINING_ATTENDANCE project', async () => {
+    mockPrisma.project.findUnique.mockResolvedValue({ ...projectRow, category: 'PROJECT_MGMT' });
+    const result = await ProjectService.batchAttendance(
+      'proj-1',
+      { names: ['王一'], serviceItemId: attendanceItem.id },
+      aAdmin,
+    );
+    expect(result.validationError).toMatch(/受训考勤/);
+  });
+
+  it('rejects service-item whose department differs from the project', async () => {
+    mockPrisma.serviceItem.findUnique.mockResolvedValue({
+      ...attendanceItem,
+      departmentId: 'TECH',
+    });
+    const result = await ProjectService.batchAttendance(
+      'proj-1',
+      { names: ['王一'], serviceItemId: attendanceItem.id },
+      aAdmin,
+    );
+    expect(result.validationError).toMatch(/不属于项目所在部门/);
+  });
+
+  it('rejects service-item whose category is not TRAINING_ATTENDANCE', async () => {
+    mockPrisma.serviceItem.findUnique.mockResolvedValue({
+      ...attendanceItem,
+      category: 'PROJECT_TRAINING',
+    });
+    const result = await ProjectService.batchAttendance(
+      'proj-1',
+      { names: ['王一'], serviceItemId: attendanceItem.id },
+      aAdmin,
+    );
+    expect(result.validationError).toMatch(/受训考勤类/);
+  });
+
+  it('rejects batch larger than 500 names', async () => {
+    const big = Array.from({ length: 600 }, (_, i) => `name-${i}`);
+    const result = await ProjectService.batchAttendance(
+      'proj-1',
+      { names: big, serviceItemId: attendanceItem.id },
+      aAdmin,
+    );
+    expect(result.validationError).toMatch(/500/);
+  });
+
+  it('rejects operator without volunteer binding', async () => {
+    const result = await ProjectService.batchAttendance(
+      'proj-1',
+      { names: ['王一'], serviceItemId: attendanceItem.id },
+      { ...aAdmin, volunteerId: null, role: 'admin' },
+    );
+    expect(result.forbidden).toBeDefined();
+  });
+
+  it('returns notFound when project does not exist', async () => {
+    mockPrisma.project.findUnique.mockResolvedValue(null);
+    const result = await ProjectService.batchAttendance(
+      'missing',
+      { names: ['王一'], serviceItemId: attendanceItem.id },
+      aAdmin,
+    );
     expect(result.notFound).toBe(true);
   });
 });

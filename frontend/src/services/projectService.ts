@@ -10,7 +10,35 @@ import type {
   Project,
   ProjectAttributes,
   ServiceCategory,
+  VolunteerSummary,
 } from './types';
+
+// ─── Batch-attendance entry ─────────────────────────────────────────────────
+
+export interface BatchAttendancePayload {
+  names: string[];
+  serviceItemId: string;
+  description?: string;
+}
+
+export interface BatchAttendanceMatch {
+  input: string;
+  volunteer: VolunteerSummary;
+  supportId?: string;
+}
+
+export interface BatchAttendanceAmbiguous {
+  input: string;
+  candidates: VolunteerSummary[];
+}
+
+export interface BatchAttendanceResult {
+  total: number;
+  created: BatchAttendanceMatch[];
+  alreadyRecorded: BatchAttendanceMatch[];
+  unmatched: string[];
+  ambiguous: BatchAttendanceAmbiguous[];
+}
 
 export interface ProjectListParams {
   category?: ServiceCategory;
@@ -75,6 +103,13 @@ export const projectService = {
 
   remove: async (id: string): Promise<ApiResponse<{ deleted: boolean }>> => {
     return api.delete(`/projects/${id}`);
+  },
+
+  batchAttendance: async (
+    id: string,
+    payload: BatchAttendancePayload,
+  ): Promise<ApiResponse<BatchAttendanceResult>> => {
+    return api.post(`/projects/${id}/attendance`, payload);
   },
 };
 

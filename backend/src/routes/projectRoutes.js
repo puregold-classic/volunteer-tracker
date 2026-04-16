@@ -11,6 +11,7 @@ import {
   createProject,
   updateProject,
   deleteProject,
+  batchAttendance,
 } from '../controllers/projectController.js';
 import { authenticate, authorizeRoles } from '../middleware/authenticate.js';
 
@@ -21,5 +22,14 @@ router.get('/:id', authenticate, getProject);
 router.post('/', authenticate, authorizeRoles('admin', 'a_admin'), createProject);
 router.patch('/:id', authenticate, authorizeRoles('admin', 'a_admin'), updateProject);
 router.delete('/:id', authenticate, authorizeRoles('admin', 'a_admin'), deleteProject);
+
+// Batch attendance entry — b_admin is allowed here as a 录入员 even though
+// they can't create or edit the project itself.
+router.post(
+  '/:id/attendance',
+  authenticate,
+  authorizeRoles('admin', 'a_admin', 'b_admin'),
+  batchAttendance,
+);
 
 export default router;
