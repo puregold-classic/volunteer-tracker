@@ -5,21 +5,28 @@
 //     dialog title becomes "为 XX 提交项目支援", checkbox is hidden,
 //     volunteerId is auto-supplied.
 //
+// v3 service-item picker:
+// - Top: 三大板块 tabs (项目管理 / 项目培训 / 项目支持).
+// - Inside each tab: items grouped by Department, rendered as pill buttons.
+// - TRAINING_ATTENDANCE items are filtered out here (backend also blocks them).
+// - The currently-selected item shows a breadcrumb above the tabs so you
+//   know what's picked even after scrolling or tab-switching.
+//
 // Submission goes through projectSupportService.create. Backend decides
-// PENDING_CONFIRMATION vs ACTIVE based on whether submittedById ===
-// volunteerId. Admin role gets the same flow — backend allows admin to
-// create on behalf of any volunteer.
+// PENDING_CONFIRMATION vs ACTIVE based on operator role (v3: a_admin /
+// b_admin proxy auto-confirms) and submittedById vs volunteerId.
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import volunteerService from '@services/volunteerService';
 import projectSupportService from '@services/projectSupportService';
-import type { ServiceItemsByDepartment } from '@services/types';
+import type { ServiceCategory, ServiceItemsByDepartment } from '@services/types';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 const submitSchema = z
   .object({
@@ -39,6 +46,61 @@ const submitSchema = z
   );
 
 type SubmitFormData = z.infer<typeof submitSchema>;
+
+const CATEGORY_TABS: { value: ServiceCategory; label: string }[] = [
+  { value: 'PROJECT_MGMT', label: '项目管理' },
+  { value: 'PROJECT_TRAINING', label: '项目培训' },
+  { value: 'PROJECT_SUPPORT', label: '项目支持' },
+];
+
+// Shape used internally: group departments under category; each dept keeps
+// only items belonging to that category. Items with category=TRAINING_ATTENDANCE
+// are always filtered out of the individual-submission picker.
+type CategoryGroup = {
+  category: ServiceCategory;
+  departments: Array<{
+    id: string;
+    name: string;
+    items: Array<{ id: string; name: string }>;
+  }>;
+};
+
+function buildCategoryGroups(groupedItems: ServiceItemsByDepartment[]): CategoryGroup[] {
+  const byCategory = new Map<ServiceCategory, Map<string, CategoryGroup['departments'][number]>>();
+  for (const g of groupedItems) {
+    for (const item of g.items) {
+      if (item.category === 'TRAINING_ATTENDANCE') continue;
+      let deptMap = byCategory.get(item.category);
+      if (!deptMap) {
+        deptMap = new Map();
+        byCategory.set(item.category, deptMap);
+      }
+      let entry = deptMap.get(g.department.id);
+      if (!entry) {
+        entry = { id: g.department.id, name: g.department.name, items: [] };
+        deptMap.set(g.department.id, entry);
+      }
+      entry.items.push({ id: item.id, name: item.name });
+    }
+  }
+  return CATEGORY_TABS.map((c) => ({
+    category: c.value,
+    departments: Array.from(byCategory.get(c.value)?.values() ?? []),
+  }));
+}
+
+function findItemCategory(
+  groups: CategoryGroup[],
+  itemId: string,
+): { category: ServiceCategory; deptName: string; itemName: string } | null {
+  for (const g of groups) {
+    for (const d of g.departments) {
+      const match = d.items.find((i) => i.id === itemId);
+      if (match) return { category: g.category, deptName: d.name, itemName: match.name };
+    }
+  }
+  return null;
+}
 
 export interface SubmitFormDialogProps {
   open: boolean;
@@ -62,10 +124,17 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
 }) => {
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const isLockedProxy = !!targetVolunteer;
+  const categoryGroups = useMemo(() => buildCategoryGroups(groupedItems), [groupedItems]);
+
+  const firstNonEmptyCategory =
+    categoryGroups.find((g) => g.departments.length > 0)?.category ?? 'PROJECT_MGMT';
+  const [activeCategory, setActiveCategory] = useState<ServiceCategory>(firstNonEmptyCategory);
+
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     reset,
     setError,
     formState: { errors, isSubmitting },
@@ -82,6 +151,11 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
   });
 
   const forAnother = watch('forAnother');
+  const selectedItemId = watch('serviceItemId');
+  const selectedInfo = useMemo(
+    () => (selectedItemId ? findItemCategory(categoryGroups, selectedItemId) : null),
+    [selectedItemId, categoryGroups],
+  );
 
   useEffect(() => {
     if (open) {
@@ -93,17 +167,25 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
         forAnother: false,
         targetVolunteerCode: '',
       });
+      setActiveCategory(firstNonEmptyCategory);
     }
-  }, [open, reset, today]);
+  }, [open, reset, today, firstNonEmptyCategory]);
+
+  // When user picks an item from another tab via selectedInfo, follow them
+  // there so the active-tab highlight matches the picked item.
+  useEffect(() => {
+    if (selectedInfo && selectedInfo.category !== activeCategory) {
+      setActiveCategory(selectedInfo.category);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedInfo?.category]);
 
   const onSubmit = async (data: SubmitFormData) => {
     let targetVolunteerId: string | undefined;
 
     if (isLockedProxy) {
-      // Locked proxy: target supplied by parent
       targetVolunteerId = targetVolunteer.id;
     } else if (data.forAnother && data.targetVolunteerCode) {
-      // Free-form proxy: look up by volunteer code
       const lookup = await volunteerService.getVolunteerById(data.targetVolunteerCode.trim());
       if (!lookup?.success || !lookup.data) {
         setError('targetVolunteerCode', { message: `未找到 volunteer: ${data.targetVolunteerCode}` });
@@ -122,10 +204,15 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
 
     if (result?.success && result.data) {
       const isProxy = result.data.isProxy;
+      const pending = result.data.status === 'PENDING_CONFIRMATION';
       const targetName = targetVolunteer?.chineseName || data.targetVolunteerCode;
       toast({
         title: '提交成功',
-        description: isProxy ? `已代为提交，等待 ${targetName} 确认` : '记录已生效',
+        description: isProxy && pending
+          ? `已代为提交，等待 ${targetName} 确认`
+          : isProxy
+            ? `已为 ${targetName} 录入（已直接生效）`
+            : '记录已生效',
       });
       onSubmitted();
       onOpenChange(false);
@@ -140,32 +227,111 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
     ? `为 ${targetVolunteer.chineseName} 提交项目支援`
     : '提交项目支援';
   const description = isLockedProxy
-    ? '提交后将进入待确认状态，等待对方确认'
-    : '记录你完成的支援工作，提交后立即生效';
+    ? '选择类别 → 服务项，填写时长与描述即可录入'
+    : '选择类别 → 服务项，填写时长与描述即可录入';
+
+  const activeGroup = categoryGroups.find((g) => g.category === activeCategory);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={title} description={description}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="space-y-1.5">
-          <label htmlFor="ms-service-item" className="text-sm font-medium text-foreground">
-            服务项 <span className="text-destructive">*</span>
-          </label>
-          <select
-            id="ms-service-item"
-            {...register('serviceItemId')}
-            className="h-12 w-full rounded-lg border border-border bg-background px-3 text-base text-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+        {/* ─── Service item picker: category tabs + dept-grouped pills ─── */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-sm font-medium text-foreground">
+              服务项 <span className="text-destructive">*</span>
+            </label>
+            {selectedInfo && (
+              <span className="truncate text-xs text-muted-foreground">
+                已选：
+                <span className="font-medium text-foreground">{selectedInfo.deptName}</span>
+                <span className="mx-1">·</span>
+                <span className="font-medium text-primary">{selectedInfo.itemName}</span>
+              </span>
+            )}
+          </div>
+
+          {/* Category tabs */}
+          <div
+            role="tablist"
+            className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/50 p-1"
           >
-            <option value="">— 选择服务项 —</option>
-            {groupedItems.map((g) => (
-              <optgroup key={g.department.id} label={g.department.name}>
-                {g.items.map((it) => (
-                  <option key={it.id} value={it.id}>
-                    {it.name}
-                  </option>
+            {CATEGORY_TABS.map((tab) => {
+              const isActive = activeCategory === tab.value;
+              const group = categoryGroups.find((g) => g.category === tab.value);
+              const itemCount = group?.departments.reduce((acc, d) => acc + d.items.length, 0) ?? 0;
+              return (
+                <button
+                  key={tab.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveCategory(tab.value)}
+                  className={cn(
+                    'rounded-md px-3 py-1.5 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    isActive
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {tab.label}
+                  <span
+                    className={cn(
+                      'ml-1.5 text-[10px] tabular-nums',
+                      isActive ? 'text-muted-foreground' : 'opacity-60',
+                    )}
+                  >
+                    ({itemCount})
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Department-grouped pills */}
+          <input type="hidden" {...register('serviceItemId')} />
+          <div className="max-h-52 overflow-y-auto rounded-lg border border-border bg-background p-2.5">
+            {!activeGroup || activeGroup.departments.length === 0 ? (
+              <p className="px-1 py-4 text-center text-xs text-muted-foreground">
+                该类别下暂无服务项
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {activeGroup.departments.map((dept) => (
+                  <div key={dept.id}>
+                    <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {dept.name}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {dept.items.map((item) => {
+                        const isActive = selectedItemId === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() =>
+                              setValue('serviceItemId', item.id, {
+                                shouldValidate: true,
+                                shouldDirty: true,
+                              })
+                            }
+                            className={cn(
+                              'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                              isActive
+                                ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                                : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5',
+                            )}
+                          >
+                            {item.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ))}
-              </optgroup>
-            ))}
-          </select>
+              </div>
+            )}
+          </div>
           {errors.serviceItemId && (
             <p className="text-xs text-destructive">{errors.serviceItemId.message}</p>
           )}
@@ -230,7 +396,7 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
                 {...register('forAnother')}
                 className="h-4 w-4 rounded border-border text-primary"
               />
-              为他人提交（对方需要确认）
+              为他人提交
             </label>
             {forAnother && (
               <div className="space-y-1.5">
@@ -243,6 +409,9 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
                 {errors.targetVolunteerCode && (
                   <p className="text-xs text-destructive">{errors.targetVolunteerCode.message}</p>
                 )}
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  普通志愿者代提交需要对方 confirm；管理员（a_admin / b_admin）代提交直接生效。
+                </p>
               </div>
             )}
           </div>

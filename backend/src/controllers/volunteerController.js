@@ -69,3 +69,12 @@ export const getVolunteerDerivedStats = async (req, res) => {
     return fail(res, 500, err.message);
   }
 };
+
+export const getProvinceCounts = async (_req, res) => {
+  try {
+    const data = await VolunteerService.getProvinceCounts();
+    return ok(res, data);
+  } catch (err) {
+    return fail(res, 500, err.message);
+  }
+};

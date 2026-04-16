@@ -140,7 +140,8 @@ describe('ProjectSupportService.create', () => {
     expect(mockPrisma.auditLog.create).toHaveBeenCalledOnce();
   });
 
-  it('proxy submit (B for A) → status PENDING_CONFIRMATION', async () => {
+  it('regular-user proxy (B for A) → status PENDING_CONFIRMATION', async () => {
+    const regularProxy = { ...otherUserOperator, role: 'user' };
     mockPrisma.volunteer.findUnique.mockResolvedValue(sampleVolunteer); // target
     mockPrisma.serviceItem.findUnique.mockResolvedValue(sampleServiceItem);
     mockPrisma.projectSupport.create.mockResolvedValue(fakeRecord({
@@ -148,13 +149,43 @@ describe('ProjectSupportService.create', () => {
       submittedById: 'vol-other',
     }));
 
-    const result = await ProjectSupportService.create(baseInput, otherUserOperator);
+    const result = await ProjectSupportService.create(baseInput, regularProxy);
 
     expect(result.record).toBeDefined();
     const createArgs = mockPrisma.projectSupport.create.mock.calls[0][0];
     expect(createArgs.data.status).toBe('PENDING_CONFIRMATION');
     expect(createArgs.data.submittedById).toBe('vol-other');
     expect(createArgs.data.volunteerId).toBe('vol-user-1');
+  });
+
+  it('b_admin proxy → ACTIVE (bypasses confirmation, audit flagged)', async () => {
+    mockPrisma.volunteer.findUnique.mockResolvedValue(sampleVolunteer);
+    mockPrisma.serviceItem.findUnique.mockResolvedValue(sampleServiceItem);
+    mockPrisma.projectSupport.create.mockResolvedValue(fakeRecord({
+      status: 'ACTIVE',
+      submittedById: 'vol-other',
+      confirmedAt: new Date(),
+    }));
+
+    const result = await ProjectSupportService.create(baseInput, otherUserOperator); // b_admin
+    expect(result.record).toBeDefined();
+    const createArgs = mockPrisma.projectSupport.create.mock.calls[0][0];
+    expect(createArgs.data.status).toBe('ACTIVE');
+    expect(createArgs.data.confirmedAt).toBeInstanceOf(Date);
+    const auditArgs = mockPrisma.auditLog.create.mock.calls[0][0];
+    expect(auditArgs.data.actionDetails.proxyBypassedConfirm).toBe(true);
+  });
+
+  it('a_admin proxy → ACTIVE (bypasses confirmation)', async () => {
+    const aAdminProxy = { ...otherUserOperator, role: 'a_admin' };
+    mockPrisma.volunteer.findUnique.mockResolvedValue(sampleVolunteer);
+    mockPrisma.serviceItem.findUnique.mockResolvedValue(sampleServiceItem);
+    mockPrisma.projectSupport.create.mockResolvedValue(fakeRecord({ status: 'ACTIVE' }));
+
+    const result = await ProjectSupportService.create(baseInput, aAdminProxy);
+    expect(result.record).toBeDefined();
+    const createArgs = mockPrisma.projectSupport.create.mock.calls[0][0];
+    expect(createArgs.data.status).toBe('ACTIVE');
   });
 
   it('admin self-submit with forceActive override → ACTIVE', async () => {

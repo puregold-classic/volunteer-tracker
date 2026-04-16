@@ -186,6 +186,20 @@ export const update = async (idOrCode, body) => {
   return serializeVolunteer(updated);
 };
 
+/**
+ * Province-level headcount for the homepage heatmap. Counts ACTIVE volunteers
+ * only, globally (no filter applied) — the heatmap is meant to show 全球分布,
+ * not a filtered subset. NULL provinces are excluded.
+ */
+export const getProvinceCounts = async () => {
+  const rows = await prisma.volunteer.groupBy({
+    by: ['province'],
+    where: { status: 'ACTIVE', province: { not: null } },
+    _count: { id: true },
+  });
+  return rows.map((r) => ({ province: r.province, count: r._count.id }));
+};
+
 export const getStats = async (queryParams = {}) => {
   const where = buildVolunteerWhere(queryParams);
 

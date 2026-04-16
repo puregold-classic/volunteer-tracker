@@ -50,7 +50,9 @@ const checkLock = async (serviceDate, operator) => {
   return null;
 };
 
-const writeAuditLog = async (tx, action, { record, operator, changes = [], submitter = null }) => {
+const writeAuditLog = async (tx, action, {
+  record, operator, changes = [], submitter = null, extraDetails = {},
+}) => {
   await tx.auditLog.create({
     data: {
       auditId: IDGenerator.generateAuditId(),
@@ -61,6 +63,7 @@ const writeAuditLog = async (tx, action, { record, operator, changes = [], submi
         supportId: record.supportId,
         status: record.status,
         volunteerId: record.volunteerId,
+        ...extraDetails,
       },
       modifiedId: record.supportId,
       changes,
@@ -263,11 +266,22 @@ class ProjectSupportService {
       return { validationError: '受训类服务项仅支持项目级批量录入，不能个人提交' };
     }
 
-    // Determine status: self-submit → ACTIVE; proxy → PENDING_CONFIRMATION.
-    // Admin acting on someone else's behalf is also a proxy unless they bypass
-    // explicitly via input.forceActive (admin override).
+    // Determine status:
+    //   - self-submit → ACTIVE
+    //   - privileged proxy (admin / a_admin / b_admin 代别人提交) → ACTIVE 直接生效；
+    //     v3 产品决策：a/b-admin 相当于录入员，免对方 confirm
+    //   - 普通志愿者代他人提交 → PENDING_CONFIRMATION，等 owner confirm
+    //   - input.forceActive 保留为 admin 专用旁路开关（admin UI 里的"直接生效"选项）
     const isSelfSubmit = operator.volunteerId === volunteerId;
-    const status = (isSelfSubmit || (isAdmin(operator) && input.forceActive)) ? 'ACTIVE' : 'PENDING_CONFIRMATION';
+    const isPrivilegedProxy = !isSelfSubmit && (
+      operator.role === 'admin' ||
+      operator.role === 'a_admin' ||
+      operator.role === 'b_admin'
+    );
+    const forcedByAdmin = !isSelfSubmit && isAdmin(operator) && input.forceActive;
+    const status = (isSelfSubmit || isPrivilegedProxy || forcedByAdmin)
+      ? 'ACTIVE'
+      : 'PENDING_CONFIRMATION';
     const submittedById = operator.volunteerId || volunteerId; // admin without volunteer self-attributes
 
     const supportId = await IDGenerator.generateSupportId(owner.volunteerCode);
@@ -284,11 +298,15 @@ class ProjectSupportService {
             duration,
             description: String(description).trim(),
             status,
-            confirmedAt: status === 'ACTIVE' && !isSelfSubmit ? null : (status === 'ACTIVE' ? new Date() : null),
+            confirmedAt: status === 'ACTIVE' ? new Date() : null,
           },
           include: SUPPORT_INCLUDE,
         });
-        await writeAuditLog(tx, 'support_create', { record, operator });
+        await writeAuditLog(tx, 'support_create', {
+          record,
+          operator,
+          extraDetails: isPrivilegedProxy ? { proxyBypassedConfirm: true } : undefined,
+        });
         return record;
       });
       return { record: serializeProjectSupport(created) };

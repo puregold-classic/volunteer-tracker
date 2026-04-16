@@ -101,7 +101,7 @@ app.get('/api/health', async (req, res) => {
     status: 'ok',
     ...(isDev && {
       message: '志愿者管理系统 API 正常运行',
-      schemaVersion: '2.1',
+      schemaVersion: '2.1+v3',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
       postgresql: pgStatus,

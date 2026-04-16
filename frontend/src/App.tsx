@@ -14,11 +14,13 @@
 // a complex shared hook; I'll move ownership into HomePage when I rewrite
 // HomePage in phase C.
 
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import Header from '@components/Header';
 import Footer from '@components/Footer';
 import { Button } from '@/components/ui/button';
+import volunteerService from '@services/volunteerService';
+import type { ProvinceCount } from '@components/HomeMap/HomeMap';
 // HomePage stays eager (it's the landing route — lazy would just cost a
 // flash of fallback for the first paint). The other 4 pages are gated
 // behind auth or click and account for the bulk of the bundle, so we
@@ -73,6 +75,21 @@ function HomePageContainer() {
   const navigate = useNavigate();
   const { isAuthenticated, account } = useAuth();
   const home = useHomeState();
+  const [provinceCounts, setProvinceCounts] = useState<ProvinceCount[]>([]);
+
+  // Heatmap source data — fetched once on mount. Not affected by filters;
+  // the heatmap shows the global 志愿者分布 regardless of what the list
+  // above is currently filtered to.
+  useEffect(() => {
+    let cancelled = false;
+    void volunteerService.getProvinceCounts().then((res) => {
+      if (!cancelled && res?.success && Array.isArray(res.data)) {
+        setProvinceCounts(res.data);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   // Click routing: anonymous → /login, self → /me, other → detail page.
   // Decision logic lives in lib/routing.ts so it can be unit-tested
   // without router / context mocks.
@@ -98,6 +115,7 @@ function HomePageContainer() {
       primaryFocusRegion={home.primaryFocusRegion}
       quickFocusOptions={QUICK_FOCUS_OPTIONS}
       homeFilterParams={home.homeFilterParams}
+      provinceCounts={provinceCounts}
       onStatusChange={home.setHomeStatus}
       onDepartmentChange={home.setHomeDepartmentId}
       onServiceToggle={home.toggleService}

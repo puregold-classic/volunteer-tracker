@@ -9,8 +9,8 @@
 // - Bottom toolbar shows current selection + a "重置" link
 // - Map controls (zoom in/out + refresh) stay in the top-right corner
 
-import React, { useEffect, useState } from 'react';
-import { Crosshair, MapPin, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Crosshair, Flame, MapPin, RotateCcw, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { GeoJSON, MapContainer, Rectangle, TileLayer, useMap } from 'react-leaflet';
 import type L from 'leaflet';
 import type { LatLngBoundsExpression, PathOptions } from 'leaflet';
@@ -24,6 +24,11 @@ export interface HotLocation {
   value: string;
 }
 
+export interface ProvinceCount {
+  province: string;
+  count: number;
+}
+
 interface HomeMapProps {
   activeProvince: string[];
   activeRegions: string[];
@@ -35,6 +40,9 @@ interface HomeMapProps {
   onQuickFocusSelect: (region: string) => void;
   onRefresh: () => void;
   isLocationActive: (type: 'province' | 'region', value: string) => boolean;
+  /** Optional heatmap data — when provided + heatmap toggle is on, color
+   *  provinces by volunteer count (choropleth). Undefined disables the toggle. */
+  provinceCounts?: ProvinceCount[];
 }
 
 type ProvinceProperties = {
@@ -208,7 +216,13 @@ const MapLeftControls: React.FC<{
   onProvinceSelect: (province: string) => void;
   onReset: () => void;
   onRefresh: () => void;
-}> = ({ quickFocusOptions, hotLocations, isLocationActive, onRegionSelect, onProvinceSelect, onReset, onRefresh }) => {
+  heatmapAvailable: boolean;
+  heatmapOn: boolean;
+  onHeatmapToggle: () => void;
+}> = ({
+  quickFocusOptions, hotLocations, isLocationActive, onRegionSelect, onProvinceSelect, onReset, onRefresh,
+  heatmapAvailable, heatmapOn, onHeatmapToggle,
+}) => {
   const [open, setOpen] = useState<null | 'region' | 'province'>(null);
 
   const togglePanel = (panel: 'region' | 'province') => (e: React.MouseEvent) => {
@@ -267,6 +281,24 @@ const MapLeftControls: React.FC<{
             <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent" />
           )}
         </button>
+
+        {/* 热力图 toggle — colors provinces by volunteer count */}
+        {heatmapAvailable && (
+          <button
+            type="button"
+            onClick={(e) => { stopAll(e); onHeatmapToggle(); }}
+            className={cn(
+              'inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors',
+              heatmapOn
+                ? 'bg-accent/15 text-accent'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+            aria-label={heatmapOn ? '关闭热力图' : '打开热力图'}
+            title={heatmapOn ? '关闭热力图' : '志愿者热力图'}
+          >
+            <Flame className="h-4 w-4" />
+          </button>
+        )}
 
         {/* 重置 trigger — clears selections + resets map view */}
         <button
@@ -365,11 +397,32 @@ const HomeMap: React.FC<HomeMapProps> = ({
   onQuickFocusSelect,
   onRefresh,
   isLocationActive,
+  provinceCounts,
 }) => {
   const [geoData, setGeoData] = React.useState<ProvinceCollection | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
   const [hoveredProvince, setHoveredProvince] = React.useState('');
+  const [heatmapOn, setHeatmapOn] = useState(false);
+
+  // Build a quick lookup: province-name → count. GeoJSON + API both use
+  // Chinese names (e.g. "广东省"), so no normalization needed for mainland.
+  const countByProvince = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const row of provinceCounts ?? []) {
+      if (row.province) map.set(row.province, row.count);
+    }
+    return map;
+  }, [provinceCounts]);
+
+  const maxCount = useMemo(() => {
+    let max = 0;
+    for (const n of countByProvince.values()) if (n > max) max = n;
+    return max;
+  }, [countByProvince]);
+
+  const heatmapAvailable = (provinceCounts?.length ?? 0) > 0;
+  const heatmapActive = heatmapOn && heatmapAvailable;
 
   React.useEffect(() => {
     let canceled = false;
@@ -409,6 +462,24 @@ const HomeMap: React.FC<HomeMapProps> = ({
     ).trim();
   };
 
+  // Choropleth color ramp for heatmap mode. Graded by ratio of province
+  // count to global max. Intentionally uses the existing warm palette
+  // (terracotta / amber) so it stays on-brand with the active-province color.
+  const HEAT_RAMP = ['#fef3c7', '#fde68a', '#fcd34d', '#f59e0b', '#d97706', '#a16207'];
+  const heatColorFor = (name: string): string => {
+    const n = countByProvince.get(name) ?? 0;
+    if (n === 0 || maxCount === 0) return '#f1f5f9'; // slate-100 = "no data"
+    const ratio = n / maxCount;
+    // Threshold the ratio into ramp buckets. log-ish so small counts aren't invisible.
+    const idx =
+      ratio >= 0.8 ? 5 :
+      ratio >= 0.5 ? 4 :
+      ratio >= 0.3 ? 3 :
+      ratio >= 0.15 ? 2 :
+      ratio >= 0.05 ? 1 : 0;
+    return HEAT_RAMP[idx];
+  };
+
   const style = (feature?: ProvinceFeature) => {
     const name = getFeatureName(feature);
     const isActive = activeProvince.includes(name);
@@ -420,6 +491,14 @@ const HomeMap: React.FC<HomeMapProps> = ({
     if (isHovered) {
       return { color: '#a6610b', weight: 2.2, fillColor: '#f0c389', fillOpacity: 0.82 };
     }
+    if (heatmapActive) {
+      return {
+        color: '#475569',
+        weight: 0.8,
+        fillColor: heatColorFor(name),
+        fillOpacity: 0.78,
+      };
+    }
     return {
       color: '#334155',
       weight: 1.0,
@@ -428,7 +507,7 @@ const HomeMap: React.FC<HomeMapProps> = ({
     };
   };
 
-  const geoJsonRenderKey = `${activeProvince.join('|')}__${hoveredProvince}`;
+  const geoJsonRenderKey = `${activeProvince.join('|')}__${hoveredProvince}__${heatmapActive ? 'heat' : 'plain'}__${maxCount}`;
 
   const selectionLabel = activeProvince.length > 0
     ? `当前省份: ${activeProvince.join(' / ')}`
@@ -510,12 +589,28 @@ const HomeMap: React.FC<HomeMapProps> = ({
           onProvinceSelect={onProvinceSelect}
           onReset={onReset}
           onRefresh={onRefresh}
+          heatmapAvailable={heatmapAvailable}
+          heatmapOn={heatmapActive}
+          onHeatmapToggle={() => setHeatmapOn((v) => !v)}
         />
       )}
 
-      {/* Bottom selection display */}
-      {selectionLabel && (
-        <div className="home-map__toolbar">{selectionLabel}</div>
+      {/* Bottom selection display — shows count in heatmap mode on hover */}
+      {(selectionLabel || (heatmapActive && hoveredProvince)) && (
+        <div className="home-map__toolbar">
+          {heatmapActive && hoveredProvince ? (
+            <span>
+              {hoveredProvince}
+              <span className="mx-1 text-muted-foreground">·</span>
+              <span className="font-semibold text-primary tabular-nums">
+                {countByProvince.get(hoveredProvince) ?? 0}
+              </span>
+              <span className="ml-1 text-muted-foreground">人</span>
+            </span>
+          ) : (
+            selectionLabel
+          )}
+        </div>
       )}
     </div>
   );

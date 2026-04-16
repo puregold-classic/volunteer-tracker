@@ -29,6 +29,7 @@
 import { lazy, Suspense, useState } from 'react';
 import { Filter, Map, Search, Users, X } from 'lucide-react';
 import type { Volunteer, VolunteersParams } from '@services/types';
+import type { ProvinceCount } from '@components/HomeMap/HomeMap';
 import { HOT_LOCATIONS } from '@/hooks/useHomeState';
 // HomeMap pulls in leaflet (~150kB). Defer it past first paint so the
 // list + filter chrome shows immediately while leaflet hydrates in the
@@ -64,6 +65,7 @@ interface HomePageProps {
   primaryFocusRegion: string;
   quickFocusOptions: readonly string[];
   homeFilterParams: VolunteersParams;
+  provinceCounts?: ProvinceCount[];
   onStatusChange: (value: HomeStatus) => void;
   onDepartmentChange: (value: string) => void;
   onServiceToggle: (service: string) => void;
@@ -86,7 +88,7 @@ const STATUS_OPTIONS: { value: HomeStatus; label: string }[] = [
   { value: '不在职', label: '不在职' },
 ];
 
-// v2.1 部门 — 跟 backend seed 保持一致，按 displayOrder 排
+// 部门 — 跟 backend seed 保持一致，按 displayOrder 排。v3 增 READING_CLUB / VIDEO
 const DEPARTMENTS: { id: string; name: string }[] = [
   { id: 'BY_PROJECT', name: '笔译项目部' },
   { id: 'KY_PROJECT', name: '口译项目部' },
@@ -98,6 +100,8 @@ const DEPARTMENTS: { id: string; name: string }[] = [
   { id: 'TECH', name: '技术部' },
   { id: 'CARE', name: '人文部' },
   { id: 'MGMT', name: '管理部' },
+  { id: 'READING_CLUB', name: '共读会' },
+  { id: 'VIDEO', name: '视频部' },
 ];
 
 // ─── Atoms ──────────────────────────────────────────────────────────────────
@@ -200,6 +204,7 @@ function HomePage(props: HomePageProps) {
     primaryFocusRegion,
     quickFocusOptions,
     homeFilterParams,
+    provinceCounts,
     onStatusChange,
     onDepartmentChange,
     onResetFilters,
@@ -383,6 +388,7 @@ function HomePage(props: HomePageProps) {
         onQuickFocusSelect={onQuickFocusSelect}
         onRefresh={onRefreshMap}
         isLocationActive={isLocationActive}
+        provinceCounts={provinceCounts}
       />
     </Suspense>
   );

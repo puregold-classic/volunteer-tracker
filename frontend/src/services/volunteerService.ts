@@ -100,6 +100,14 @@ export const volunteerService = {
     return publicApi.get(`/volunteers/${idOrCode}/derived-stats`);
   },
 
+  /**
+   * Province-level headcount for the homepage heatmap. Not filtered — shows
+   * the global ACTIVE volunteer distribution.
+   */
+  getProvinceCounts: async (): Promise<ApiResponse<Array<{ province: string; count: number }>>> => {
+    return publicApi.get('/volunteers/province-counts');
+  },
+
   updateVolunteer: async (idOrCode: string, data: Partial<Volunteer>): Promise<ApiResponse<Volunteer>> => {
     return api.put(`/volunteers/${idOrCode}`, data);
   },

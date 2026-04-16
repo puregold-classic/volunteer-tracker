@@ -11,6 +11,7 @@ import {
   updateVolunteer,
   getVolunteerStats,
   getVolunteerDerivedStats,
+  getProvinceCounts,
 } from '../controllers/volunteerController.js';
 import { authenticate, authorizeRoles } from '../middleware/authenticate.js';
 import { optionalAuthenticate } from '../middleware/optionalAuth.js';
@@ -22,6 +23,7 @@ const router = express.Router();
 // based on the viewer's role or self-view status.
 router.get('/', optionalAuthenticate, getAllVolunteers);
 router.get('/stats', getVolunteerStats);
+router.get('/province-counts', getProvinceCounts);
 router.get('/:id', optionalAuthenticate, getVolunteerById);
 router.get('/:id/derived-stats', getVolunteerDerivedStats);
 router.put('/:id', authenticate, authorizeRoles('admin', 'a_admin', 'b_admin'), updateVolunteer);
