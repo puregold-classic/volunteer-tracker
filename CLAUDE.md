@@ -133,7 +133,7 @@ make test-coverage     # 覆盖率报告
 
 ## 浏览器调试（Playwright MCP）
 
-项目装了 `@playwright/mcp`（headed + msedge），你可以直接操作浏览器 —— 窗口会弹出来，user 希望看见这个过程。可用工具：`browser_navigate / click / fill / snapshot / screenshot / evaluate / wait_for / console_messages / network_requests` 等。
+项目装了 `@playwright/mcp`（默认 headed + bundled Chromium，在 WSLg 里弹 Linux 窗口给 user 看）。可用工具：`browser_navigate / click / fill / snapshot / screenshot / evaluate / wait_for / console_messages / network_requests` 等。
 
 **这是 live 调试工具，不是测试替代品。** 分工大致：
 
