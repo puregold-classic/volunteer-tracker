@@ -74,6 +74,7 @@ enum AuditTargetType {
   Volunteer
   Account
   SystemSettings
+  Project
 
   @@map("AuditTargetType")
 }
@@ -92,6 +93,11 @@ enum AuditAction {
   month_lock
   system_cleanup
   seed_import
+  project_create
+  project_update
+  project_delete
+  project_attendance_batch
+  project_link_support
 }
 
 // Classifies a ServiceItem into the v3 三大板块 buckets. Category is assigned
@@ -120,6 +126,7 @@ model Department {
 
   volunteers   Volunteer[]
   serviceItems ServiceItem[]
+  projects     Project[]
 
   @@map("departments")
 }
@@ -194,6 +201,7 @@ model Volunteer {
   account            Account?
   ownedSupports      ProjectSupport[] @relation("OwnedSupports")
   submittedSupports  ProjectSupport[] @relation("SubmittedSupports")
+  createdProjects    Project[]        @relation("CreatedProjects")
 
   @@index([status])
   @@index([region])
@@ -216,6 +224,11 @@ model ProjectSupport {
   submittedBy     Volunteer            @relation("SubmittedSupports", fields: [submittedById], references: [id])
   serviceItemId   String
   serviceItem     ServiceItem          @relation(fields: [serviceItemId], references: [id])
+  // Optional link to a Project (session). Set automatically when a record is
+  // created via project-level batch entry, and can be set later by admin/self
+  // to tag an existing support to a specific session.
+  projectId       String?
+  project         Project?             @relation(fields: [projectId], references: [id])
   serviceDate     DateTime
   duration        Float
   description     String
@@ -229,10 +242,48 @@ model ProjectSupport {
   @@index([submittedById, status])
   @@index([serviceItemId])
   @@index([status])
+  @@index([projectId])
   // Partial unique index for dedup added in migration SQL:
   //   UNIQUE (volunteer_id, service_date, service_item_id, duration, description)
   //   WHERE status = 'ACTIVE'
   @@map("project_supports")
+}
+
+// ─── Project (v3 wave 2) ──────────────────────────────────────────────────────
+//
+// A Project is a specific session/instance — e.g. "2026-04 笔译培训 第 12 期".
+// It groups ProjectSupport records that belong to the same real-world event.
+//
+// The 大类 is Project.category (reuses ServiceCategory). At MVP only
+// TRAINING_ATTENDANCE is accepted by the service layer — batch-attendance
+// entry populates ProjectSupport rows with projectId set and duration
+// snapshotted from Project.sessionDuration. Duration on TRAINING_ATTENDANCE
+// projects is immutable after creation (ledger integrity).
+//
+// `attributes` is JSONB for flexible tagging: { language, level, noteType, ... }
+// — see v3-plan.md for the planned tag splits (XZT 中英笔记 / 培训内容级别).
+
+model Project {
+  id              String          @id @default(cuid())
+  projectCode     String          @unique      // human-readable, e.g. "PROJ-0001"
+  name            String
+  category        ServiceCategory              // 大类, MVP: TRAINING_ATTENDANCE only
+  departmentId    String
+  department      Department      @relation(fields: [departmentId], references: [id])
+  sessionDate     DateTime
+  sessionDuration Float?                       // session length in hours; required for TRAINING_ATTENDANCE
+  attributes      Json            @default("{}")
+  createdById     String
+  createdBy       Volunteer       @relation("CreatedProjects", fields: [createdById], references: [id])
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  projectSupports ProjectSupport[]
+
+  @@index([category])
+  @@index([departmentId])
+  @@index([sessionDate(sort: Desc)])
+  @@map("projects")
 }
 
 // ─── Global settings ──────────────────────────────────────────────────────────

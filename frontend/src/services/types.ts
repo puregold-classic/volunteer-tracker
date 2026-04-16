@@ -130,6 +130,15 @@ export interface ProjectSupport {
     departmentId: string;
     departmentName: string | null;
   } | null;
+  // Optional link to a Project (session). v3 wave 2: set by batch-attendance
+  // entry or by admin/self tagging an existing record to a session.
+  projectId: string | null;
+  project: {
+    id: string;
+    projectCode: string;
+    name: string;
+    category: ServiceCategory;
+  } | null;
   serviceDate: string;
   duration: number;
   description: string;
@@ -137,6 +146,35 @@ export interface ProjectSupport {
   statusDisplay: string;
   confirmedAt: string | null;
   isProxy: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// ─── Project (v3 wave 2) ──────────────────────────────────────────────────────
+//
+// A session/instance that groups ProjectSupport records. At MVP only
+// TRAINING_ATTENDANCE projects exist; the service layer rejects others.
+
+export interface ProjectAttributes {
+  language?: '中' | '英';
+  level?: '初翻' | '校对' | '经典' | '初级' | '高级';
+  noteType?: '中文笔记' | '英文笔记';
+  [key: string]: unknown;
+}
+
+export interface Project {
+  id: string;
+  projectCode: string;           // "PROJ-0001"
+  name: string;
+  category: ServiceCategory;
+  departmentId: string;
+  department: Pick<Department, 'id' | 'name'> | null;
+  sessionDate: string;
+  sessionDuration: number | null;
+  attributes: ProjectAttributes;
+  createdById: string;
+  createdBy: VolunteerSummary | null;
+  supportCount: number;
   createdAt?: string;
   updatedAt?: string;
 }

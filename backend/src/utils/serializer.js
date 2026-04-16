@@ -204,6 +204,15 @@ export function serializeProjectSupport(p) {
           departmentName: p.serviceItem.department?.name ?? null,
         }
       : null,
+    projectId: p.projectId ?? null,
+    project: p.project
+      ? {
+          id: p.project.id,
+          projectCode: p.project.projectCode,
+          name: p.project.name,
+          category: p.project.category,
+        }
+      : null,
     serviceDate: p.serviceDate,
     duration: p.duration,
     description: p.description,
@@ -219,4 +228,32 @@ export function serializeProjectSupport(p) {
 export function serializeAuditLog(log) {
   if (!log) return null;
   return { ...log };
+}
+
+export function serializeProject(p) {
+  if (!p) return null;
+  return {
+    id: p.id,
+    projectCode: p.projectCode,
+    name: p.name,
+    category: p.category,
+    departmentId: p.departmentId,
+    department: p.department
+      ? { id: p.department.id, name: p.department.name }
+      : null,
+    sessionDate: p.sessionDate,
+    sessionDuration: p.sessionDuration,
+    attributes: p.attributes ?? {},
+    createdById: p.createdById,
+    createdBy: p.createdBy
+      ? {
+          id: p.createdBy.id,
+          volunteerCode: p.createdBy.volunteerCode,
+          chineseName: p.createdBy.chineseName,
+        }
+      : null,
+    supportCount: p._count?.projectSupports ?? 0,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+  };
 }

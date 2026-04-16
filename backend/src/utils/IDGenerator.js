@@ -55,6 +55,22 @@ class IDGenerator {
     return `AUDIT-${crypto.randomBytes(4).toString('hex')}`;
   }
 
+  /**
+   * Generate the next "PROJ-NNNN" projectCode. Sequential across the
+   * whole system; projects are low-volume so no per-department scoping.
+   */
+  static async generateProjectCode() {
+    const last = await prisma.project.findFirst({
+      where: { projectCode: { startsWith: 'PROJ-' } },
+      orderBy: { projectCode: 'desc' },
+      select: { projectCode: true },
+    });
+    const lastNum = last?.projectCode
+      ? parseInt(String(last.projectCode).split('-')[1] || '0', 10)
+      : 0;
+    return `PROJ-${String(lastNum + 1).padStart(4, '0')}`;
+  }
+
   // ─── helpers ──────────────────────────────────────────────────────────────
 
   static extractSequenceFromId(id) {
