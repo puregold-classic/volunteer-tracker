@@ -131,6 +131,18 @@ make test              # vitest run, ~86 tests, 全 mock 不需要 DB
 make test-coverage     # 覆盖率报告
 ```
 
+## 浏览器调试（Playwright MCP）
+
+项目装了 `@playwright/mcp`（headed + msedge），你可以直接操作浏览器 —— 窗口会弹出来，user 希望看见这个过程。可用工具：`browser_navigate / click / fill / snapshot / screenshot / evaluate / wait_for / console_messages / network_requests` 等。
+
+**这是 live 调试工具，不是测试替代品。** 分工大致：
+
+- **dev-browser 适合**：联调、iterate 视觉改动、跟 user live demo 一个改动、探索未知状态（某个页面的某个 bug 怎么触发）、给 user 看「我点到哪了」
+- **Playwright spec 适合**：验证一个 feature 完整跑通且值得 regression 保障。写进 `frontend/e2e/` + commit，下一个 session / CI 能复跑。wave2.spec.js 是样板
+- **单元测试不动**：vitest 覆盖逻辑，不要因为 dev-browser 顺手就用手点替换掉它
+
+纪律是 soft guidance 不是硬规则 —— 原则是「dev-browser 里点通过的流程，考虑是否该固化成 spec」，但具体怎么办按场景拍板。
+
 ## Git 工作流（solo dev）
 
 - `main`：稳定版本，**禁止直接 push**
