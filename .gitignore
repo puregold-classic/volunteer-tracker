@@ -58,3 +58,5 @@ docker-compose.override.yml
 .playwright-mcp/
 live-*.png
 live-*.jpg
+mobile-*.png
+mobile-*.jpg

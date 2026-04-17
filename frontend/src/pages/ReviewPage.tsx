@@ -577,6 +577,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
             bars={trendChartBars}
             height={160}
             formatValue={(v) => `${v}h`}
+            alignScroll="end"
           />
         </div>
       </Card>

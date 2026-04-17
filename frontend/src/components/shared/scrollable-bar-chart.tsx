@@ -3,18 +3,20 @@
 // Vertical-bar primitive with uniform bar-width rules used across the
 // ledger. Project convention (记进 CLAUDE.md):
 //
-//   - N ≤ 6  bars → width as if 6, left-aligned, right empty
-//   - 6 < N ≤ 12 → bars fill container naturally
-//   - N > 12     → each bar uses the 12-width, overflow horizontal scroll
+//   - N ≤ MIN_SLOTS → width as if MIN_SLOTS, left-aligned, right empty
+//   - MIN_SLOTS < N ≤ MAX_VISIBLE → bars fill container naturally
+//   - N > MAX_VISIBLE → each bar uses the MAX_VISIBLE-width, overflow
+//     horizontal scroll
 //
-// Why: prevents a 3-bar chart from stretching wide and looking
-// disproportionate while also capping crowd so 50 volunteer bars
-// don't squish into unreadable slivers.
+// MAX_VISIBLE drops from 12 → 6 on narrow viewports (<640px) so dept /
+// trend charts with 12 slots don't squish their labels into an
+// unreadable blob on phones; the chart becomes horizontally scrollable
+// instead and each bar gets enough room for its Chinese label.
 //
 // Supports single-value bars and category-stacked bars (pass `segments`
 // instead of `value`). Click handlers supported for drill-down.
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export interface BarSegment {
@@ -50,10 +52,18 @@ export interface ScrollableBarChartProps {
   className?: string;
   /** Hide the value label above each bar. Useful when the bars are stacked or very thin. */
   hideValueLabel?: boolean;
+  /**
+   * Where to position the initial scroll when the chart is scrollable.
+   * "end" is the natural default for time-series (newest on the right,
+   * user expects to see the most recent period first). "start" is
+   * natural for alphabetical / rank ordering. Default: "start".
+   */
+  alignScroll?: 'start' | 'end';
 }
 
 const MIN_SLOTS = 6;
-const MAX_VISIBLE = 12;
+const MAX_VISIBLE_DESKTOP = 12;
+const MAX_VISIBLE_MOBILE = 6;
 
 export const ScrollableBarChart: React.FC<ScrollableBarChartProps> = ({
   bars,
@@ -62,12 +72,26 @@ export const ScrollableBarChart: React.FC<ScrollableBarChartProps> = ({
   formatValue = (v) => `${v}`,
   className,
   hideValueLabel = false,
+  alignScroll = 'start',
 }) => {
+  // Mobile chars are ~11px and a typical dept name is 3–4 chars, so 12 bars
+  // at 390px viewport leaves each slot ~32px — labels blob together. Drop to
+  // 6 visible and scroll the rest. Reactive to viewport changes (rotate).
+  const [maxVisible, setMaxVisible] = useState(MAX_VISIBLE_DESKTOP);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 640px)');
+    const update = () => setMaxVisible(mq.matches ? MAX_VISIBLE_MOBILE : MAX_VISIBLE_DESKTOP);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
   const { slotCount, scrollable } = useMemo(() => {
     if (bars.length <= MIN_SLOTS) return { slotCount: MIN_SLOTS, scrollable: false };
-    if (bars.length <= MAX_VISIBLE) return { slotCount: bars.length, scrollable: false };
-    return { slotCount: MAX_VISIBLE, scrollable: true };
-  }, [bars.length]);
+    if (bars.length <= maxVisible) return { slotCount: bars.length, scrollable: false };
+    return { slotCount: maxVisible, scrollable: true };
+  }, [bars.length, maxVisible]);
 
   const resolvedMax = useMemo(() => {
     if (max !== undefined) return max;
@@ -85,9 +109,37 @@ export const ScrollableBarChart: React.FC<ScrollableBarChartProps> = ({
   const slotPct = 100 / slotCount;
   const totalWidthPct = scrollable ? (bars.length / slotCount) * 100 : 100;
 
+  // Sync scroll between the bars row and the labels row so labels stay aligned
+  // when the user scrolls horizontally. Also initialize position based on
+  // `alignScroll` so time-series charts default to showing the latest bucket.
+  const barsScrollRef = useRef<HTMLDivElement | null>(null);
+  const labelsScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!scrollable) return;
+    const barsEl = barsScrollRef.current;
+    const labelsEl = labelsScrollRef.current;
+    if (!barsEl || !labelsEl) return;
+    if (alignScroll === 'end') {
+      barsEl.scrollLeft = barsEl.scrollWidth;
+      labelsEl.scrollLeft = labelsEl.scrollWidth;
+    } else {
+      barsEl.scrollLeft = 0;
+      labelsEl.scrollLeft = 0;
+    }
+    const syncFromBars = () => { if (labelsEl) labelsEl.scrollLeft = barsEl.scrollLeft; };
+    const syncFromLabels = () => { if (barsEl) barsEl.scrollLeft = labelsEl.scrollLeft; };
+    barsEl.addEventListener('scroll', syncFromBars);
+    labelsEl.addEventListener('scroll', syncFromLabels);
+    return () => {
+      barsEl.removeEventListener('scroll', syncFromBars);
+      labelsEl.removeEventListener('scroll', syncFromLabels);
+    };
+  }, [scrollable, alignScroll, bars.length]);
+
   return (
     <div className={cn('w-full', className)}>
       <div
+        ref={barsScrollRef}
         className={cn(
           'relative',
           scrollable ? 'overflow-x-auto' : 'overflow-x-hidden',
@@ -171,6 +223,7 @@ export const ScrollableBarChart: React.FC<ScrollableBarChartProps> = ({
       </div>
       {/* Labels row — separate flex so bar alignment isn't affected by text wrap */}
       <div
+        ref={labelsScrollRef}
         className={cn(
           scrollable ? 'overflow-x-auto' : 'overflow-hidden',
         )}
