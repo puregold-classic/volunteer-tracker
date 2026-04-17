@@ -90,12 +90,26 @@ export const ScrollableBarChart: React.FC<ScrollableBarChartProps> = ({
       <div
         className={cn(
           'relative',
-          scrollable ? 'overflow-x-auto' : 'overflow-hidden',
+          scrollable ? 'overflow-x-auto' : 'overflow-x-hidden',
         )}
       >
+        {/*
+          Layout: outer flex is the 160-pixel chart frame. Each slot is a
+          relative box at full height so the bar (absolutely positioned at
+          the slot bottom) can compute its percentage height against the
+          slot's concrete 160px. Earlier approach used items-end on the
+          outer flex + percentage height on a child of a zero-height
+          wrapper — which collapses to 0 because the wrapper has no
+          content height to resolve the percentage against.
+
+          pt-4 (16px) reserves space above the bars so the value-label
+          above a 100%-height bar isn't clipped by the wrapper. The chart
+          itself still sizes to `height`; labels can extend into that
+          reserved strip.
+        */}
         <div
-          className="flex items-end"
-          style={{ height: `${height}px`, width: `${totalWidthPct}%`, minWidth: '100%' }}
+          className="flex items-stretch pt-4"
+          style={{ height: `${height + 16}px`, width: `${totalWidthPct}%`, minWidth: '100%' }}
         >
           {bars.map((b) => {
             const total = b.segments
@@ -106,11 +120,14 @@ export const ScrollableBarChart: React.FC<ScrollableBarChartProps> = ({
             return (
               <div
                 key={b.key}
-                className="flex flex-col items-center justify-end px-1"
+                className="relative flex h-full flex-col items-center px-1"
                 style={{ width: `${slotPct}%`, minWidth: '0' }}
               >
                 {!hideValueLabel && total > 0 && (
-                  <span className="mb-1 text-[10px] font-medium tabular-nums text-muted-foreground">
+                  <span
+                    className="absolute left-1/2 -translate-x-1/2 text-[10px] font-medium tabular-nums text-muted-foreground"
+                    style={{ bottom: `calc(${barHeight}% + 4px)` }}
+                  >
                     {formatValue(total)}
                   </span>
                 )}
@@ -119,7 +136,7 @@ export const ScrollableBarChart: React.FC<ScrollableBarChartProps> = ({
                   disabled={!b.onClick}
                   onClick={b.onClick}
                   className={cn(
-                    'relative flex w-[70%] flex-col-reverse overflow-hidden rounded-t-md transition-all',
+                    'absolute bottom-0 flex w-[70%] flex-col-reverse overflow-hidden rounded-t-md transition-all',
                     b.onClick
                       ? 'cursor-pointer hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
                       : 'cursor-default',
