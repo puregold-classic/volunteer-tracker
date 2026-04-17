@@ -78,6 +78,16 @@ export interface LedgerVolunteerService {
   lastDate: string | null;
 }
 
+export interface LedgerServiceVolunteer {
+  volunteerId: string;
+  volunteerCode: string;
+  chineseName: string;
+  departmentId: string;
+  count: number;
+  totalHours: number;
+  lastDate: string | null;
+}
+
 export interface ProxyContribution {
   volunteerCode: string;
   chineseName: string;
@@ -173,6 +183,14 @@ export const ledgerService = {
     params: { dateFrom?: string; dateTo?: string } = {},
   ): Promise<ApiResponse<LedgerVolunteerService[]>> => {
     return api.get(`/support-ledger/volunteers/${volunteerId}/services`, { params });
+  },
+
+  /** Phase D: volunteers who produced hours for a given service item. */
+  serviceVolunteers: async (
+    serviceItemId: string,
+    params: { dateFrom?: string; dateTo?: string } = {},
+  ): Promise<ApiResponse<LedgerServiceVolunteer[]>> => {
+    return api.get(`/support-ledger/service-items/${serviceItemId}/volunteers`, { params });
   },
 
   proxyContributions: async (params: {

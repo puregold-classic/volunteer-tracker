@@ -65,6 +65,18 @@ class SupportLedgerController {
     }
   }
 
+  static async serviceVolunteers(req, res) {
+    try {
+      const data = await SupportLedgerService.serviceVolunteers(req.params.serviceItemId, {
+        dateFrom: req.query.dateFrom,
+        dateTo: req.query.dateTo,
+      });
+      return ok(res, data);
+    } catch (err) {
+      return fail(res, 500, err.message);
+    }
+  }
+
   static async proxyContributions(req, res) {
     try {
       const data = await SupportLedgerService.proxyContributions({

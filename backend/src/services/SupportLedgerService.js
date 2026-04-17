@@ -260,6 +260,38 @@ class SupportLedgerService {
   }
 
   /**
+   * Volunteer breakdown for a single service item — feeds View 2 drill-down
+   * (the "skippable middle layer" in v3 plan). Which volunteers produced
+   * hours for this service? Sorted by totalHours desc.
+   */
+  static async serviceVolunteers(serviceItemId, { dateFrom, dateTo } = {}) {
+    const from = dateFrom ? new Date(dateFrom) : null;
+    let to = null;
+    if (dateTo) {
+      to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+    }
+
+    return prisma.$queryRaw`
+      SELECT v.id              AS "volunteerId",
+             v."volunteerCode" AS "volunteerCode",
+             v."chineseName"   AS "chineseName",
+             v."departmentId"  AS "departmentId",
+             COUNT(*)::int     AS count,
+             SUM(p.duration)   AS "totalHours",
+             MAX(p."serviceDate") AS "lastDate"
+      FROM project_supports p
+      JOIN volunteers v ON v.id = p."volunteerId"
+      WHERE p."serviceItemId" = ${serviceItemId}
+        AND p.status = 'ACTIVE'
+        AND p."serviceDate" >= COALESCE(${from}::timestamp, p."serviceDate")
+        AND p."serviceDate" <= COALESCE(${to}::timestamp,   p."serviceDate")
+      GROUP BY v.id, v."volunteerCode", v."chineseName", v."departmentId"
+      ORDER BY "totalHours" DESC NULLS LAST
+    `;
+  }
+
+  /**
    * Service breakdown for a single volunteer — feeds View 3 drill-down.
    * Returns service items with deptId/category so the frontend can colour
    * bars by department-within-category. Sorted by totalHours desc.

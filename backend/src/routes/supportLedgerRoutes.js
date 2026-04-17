@@ -18,5 +18,6 @@ router.get('/proxy-contributions', SupportLedgerController.proxyContributions);
 router.get('/recent-activity', SupportLedgerController.recentActivity);
 router.get('/volunteers/:volunteerId', SupportLedgerController.volunteerDetail);
 router.get('/volunteers/:volunteerId/services', SupportLedgerController.volunteerServices);
+router.get('/service-items/:serviceItemId/volunteers', SupportLedgerController.serviceVolunteers);
 
 export default router;

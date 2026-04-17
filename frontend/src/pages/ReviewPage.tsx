@@ -19,6 +19,8 @@ import { Calendar, Clock3, FileText, Layers3, TrendingUp } from 'lucide-react';
 import ledgerService, {
   type LedgerOverview,
   type LedgerTimeSeriesByCategoryPoint,
+  type LedgerCategoryBreakdown,
+  type LedgerServiceVolunteer,
   type ProxyContribution,
   type RecentActivityEntry,
 } from '@services/ledgerService';
@@ -27,6 +29,7 @@ import {
   CATEGORY_COLOR,
   CATEGORY_LABEL,
   CATEGORY_ORDER,
+  deptColor,
 } from '@/lib/ledger-colors';
 import { ScrollableBarChart } from '@/components/shared/scrollable-bar-chart';
 import projectSupportService from '@services/projectSupportService';
@@ -72,9 +75,13 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
 
   // Independent exploration area (own date filter, separate from top filter bar)
   const [globalOverview, setGlobalOverview] = useState<LedgerOverview | null>(null);
+  const [categoryBreakdown, setCategoryBreakdown] = useState<LedgerCategoryBreakdown[]>([]);
   const [exploreTab, setExploreTab] = useState<ExploreTab>('department');
   const [exploreRange, setExploreRange] = useState<'all' | '30d'>('all');
+  const [exploreCategory, setExploreCategory] = useState<ServiceCategory | ''>('');
   const [expandedDept, setExpandedDept] = useState<string | null>(null);
+  const [expandedService, setExpandedService] = useState<{ id: string; name: string } | null>(null);
+  const [serviceVolunteersData, setServiceVolunteersData] = useState<LedgerServiceVolunteer[]>([]);
 
   // Records drill-down dialog
   const [recordsDialogTitle, setRecordsDialogTitle] = useState('');
@@ -126,10 +133,34 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
   useEffect(() => {
     if (!isAuthenticated || !isReviewer) return;
     const bounds = rangeToBounds(exploreRange);
-    ledgerService.overview(bounds).then((res) => {
-      if (res?.success && res.data) setGlobalOverview(res.data);
+    const params = {
+      ...bounds,
+      ...(exploreCategory ? { category: exploreCategory } : {}),
+    };
+    Promise.all([
+      ledgerService.overview(params),
+      ledgerService.categoryBreakdown(params),
+    ]).then(([oRes, bRes]) => {
+      if (oRes?.success && oRes.data) setGlobalOverview(oRes.data);
+      if (bRes?.success && bRes.data) setCategoryBreakdown(bRes.data);
     });
-  }, [isAuthenticated, isReviewer, exploreRange]);
+    // Collapse drill-downs when the filter scope changes so we don't show
+    // stale expansions of a dept that might have 0 records in the new scope.
+    setExpandedDept(null);
+    setExpandedService(null);
+  }, [isAuthenticated, isReviewer, exploreRange, exploreCategory]);
+
+  // Fetch serviceVolunteers when a service item is drilled into.
+  useEffect(() => {
+    if (!expandedService) {
+      setServiceVolunteersData([]);
+      return;
+    }
+    const bounds = rangeToBounds(exploreRange);
+    ledgerService.serviceVolunteers(expandedService.id, bounds).then((res) => {
+      if (res?.success && res.data) setServiceVolunteersData(res.data);
+    });
+  }, [expandedService, exploreRange]);
 
   // All 4 data sources share the same filter params (date + department).
   useEffect(() => {
@@ -266,49 +297,54 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
     })),
     [trendBuckets]);
 
-  // ─── Global (unfiltered) derived data for exploration area ──────────────
+  // ─── Derived data for exploration area (honours exploreCategory filter) ─
 
-  // Merge departments with overview data — include 0-value departments
+  // Department bars: use categoryBreakdown as source so we can stack segments
+  // when no category filter is active. Departments with 0 records in scope
+  // are still listed (zero-height bars) to keep the x-axis stable at 12 slots.
   const globalDeptBars = useMemo(() => {
     if (!departments.length) return [];
-    const dataMap = new Map(
-      (globalOverview?.byDepartment || []).map((d) => [d.departmentId, d])
-    );
-    const merged = departments.map((d) => {
+    const dataMap = new Map(categoryBreakdown.map((d) => [d.departmentId, d]));
+    return departments.map((d) => {
       const data = dataMap.get(d.id);
       return {
         departmentId: d.id,
         departmentName: d.name,
-        totalHours: Number(data?.totalHours) || 0,
-        count: data?.count || 0,
+        byCategory: data?.byCategory || {
+          PROJECT_MGMT: 0, PROJECT_TRAINING: 0, PROJECT_SUPPORT: 0, TRAINING_ATTENDANCE: 0,
+        } as Record<ServiceCategory, number>,
+        totalHours: Number(data?.total) || 0,
       };
     });
-    const max = Math.max(1, ...merged.map((d) => d.totalHours));
-    return merged.map((d) => ({ ...d, pct: (d.totalHours / max) * 100 }));
-  }, [globalOverview, departments]);
+  }, [categoryBreakdown, departments]);
 
-  // Service items for the expanded department — all items including 0 values
+  // Service items for the expanded department — bars use DEPT color (single
+  // color per bar, matching the parent dept), and honour the category filter
+  // implicitly via globalOverview.byServiceItem.
   const expandedDeptItems = useMemo(() => {
     if (!expandedDept || !allServiceItems.length) return [];
-    // Find the department group from the full service items list
     const deptGroup = allServiceItems.find((g) => g.department.name === expandedDept);
     if (!deptGroup) return [];
-    // Build a lookup from overview data
     const dataMap = new Map(
       (globalOverview?.byServiceItem || [])
         .filter((s) => s.departmentName === expandedDept)
         .map((s) => [s.serviceItemId, { totalHours: Number(s.totalHours) || 0, count: s.count }])
     );
-    return deptGroup.items.map((it) => {
-      const data = dataMap.get(it.id);
-      return {
-        serviceItemId: it.id,
-        serviceItemName: it.name,
-        totalHours: data?.totalHours || 0,
-        count: data?.count || 0,
-      };
-    });
-  }, [expandedDept, allServiceItems, globalOverview]);
+    // When a category filter is set, hide items that aren't in that category
+    // so the bars list stays focused (instead of full of zero-value rows).
+    return deptGroup.items
+      .filter((it) => !exploreCategory || it.category === exploreCategory)
+      .map((it) => {
+        const data = dataMap.get(it.id);
+        return {
+          serviceItemId: it.id,
+          serviceItemName: it.name,
+          category: it.category,
+          totalHours: data?.totalHours || 0,
+          count: data?.count || 0,
+        };
+      });
+  }, [expandedDept, allServiceItems, globalOverview, exploreCategory]);
 
   // Merge all volunteers with overview data — include 0-value volunteers
   const globalVolunteers = useMemo(() => {
@@ -633,98 +669,167 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
           ))}
         </div>
 
+        {/* Category chip row — filters only the exploration area, independent
+            from the trend card's department/date filter above. */}
+        <div className="flex flex-wrap items-center gap-1.5 px-1">
+          <span className="text-[11px] font-medium text-muted-foreground mr-1">板块筛选</span>
+          <button
+            type="button"
+            onClick={() => setExploreCategory('')}
+            className={cn(
+              'inline-flex h-7 items-center rounded-full px-2.5 text-xs font-medium transition-colors',
+              exploreCategory === ''
+                ? 'bg-foreground text-background'
+                : 'border border-border bg-card text-muted-foreground hover:text-foreground',
+            )}
+          >全部</button>
+          {CATEGORY_ORDER.map((cat) => {
+            const active = exploreCategory === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setExploreCategory(active ? '' : cat)}
+                className={cn(
+                  'inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-all',
+                  active
+                    ? 'border-transparent text-white shadow-sm'
+                    : 'border-border bg-card text-muted-foreground hover:text-foreground',
+                )}
+                style={active ? { backgroundColor: CATEGORY_COLOR[cat] } : undefined}
+              >
+                <span
+                  className="h-2 w-2 rounded-sm"
+                  style={{ backgroundColor: CATEGORY_COLOR[cat] }}
+                />
+                {CATEGORY_LABEL[cat]}
+              </button>
+            );
+          })}
+        </div>
+
         {/* ─── Department bar chart + click-to-expand service items ──────── */}
         {exploreTab === 'department' && (
           <div className="space-y-4">
             <Card variant="elevated" className="p-5 sm:p-6">
               <div className="flex items-baseline justify-between mb-4">
-                <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">部门服务时长</h3>
+                <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  部门服务时长
+                  {exploreCategory
+                    ? <span className="ml-2 normal-case text-muted-foreground">· 筛选：{CATEGORY_LABEL[exploreCategory]}</span>
+                    : <span className="ml-2 normal-case text-muted-foreground">· 按板块堆叠</span>}
+                </h3>
                 <p className="text-[11px] text-muted-foreground">点击柱子查看服务项</p>
               </div>
               {globalDeptBars.length === 0 ? (
                 <p className="text-center text-sm text-muted-foreground">暂无数据</p>
               ) : (
-                <div>
-                  <div className="flex h-40 items-end gap-2 sm:gap-3">
-                    {globalDeptBars.map((d) => {
-                      const deptMax = Math.max(1, ...globalDeptBars.map((x) => x.totalHours));
-                      const h = (d.totalHours / deptMax) * 100;
-                      const isExpanded = expandedDept === d.departmentName;
-                      return (
-                        <div key={d.departmentId} className="flex-1" style={{ height: `${Math.max(h, d.totalHours > 0 ? 6 : 4)}%` }}>
-                          <button
-                            type="button"
-                            onClick={() => setExpandedDept(isExpanded ? null : d.departmentName)}
-                            className={cn(
-                              'h-full w-full rounded-t-md transition-all',
-                              isExpanded ? 'bg-primary' : d.totalHours > 0 ? 'bg-primary/60 hover:bg-primary/80' : 'bg-muted hover:bg-muted-foreground/20',
-                            )}
-                            title={`${d.departmentName} · ${d.totalHours}h · ${d.count} 条`}
-                          />
-                        </div>
+                <ScrollableBarChart
+                  bars={globalDeptBars.map((d) => ({
+                    key: d.departmentId,
+                    label: d.departmentName.replace(/部$/, ''),
+                    sublabel: `${d.totalHours}h`,
+                    active: expandedDept === d.departmentName,
+                    // When no category filter: show stacked bars so each dept
+                    // reveals its 4-category composition. When filtered to a
+                    // single category: collapse to a single-color bar of that
+                    // category's totalHours so the filter's effect is obvious.
+                    segments: exploreCategory
+                      ? undefined
+                      : CATEGORY_ORDER.map((cat) => ({
+                          key: cat,
+                          value: d.byCategory[cat] || 0,
+                          color: CATEGORY_COLOR[cat],
+                        })),
+                    value: exploreCategory ? (d.byCategory[exploreCategory] || 0) : undefined,
+                    color: exploreCategory ? CATEGORY_COLOR[exploreCategory] : undefined,
+                    onClick: () => {
+                      setExpandedDept(
+                        expandedDept === d.departmentName ? null : d.departmentName,
                       );
-                    })}
-                  </div>
-                  <div className="mt-2 flex gap-2 sm:gap-3">
-                    {globalDeptBars.map((d) => (
-                      <div key={`l-${d.departmentId}`} className="flex-1 text-center">
-                        <p className="text-[8px] leading-tight text-muted-foreground truncate sm:text-[9px]">{d.departmentName.replace(/部$/, '')}</p>
-                        <p className="text-[9px] tabular-nums text-foreground font-medium">{d.totalHours}h</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                      setExpandedService(null);
+                    },
+                  }))}
+                  height={160}
+                  formatValue={(v) => `${v}h`}
+                />
               )}
             </Card>
 
-            {/* Expanded: all service items for the selected department */}
+            {/* Expanded: service items for the selected department */}
             {expandedDept && (
               <Card variant="elevated" className="p-5 sm:p-6">
                 <div className="flex items-baseline justify-between mb-4">
                   <h4 className="font-serif text-sm font-semibold text-foreground">
                     {expandedDept}
-                    <span className="ml-2 text-xs font-normal text-muted-foreground">服务项分布</span>
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      服务项分布 · 点击柱子看参与志愿者
+                    </span>
                   </h4>
-                  <p className="text-[11px] text-muted-foreground">点击柱子查看记录</p>
                 </div>
                 {expandedDeptItems.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground">暂无服务项</p>
                 ) : (
-                  <div className={cn(expandedDeptItems.length > 10 && 'overflow-x-auto')}>
-                    <div
-                      className="flex h-28 items-end gap-1.5 sm:h-36"
-                      style={expandedDeptItems.length > 10 ? { minWidth: `${expandedDeptItems.length * 3}rem` } : undefined}
-                    >
-                      {expandedDeptItems.map((it) => {
-                        const itemMax = Math.max(1, ...expandedDeptItems.map((x) => x.totalHours));
-                        const h = (it.totalHours / itemMax) * 100;
-                        return (
-                          <div key={it.serviceItemId} className="flex-1" style={{ height: `${Math.max(h, it.totalHours > 0 ? 6 : 4)}%` }}>
-                            <button
-                              type="button"
-                              onClick={() => openRecordsDialog(`${expandedDept} / ${it.serviceItemName}`, { serviceItemId: it.serviceItemId })}
-                              className={cn(
-                                'h-full w-full rounded-t-md transition-colors',
-                                it.totalHours > 0 ? 'bg-accent/60 hover:bg-accent' : 'bg-muted hover:bg-muted-foreground/20',
-                              )}
-                              title={`${it.serviceItemName} · ${it.totalHours}h · ${it.count} 条`}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div
-                      className="mt-2 flex gap-1.5"
-                      style={expandedDeptItems.length > 10 ? { minWidth: `${expandedDeptItems.length * 3}rem` } : undefined}
-                    >
-                      {expandedDeptItems.map((it) => (
-                        <div key={`l-${it.serviceItemId}`} className="flex-1 text-center">
-                          <p className="text-[8px] leading-tight text-muted-foreground truncate sm:text-[9px]">{it.serviceItemName}</p>
-                          <p className="text-[9px] tabular-nums text-foreground font-medium">{it.totalHours}h</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <ScrollableBarChart
+                    bars={expandedDeptItems.map((it) => ({
+                      key: it.serviceItemId,
+                      label: it.serviceItemName,
+                      sublabel: `${it.totalHours}h`,
+                      active: expandedService?.id === it.serviceItemId,
+                      value: it.totalHours,
+                      color: CATEGORY_COLOR[it.category],
+                      onClick: () => setExpandedService(
+                        expandedService?.id === it.serviceItemId
+                          ? null
+                          : { id: it.serviceItemId, name: it.serviceItemName },
+                      ),
+                    }))}
+                    height={140}
+                    formatValue={(v) => `${v}h`}
+                  />
+                )}
+              </Card>
+            )}
+
+            {/* Expanded: volunteer contributors for the selected service (skippable middle layer) */}
+            {expandedService && (
+              <Card variant="elevated" className="p-5 sm:p-6">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+                  <h4 className="font-serif text-sm font-semibold text-foreground">
+                    {expandedDept} / {expandedService.name}
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      参与志愿者 · 同部门同色
+                    </span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => openRecordsDialog(
+                      `${expandedDept} / ${expandedService.name}`,
+                      { serviceItemId: expandedService.id },
+                    )}
+                    className="text-[11px] font-medium text-primary hover:underline"
+                  >
+                    跳过志愿者层 · 直接看全部记录 →
+                  </button>
+                </div>
+                {serviceVolunteersData.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground">该服务项暂无志愿者记录</p>
+                ) : (
+                  <ScrollableBarChart
+                    bars={serviceVolunteersData.map((v) => ({
+                      key: v.volunteerId,
+                      label: v.chineseName,
+                      sublabel: `${v.totalHours}h`,
+                      value: Number(v.totalHours),
+                      color: deptColor(v.departmentId),
+                      onClick: () => openRecordsDialog(
+                        `${v.chineseName} · ${expandedService.name}`,
+                        { volunteerId: v.volunteerId, serviceItemId: expandedService.id },
+                      ),
+                    }))}
+                    height={140}
+                    formatValue={(n) => `${n}h`}
+                  />
                 )}
               </Card>
             )}
@@ -736,48 +841,25 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
           <Card variant="elevated" className="p-5 sm:p-6">
             <div className="flex items-baseline justify-between mb-4">
               <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                志愿者服务时长 <span className="normal-case">({globalVolunteers.length} 人)</span>
+                志愿者服务时长 <span className="normal-case">({globalVolunteers.length} 人) · 同部门同色</span>
               </h3>
               <p className="text-[11px] text-muted-foreground">点击柱子查看记录</p>
             </div>
             {globalVolunteers.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground">暂无数据</p>
             ) : (
-              <div className={cn(globalVolunteers.length > 10 && 'overflow-x-auto')}>
-                <div
-                  className="flex h-32 items-end gap-1.5 sm:h-40"
-                  style={globalVolunteers.length > 10 ? { minWidth: `${globalVolunteers.length * 3}rem` } : undefined}
-                >
-                  {globalVolunteers.map((v) => {
-                    const volMax = Math.max(1, ...globalVolunteers.map((x) => x.totalHours));
-                    const h = (v.totalHours / volMax) * 100;
-                    return (
-                      <div key={v.volunteerId} className="flex-1" style={{ height: `${Math.max(h, v.totalHours > 0 ? 6 : 4)}%` }}>
-                        <button
-                          type="button"
-                          onClick={() => openRecordsDialog(v.chineseName, { volunteerId: v.volunteerId })}
-                          className={cn(
-                            'h-full w-full rounded-t-md transition-colors',
-                            v.totalHours > 0 ? 'bg-primary/60 hover:bg-primary' : 'bg-muted hover:bg-muted-foreground/20',
-                          )}
-                          title={`${v.chineseName} (${v.volunteerCode}) · ${v.totalHours}h · ${v.count} 条`}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-                <div
-                  className="mt-2 flex gap-1.5"
-                  style={globalVolunteers.length > 10 ? { minWidth: `${globalVolunteers.length * 3}rem` } : undefined}
-                >
-                  {globalVolunteers.map((v) => (
-                    <div key={`l-${v.volunteerId}`} className="flex-1 text-center">
-                      <p className="text-[8px] leading-tight text-muted-foreground truncate sm:text-[9px]">{v.chineseName}</p>
-                      <p className="text-[9px] tabular-nums text-foreground font-medium">{v.totalHours}h</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <ScrollableBarChart
+                bars={globalVolunteers.map((v) => ({
+                  key: v.volunteerId,
+                  label: v.chineseName,
+                  sublabel: `${v.totalHours}h`,
+                  value: v.totalHours,
+                  color: deptColor(v.departmentId),
+                  onClick: () => openRecordsDialog(v.chineseName, { volunteerId: v.volunteerId }),
+                }))}
+                height={160}
+                formatValue={(n) => `${n}h`}
+              />
             )}
           </Card>
         )}
