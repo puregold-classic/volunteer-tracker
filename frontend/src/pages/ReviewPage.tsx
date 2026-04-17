@@ -18,10 +18,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Calendar, Clock3, FileText, Layers3, TrendingUp } from 'lucide-react';
 import ledgerService, {
   type LedgerOverview,
-  type LedgerTimeSeriesPoint,
+  type LedgerTimeSeriesByCategoryPoint,
   type ProxyContribution,
   type RecentActivityEntry,
 } from '@services/ledgerService';
+import type { ServiceCategory } from '@services/types';
+import {
+  CATEGORY_COLOR,
+  CATEGORY_LABEL,
+  CATEGORY_ORDER,
+} from '@/lib/ledger-colors';
+import { ScrollableBarChart } from '@/components/shared/scrollable-bar-chart';
 import projectSupportService from '@services/projectSupportService';
 import departmentService from '@services/departmentService';
 import volunteerService from '@services/volunteerService';
@@ -53,7 +60,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
   const { isAuthenticated } = useAuth();
   // Filtered data (follows filter bar)
   const [overview, setOverview] = useState<LedgerOverview | null>(null);
-  const [series, setSeries] = useState<LedgerTimeSeriesPoint[]>([]);
+  const [series, setSeries] = useState<LedgerTimeSeriesByCategoryPoint[]>([]);
   const [proxies, setProxies] = useState<ProxyContribution[]>([]);
   const [activity, setActivity] = useState<RecentActivityEntry[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -141,7 +148,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
 
     Promise.all([
       ledgerService.overview(sharedParams),
-      ledgerService.timeSeries({ months: 12, ...sharedParams, granularity }),
+      ledgerService.timeSeriesByCategory({ months: 12, ...sharedParams, granularity }),
       ledgerService.proxyContributions(sharedParams),
       ledgerService.recentActivity({ limit: 12, ...bounds }),
     ])
@@ -205,42 +212,59 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
   // periods that have data, so we fill the gaps with zeros.
   const isDailyRange = ['7d', '30d', 'thisMonth'].includes(dateRange);
 
-  const sparklineBuckets = useMemo(() => {
-    const map = new Map<string, { count: number; totalHours: number }>();
+  const EMPTY_CATEGORY_TOTALS = (): Record<ServiceCategory, number> => ({
+    PROJECT_MGMT: 0, PROJECT_TRAINING: 0, PROJECT_SUPPORT: 0, TRAINING_ATTENDANCE: 0,
+  });
+
+  // Fill gaps so consecutive empty periods render as flat bars, not holes.
+  const trendBuckets = useMemo(() => {
+    const map = new Map<string, { byCategory: Record<ServiceCategory, number>; total: number }>();
     for (const p of series) {
-      map.set(p.period, { count: p.count, totalHours: Number(p.totalHours) || 0 });
+      map.set(p.period, { byCategory: p.byCategory, total: Number(p.total) || 0 });
     }
     const now = new Date();
-    const buckets: Array<{ period: string; label: string; count: number; totalHours: number }> = [];
+    const buckets: Array<{
+      period: string;
+      label: string;
+      byCategory: Record<ServiceCategory, number>;
+      total: number;
+    }> = [];
 
     if (isDailyRange) {
-      // Daily buckets: fill the range with individual days
       const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : now.getDate();
       for (let i = days - 1; i >= 0; i -= 1) {
         const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
         const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const label = `${d.getMonth() + 1}/${d.getDate()}`;
-        const v = map.get(period) || { count: 0, totalHours: 0 };
-        buckets.push({ period, label, count: v.count, totalHours: v.totalHours });
+        const v = map.get(period) || { byCategory: EMPTY_CATEGORY_TOTALS(), total: 0 };
+        buckets.push({ period, label, byCategory: v.byCategory, total: v.total });
       }
     } else {
-      // Monthly buckets: rolling 12 months (or less if filtered)
       const monthCount = dateRange === 'thisYear' ? now.getMonth() + 1 : 12;
       for (let i = monthCount - 1; i >= 0; i -= 1) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const period = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
         const label = `${d.getFullYear()}/${d.getMonth() + 1}`;
-        const v = map.get(period) || { count: 0, totalHours: 0 };
-        buckets.push({ period, label, count: v.count, totalHours: v.totalHours });
+        const v = map.get(period) || { byCategory: EMPTY_CATEGORY_TOTALS(), total: 0 };
+        buckets.push({ period, label, byCategory: v.byCategory, total: v.total });
       }
     }
     return buckets;
   }, [series, isDailyRange, dateRange]);
 
-  const sparklineMax = useMemo(
-    () => Math.max(1, ...sparklineBuckets.map((b) => b.totalHours)),
-    [sparklineBuckets]
-  );
+  // Bars for the stacked-trend ScrollableBarChart. Segment order follows
+  // CATEGORY_ORDER so the stacks are consistent between periods.
+  const trendChartBars = useMemo(() =>
+    trendBuckets.map((b) => ({
+      key: b.period,
+      label: b.label,
+      segments: CATEGORY_ORDER.map((cat) => ({
+        key: cat,
+        value: b.byCategory[cat] || 0,
+        color: CATEGORY_COLOR[cat],
+      })),
+    })),
+    [trendBuckets]);
 
   // ─── Global (unfiltered) derived data for exploration area ──────────────
 
@@ -472,7 +496,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
         </div>
       </Card>
 
-      {/* ─── Time-series sparkline ───────────────────────────────────────── */}
+      {/* ─── Time-series stacked-trend chart (v3 Phase C) ──────────────── */}
       <Card variant="elevated" className="p-5 sm:p-6">
         <div className="flex items-baseline justify-between">
           <h2 className="font-serif text-base font-semibold text-foreground">
@@ -480,50 +504,28 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
               ? `${dateRange === '7d' ? '近 7 天' : dateRange === '30d' ? '近 30 天' : '本月'}时长趋势`
               : `${dateRange === 'thisYear' ? '本年' : dateRange === '90d' ? '近 3 月' : '近 12 月'}时长趋势`}
           </h2>
-          <p className="text-[11px] text-muted-foreground">单位：小时</p>
+          <p className="text-[11px] text-muted-foreground">按板块堆叠 · 单位：小时</p>
         </div>
-        <div className="mt-4">
-          {/*
-            Bars are direct children of an `h-32 flex items-end` row so the
-            child `style={{height:'X%'}}` resolves against the row height.
-            The earlier wrapper-div approach gave wrappers no height, which
-            collapsed every bar to 0. items-end aligns them to the bottom.
-          */}
-          <div className={cn('flex h-32 items-end', sparklineBuckets.length > 15 ? 'gap-0.5 sm:gap-1' : 'gap-1.5 sm:gap-2')}>
-            {sparklineBuckets.map((b) => {
-              const h = (b.totalHours / sparklineMax) * 100;
-              return (
-                <div
-                  key={b.period}
-                  className={cn(
-                    'flex-1 rounded-t-md transition-colors',
-                    b.totalHours > 0
-                      ? 'bg-primary/70 hover:bg-primary'
-                      : 'bg-muted',
-                  )}
-                  style={{ height: `${Math.max(h, b.totalHours > 0 ? 6 : 4)}%` }}
-                  title={`${b.period} · ${b.totalHours}h · ${b.count} 条`}
-                />
-              );
-            })}
-          </div>
-          {/* X-axis labels — sparse when bucket count is high */}
-          <div className={cn('mt-2 flex', sparklineBuckets.length > 15 ? 'gap-0.5 sm:gap-1' : 'gap-1.5 sm:gap-2')}>
-            {sparklineBuckets.map((b, i) => {
-              // Show every Nth label to avoid crowding
-              const total = sparklineBuckets.length;
-              const step = total <= 12 ? 1 : total <= 15 ? 2 : total <= 20 ? 3 : 5;
-              const showLabel = i % step === 0 || i === total - 1;
-              return (
-                <div
-                  key={`l-${b.period}`}
-                  className="flex-1 text-center text-[9px] tabular-nums text-muted-foreground sm:text-[10px]"
-                >
-                  {showLabel ? b.label : ''}
-                </div>
-              );
-            })}
-          </div>
+
+        {/* Category legend — same color mapping used across all ledger charts */}
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+          {CATEGORY_ORDER.map((cat) => (
+            <span key={cat} className="inline-flex items-center gap-1.5">
+              <span
+                className="h-2.5 w-2.5 rounded-sm"
+                style={{ backgroundColor: CATEGORY_COLOR[cat] }}
+              />
+              <span>{CATEGORY_LABEL[cat]}</span>
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-3">
+          <ScrollableBarChart
+            bars={trendChartBars}
+            height={160}
+            formatValue={(v) => `${v}h`}
+          />
         </div>
       </Card>
 

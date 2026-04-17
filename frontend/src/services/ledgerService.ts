@@ -5,7 +5,7 @@
 // require b_admin / a_admin / admin (the supportLedger router enforces this).
 
 import { api } from './api';
-import type { ApiResponse } from './types';
+import type { ApiResponse, ServiceCategory } from './types';
 
 export interface LedgerOverview {
   summary: {
@@ -33,7 +33,9 @@ export interface LedgerOverview {
   byServiceItem: Array<{
     serviceItemId: string;
     serviceItemName: string;
+    departmentId: string;
     departmentName: string;
+    category: ServiceCategory;
     count: number;
     totalHours: number;
   }>;
@@ -44,6 +46,36 @@ export interface LedgerTimeSeriesPoint {
   period: string;
   count: number;
   totalHours: number;
+}
+
+// v3 wave-3: time-series with groupBy=category returns 4-series buckets.
+// Each period row carries hours per category + the total across all.
+export type CategoryTotals = Record<ServiceCategory, number>;
+
+export interface LedgerTimeSeriesByCategoryPoint {
+  period: string;
+  byCategory: CategoryTotals;
+  total: number;
+}
+
+export interface LedgerCategoryBreakdown {
+  departmentId: string;
+  departmentName: string;
+  displayOrder: number;
+  byCategory: CategoryTotals;
+  total: number;
+}
+
+export interface LedgerVolunteerService {
+  serviceItemId: string;
+  serviceItemName: string;
+  category: ServiceCategory;
+  departmentId: string;
+  departmentName: string;
+  deptDisplayOrder: number;
+  count: number;
+  totalHours: number;
+  lastDate: string | null;
 }
 
 export interface ProxyContribution {
@@ -98,6 +130,7 @@ export const ledgerService = {
     dateFrom?: string;
     dateTo?: string;
     departmentId?: string;
+    category?: ServiceCategory;
   } = {}): Promise<ApiResponse<LedgerOverview>> => {
     return api.get('/support-ledger/overview', { params });
   },
@@ -107,9 +140,39 @@ export const ledgerService = {
     dateFrom?: string;
     dateTo?: string;
     departmentId?: string;
+    category?: ServiceCategory;
     granularity?: 'month' | 'day';
   } = {}): Promise<ApiResponse<LedgerTimeSeriesPoint[]>> => {
     return api.get('/support-ledger/time-series', { params });
+  },
+
+  /** Phase C: time-series broken out by category — 4 series per period. */
+  timeSeriesByCategory: async (params: {
+    months?: number;
+    dateFrom?: string;
+    dateTo?: string;
+    departmentId?: string;
+    granularity?: 'month' | 'day';
+  } = {}): Promise<ApiResponse<LedgerTimeSeriesByCategoryPoint[]>> => {
+    return api.get('/support-ledger/time-series', { params: { ...params, groupBy: 'category' } });
+  },
+
+  /** Phase D: per-department stacked category rollup. */
+  categoryBreakdown: async (params: {
+    dateFrom?: string;
+    dateTo?: string;
+    departmentId?: string;
+    category?: ServiceCategory;
+  } = {}): Promise<ApiResponse<LedgerCategoryBreakdown[]>> => {
+    return api.get('/support-ledger/category-breakdown', { params });
+  },
+
+  /** Phase E: services for a single volunteer, for drill-down. */
+  volunteerServices: async (
+    volunteerId: string,
+    params: { dateFrom?: string; dateTo?: string } = {},
+  ): Promise<ApiResponse<LedgerVolunteerService[]>> => {
+    return api.get(`/support-ledger/volunteers/${volunteerId}/services`, { params });
   },
 
   proxyContributions: async (params: {
