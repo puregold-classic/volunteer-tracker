@@ -591,7 +591,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
           {activity.length === 0 ? (
             <p className="py-6 text-center text-xs text-muted-foreground">暂无活动</p>
           ) : (
-            <ul className="divide-y divide-border/60">
+            <ul className="max-h-80 overflow-y-auto divide-y divide-border/60">
               {activity.map((a) => (
                 <li key={a.id} className="px-4 py-2.5 text-sm">
                   <div className="flex items-baseline justify-between gap-2">
@@ -621,8 +621,8 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
           {proxies.length === 0 ? (
             <p className="py-6 text-center text-xs text-muted-foreground">暂无代提交记录</p>
           ) : (
-            <ul className="divide-y divide-border/60">
-              {proxies.slice(0, 8).map((p, i) => (
+            <ul className="max-h-80 overflow-y-auto divide-y divide-border/60">
+              {proxies.map((p, i) => (
                 <li key={p.volunteerCode} className="flex items-center gap-3 px-4 py-2.5 text-sm">
                   <span className={cn(
                     'inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tabular-nums',

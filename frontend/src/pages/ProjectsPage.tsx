@@ -21,7 +21,9 @@ import projectService, {
   type BatchAttendanceResult,
 } from '@services/projectService';
 import serviceItemService from '@services/serviceItemService';
-import type { Project, ServiceItemsByDepartment, ServiceCategory } from '@services/types';
+import volunteerService from '@services/volunteerService';
+import type { Project, ServiceItemsByDepartment, ServiceCategory, Volunteer } from '@services/types';
+import { Check, AlertTriangle, X as XIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -221,13 +223,81 @@ function CreateProjectDialog({
 
 // ─── Batch attendance + result panel (inside detail dialog) ────────────────
 
+// Splitter: newline / comma (en+cn) / 顿号 / 分号 / tab. Excel单列 copy-paste
+// ends up tab-separated per-row with newlines between rows, so this handles
+// "Excel 一列粘过来" natively without special parsing.
+const NAME_SPLITTER = /[\n,，、;；\t]/;
+
+interface PreviewEntry {
+  input: string;
+  status: 'matched' | 'ambiguous' | 'unmatched' | 'duplicate';
+  match?: Pick<Volunteer, 'id' | 'volunteerCode' | 'chineseName'>;
+  candidates?: Array<Pick<Volunteer, 'id' | 'volunteerCode' | 'chineseName'>>;
+}
+
+function buildPreview(
+  namesText: string,
+  volunteersIndex: { byCode: Map<string, Volunteer>; byCn: Map<string, Volunteer[]>; byEn: Map<string, Volunteer[]> },
+): PreviewEntry[] {
+  const seenVolunteerIds = new Set<string>();
+  const seenInputs = new Set<string>();
+  const entries: PreviewEntry[] = [];
+  for (const raw of namesText.split(NAME_SPLITTER)) {
+    const input = raw.trim();
+    if (!input) continue;
+    const key = input.toLowerCase();
+    if (seenInputs.has(key)) {
+      entries.push({ input, status: 'duplicate' });
+      continue;
+    }
+    seenInputs.add(key);
+
+    const byCode = volunteersIndex.byCode.get(key);
+    if (byCode) {
+      if (seenVolunteerIds.has(byCode.id)) {
+        entries.push({ input, status: 'duplicate', match: byCode });
+      } else {
+        seenVolunteerIds.add(byCode.id);
+        entries.push({ input, status: 'matched', match: byCode });
+      }
+      continue;
+    }
+    const cn = volunteersIndex.byCn.get(key);
+    if (cn?.length === 1) {
+      const v = cn[0];
+      if (seenVolunteerIds.has(v.id)) entries.push({ input, status: 'duplicate', match: v });
+      else { seenVolunteerIds.add(v.id); entries.push({ input, status: 'matched', match: v }); }
+      continue;
+    }
+    if (cn && cn.length > 1) {
+      entries.push({ input, status: 'ambiguous', candidates: cn });
+      continue;
+    }
+    const en = volunteersIndex.byEn.get(key);
+    if (en?.length === 1) {
+      const v = en[0];
+      if (seenVolunteerIds.has(v.id)) entries.push({ input, status: 'duplicate', match: v });
+      else { seenVolunteerIds.add(v.id); entries.push({ input, status: 'matched', match: v }); }
+      continue;
+    }
+    if (en && en.length > 1) {
+      entries.push({ input, status: 'ambiguous', candidates: en });
+      continue;
+    }
+    entries.push({ input, status: 'unmatched' });
+  }
+  return entries;
+}
+
 function BatchAttendanceForm({
   project,
   groupedItems,
+  allVolunteers,
   onDone,
 }: {
   project: Project;
   groupedItems: ServiceItemsByDepartment[];
+  allVolunteers: Volunteer[];
   onDone: () => void;
 }) {
   // Attendance items that belong to the project's department
@@ -243,16 +313,48 @@ function BatchAttendanceForm({
   const [result, setResult] = useState<BatchAttendanceResult | null>(null);
   const [error, setError] = useState('');
 
+  // Build the matching index once per volunteer list change. Name collisions
+  // across chineseName / englishName are tracked as multi-value lists so the
+  // preview can tell the user "same Chinese name matches 2 people, please
+  // disambiguate with volunteerCode".
+  const volunteersIndex = useMemo(() => {
+    const byCode = new Map<string, Volunteer>();
+    const byCn = new Map<string, Volunteer[]>();
+    const byEn = new Map<string, Volunteer[]>();
+    for (const v of allVolunteers) {
+      if (v.status !== '在职') continue;
+      byCode.set(v.volunteerCode.toLowerCase(), v);
+      const cn = v.chineseName?.toLowerCase();
+      if (cn) {
+        if (!byCn.has(cn)) byCn.set(cn, []);
+        byCn.get(cn)!.push(v);
+      }
+      const en = v.englishName?.toLowerCase();
+      if (en) {
+        if (!byEn.has(en)) byEn.set(en, []);
+        byEn.get(en)!.push(v);
+      }
+    }
+    return { byCode, byCn, byEn };
+  }, [allVolunteers]);
+
+  const preview = useMemo(
+    () => buildPreview(namesText, volunteersIndex),
+    [namesText, volunteersIndex],
+  );
+  const previewCounts = useMemo(() => {
+    const c = { matched: 0, ambiguous: 0, unmatched: 0, duplicate: 0 };
+    for (const p of preview) c[p.status] += 1;
+    return c;
+  }, [preview]);
+
   useEffect(() => {
     if (attendanceItems.length > 0 && !serviceItemId) {
       setServiceItemId(attendanceItems[0].id);
     }
   }, [attendanceItems, serviceItemId]);
 
-  const nameCount = namesText
-    .split(/[\n,，、;；\t]/)
-    .map((s) => s.trim())
-    .filter(Boolean).length;
+  const nameCount = preview.length;
 
   const submit = async () => {
     setError('');
@@ -317,7 +419,7 @@ function BatchAttendanceForm({
       <FormField
         label={`参训人姓名列表 (${nameCount} 人)`}
         required
-        hint="一行一个，或逗号/顿号/分号分隔。可填中文名、英文名或 PG-XXXX"
+        hint="一行一个，或逗号/顿号/分号/Tab 分隔。可填中文名、英文名或 PG-XXXX。Excel 单列复制粘贴直接可用。"
       >
         <FormTextarea
           rows={6}
@@ -327,6 +429,70 @@ function BatchAttendanceForm({
           className="font-mono"
         />
       </FormField>
+
+      {preview.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+            <span className="font-medium text-muted-foreground">核对预览</span>
+            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700">
+              <Check className="h-3 w-3" />
+              匹配 {previewCounts.matched}
+            </span>
+            {previewCounts.ambiguous > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-1.5 py-0.5 text-amber-700">
+                <AlertTriangle className="h-3 w-3" />
+                多重 {previewCounts.ambiguous}
+              </span>
+            )}
+            {previewCounts.unmatched > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-rose-500/10 px-1.5 py-0.5 text-rose-700">
+                <XIcon className="h-3 w-3" />
+                未匹配 {previewCounts.unmatched}
+              </span>
+            )}
+            {previewCounts.duplicate > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-muted-foreground">
+                重复 {previewCounts.duplicate}（忽略）
+              </span>
+            )}
+          </div>
+          <ul className="max-h-40 overflow-y-auto space-y-0.5 text-[11px]">
+            {preview.map((p, i) => (
+              <li
+                key={`${p.input}-${i}`}
+                className={cn(
+                  'flex items-center gap-2 rounded px-1.5 py-0.5',
+                  p.status === 'matched' && 'text-emerald-700',
+                  p.status === 'ambiguous' && 'text-amber-700',
+                  p.status === 'unmatched' && 'text-rose-700',
+                  p.status === 'duplicate' && 'text-muted-foreground line-through',
+                )}
+              >
+                {p.status === 'matched' && <Check className="h-3 w-3 shrink-0" />}
+                {p.status === 'ambiguous' && <AlertTriangle className="h-3 w-3 shrink-0" />}
+                {p.status === 'unmatched' && <XIcon className="h-3 w-3 shrink-0" />}
+                {p.status === 'duplicate' && <span className="w-3 text-center text-[10px]">◦</span>}
+                <span className="truncate font-mono">{p.input}</span>
+                {p.match && p.status === 'matched' && (
+                  <span className="ml-auto truncate font-normal text-muted-foreground">
+                    → {p.match.chineseName} ({p.match.volunteerCode})
+                  </span>
+                )}
+                {p.status === 'ambiguous' && p.candidates && (
+                  <span className="ml-auto truncate font-normal text-muted-foreground">
+                    候选：{p.candidates.map((v) => v.volunteerCode).join(' / ')}
+                  </span>
+                )}
+                {p.status === 'duplicate' && p.match && (
+                  <span className="ml-auto truncate font-normal">
+                    ← 已在上面匹配 {p.match.chineseName}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <FormField
         label="描述（可选）"
@@ -473,12 +639,14 @@ function BatchResultPanel({ result }: { result: BatchAttendanceResult }) {
 function ProjectDetailDialog({
   project,
   groupedItems,
+  allVolunteers,
   onClose,
   onChanged,
   canEnterAttendance,
 }: {
   project: Project | null;
   groupedItems: ServiceItemsByDepartment[];
+  allVolunteers: Volunteer[];
   onClose: () => void;
   onChanged: () => void;
   canEnterAttendance: boolean;
@@ -529,6 +697,7 @@ function ProjectDetailDialog({
               <BatchAttendanceForm
                 project={project}
                 groupedItems={groupedItems}
+                allVolunteers={allVolunteers}
                 onDone={onChanged}
               />
             </>
@@ -557,6 +726,7 @@ export default function ProjectsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [active, setActive] = useState<Project | null>(null);
   const [groupedItems, setGroupedItems] = useState<ServiceItemsByDepartment[]>([]);
+  const [allVolunteers, setAllVolunteers] = useState<Volunteer[]>([]);
 
   const refresh = async () => {
     setLoading(true);
@@ -586,6 +756,12 @@ export default function ProjectsPage() {
   useEffect(() => {
     void serviceItemService.listGrouped().then((r) => {
       if (r?.success && r.data) setGroupedItems(r.data);
+    });
+    // Load active volunteer roster once for client-side batch-entry preview.
+    // Page 1 at limit 500 covers the current sandbox; future growth can switch
+    // to server-side match or paginate.
+    void volunteerService.getAllVolunteers({ limit: 500, status: '在职' }).then((r) => {
+      if (r?.success && r.data) setAllVolunteers(r.data);
     });
   }, []);
 
@@ -692,6 +868,7 @@ export default function ProjectsPage() {
       <ProjectDetailDialog
         project={active}
         groupedItems={groupedItems}
+        allVolunteers={allVolunteers}
         onClose={() => setActive(null)}
         onChanged={() => void refresh()}
         canEnterAttendance={!!canEnterAttendance}
