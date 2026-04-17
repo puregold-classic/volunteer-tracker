@@ -1,4 +1,4 @@
-# API 巡览（v2.1）
+# API 巡览（v2.1 + v3）
 
 > **不是完整的 reference**——完整真值源是 `backend/src/routes/*.js`。本文是导览：哪个域有哪些 endpoint、各自的语义和权限。
 
@@ -11,6 +11,8 @@
 | 部门 | `/api/v1/departments` | `routes/departmentRoutes.js` |
 | 服务项 | `/api/v1/service-items` | `routes/serviceItemRoutes.js` |
 | 项目支援 | `/api/v1/project-supports` | `routes/projectSupportRoutes.js` |
+| 项目（v3） | `/api/v1/projects` | `routes/projectRoutes.js` |
+| 关注列表（v3） | `/api/v1/lists` | `routes/volunteerListRoutes.js` |
 | 项目支援台账 | `/api/v1/support-ledger` | `routes/supportLedgerRoutes.js` |
 | 系统设置 | `/api/v1/system-settings` | `routes/systemSettingsRoutes.js` |
 | 审计日志 | `/api/v1/audit` | `routes/auditRoutes.js` |
@@ -66,7 +68,7 @@
 - `GET /:id`
 - `POST` / `PATCH` / `DELETE` — admin only
 
-10 部门 + 50 服务项是固定 reference data，由 `prisma/seed.js` 初始化。日常运行不会动这两个表。
+12 部门 + ~60 服务项（带 v3 的 `ServiceCategory` 枚举）是固定 reference data，由 `prisma/seed.js` 初始化。日常运行不会动这两个表。
 
 ---
 

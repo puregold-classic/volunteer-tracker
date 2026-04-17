@@ -101,28 +101,37 @@ src/
 
 ---
 
-## 数据模型概览（v2.1）
+## 数据模型概览（v2.1 + v3）
 
 完整定义在 `backend/prisma/schema.prisma`。下面只是关键关系：
 
 ```
-Department (10 个固定部门, id 是人类可读 code 如 BY_PROJECT)
+Department (12 个固定部门, id 是人类可读 code 如 BY_PROJECT; v3 新增 READING_CLUB / VIDEO)
    │
    │ 1:N
    ▼
-ServiceItem (~50 个服务项)
+ServiceItem (~60 个服务项, 带 ServiceCategory enum)
+   │     ← v3: 4 板块 PROJECT_MGMT / PROJECT_TRAINING / PROJECT_SUPPORT / TRAINING_ATTENDANCE
    │
    │ N:1   (每条 ProjectSupport 关联一个 service item)
    ▼
 ProjectSupport ─── volunteerId ───▶ Volunteer ◀─── 1:1 ─── Account
-   │                                                          │
-   │ submittedById ────────────────▶ Volunteer (代提交人)     │
+   │  │                                                      │
+   │  │ projectId? ─── N:1 ───▶ Project (v3 新增, 批量考勤/tag)
+   │  │
+   │  │ submittedById ────────▶ Volunteer (代提交人)
    │                                                          │
    ▼ status                                                   ▼ role
    ACTIVE / PENDING_CONFIRMATION /                  user / b_admin /
    REJECTED_BY_OWNER / DELETED                      a_admin / admin
 
-AuditLog (独立 paper trail，记 volunteer / account / support 的关键操作)
+VolunteerList (v3 新增) ─ ownerId ─▶ Volunteer
+   │
+   │ 1:N
+   ▼
+VolunteerListMember ─ volunteerId ─▶ Volunteer (被关注的人)
+
+AuditLog (独立 paper trail，记 volunteer / account / support / project / list 的关键操作)
 
 SystemSettings (单行表，存 lockedBefore — 月结锁定日期)
 ```
@@ -131,7 +140,9 @@ SystemSettings (单行表，存 lockedBefore — 月结锁定日期)
 
 - **`Account ↔ Volunteer` 强 1:1 FK**：CHECK constraint `role = 'admin' OR volunteerId IS NOT NULL`，非 admin 必须绑 volunteer
 - **`ProjectSupport` 防重 partial unique**：`(volunteerId, serviceDate, serviceItemId, duration, description) WHERE status='ACTIVE'`，防止同人同天同项重复提交
-- **代提交状态机**：`submittedById ≠ volunteerId` 时强制落 `PENDING_CONFIRMATION`，等 owner `confirm/reject`
+- **代提交状态机**：`submittedById ≠ volunteerId` 时普通志愿者代提交落 `PENDING_CONFIRMATION`；**v3 起 `a_admin / b_admin` 代提交直接 `ACTIVE`**（相当于录入员，无需 owner confirm），audit 打 `proxyBypassedConfirm: true`
+- **TRAINING_ATTENDANCE 拦截**：service 层拒绝个人提交该类 service item，只允许走 Project 批量考勤入口（v3）
+- **Project sessionDuration 冻结**：TRAINING_ATTENDANCE 项目创建后 sessionDuration 不可修改，每次批量入账时 snapshot 到每条 PS
 - **月结锁定**：`lockedBefore` 之前的日期不允许新建 / 修改 ProjectSupport，forward-only
 - **删除是软删**：`status='DELETED'`，从 ACTIVE 统计中消失但 row 保留，AuditLog 留有删除事件
 

@@ -65,7 +65,7 @@ make status            # 容器状态 + backend 健康检查
 ## 数据库 (本地 dev)
 
 ```bash
-make seed              # prisma db seed → 10 部门 + 50 service items + 4 测试账号
+make seed              # prisma db seed → 12 部门 + ~60 service items (带 ServiceCategory) + 4 测试账号
 make db-migrate        # prisma migrate dev — 在已有 schema 之上新建 migration
 make db-generate       # prisma generate — 重新生成 client 类型
 make db-studio         # 打开 prisma studio 可视化 (http://localhost:5555)
