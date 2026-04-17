@@ -21,6 +21,7 @@ import ledgerService, {
   type LedgerTimeSeriesByCategoryPoint,
   type LedgerCategoryBreakdown,
   type LedgerServiceVolunteer,
+  type LedgerVolunteerService,
   type ProxyContribution,
   type RecentActivityEntry,
 } from '@services/ledgerService';
@@ -82,6 +83,8 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
   const [expandedDept, setExpandedDept] = useState<string | null>(null);
   const [expandedService, setExpandedService] = useState<{ id: string; name: string } | null>(null);
   const [serviceVolunteersData, setServiceVolunteersData] = useState<LedgerServiceVolunteer[]>([]);
+  const [expandedVolunteer, setExpandedVolunteer] = useState<{ id: string; name: string } | null>(null);
+  const [volunteerServicesData, setVolunteerServicesData] = useState<LedgerVolunteerService[]>([]);
 
   // Records drill-down dialog
   const [recordsDialogTitle, setRecordsDialogTitle] = useState('');
@@ -148,6 +151,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
     // stale expansions of a dept that might have 0 records in the new scope.
     setExpandedDept(null);
     setExpandedService(null);
+    setExpandedVolunteer(null);
   }, [isAuthenticated, isReviewer, exploreRange, exploreCategory]);
 
   // Fetch serviceVolunteers when a service item is drilled into.
@@ -161,6 +165,18 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
       if (res?.success && res.data) setServiceVolunteersData(res.data);
     });
   }, [expandedService, exploreRange]);
+
+  // Fetch volunteerServices when a volunteer row is drilled into (Phase E).
+  useEffect(() => {
+    if (!expandedVolunteer) {
+      setVolunteerServicesData([]);
+      return;
+    }
+    const bounds = rangeToBounds(exploreRange);
+    ledgerService.volunteerServices(expandedVolunteer.id, bounds).then((res) => {
+      if (res?.success && res.data) setVolunteerServicesData(res.data);
+    });
+  }, [expandedVolunteer, exploreRange]);
 
   // All 4 data sources share the same filter params (date + department).
   useEffect(() => {
@@ -836,32 +852,82 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
           </div>
         )}
 
-        {/* ─── Volunteer bar chart ───────────────────────────────────────── */}
+        {/* ─── Volunteer bar chart + service-dimension drill (Phase E) ──── */}
         {exploreTab === 'volunteer' && (
-          <Card variant="elevated" className="p-5 sm:p-6">
-            <div className="flex items-baseline justify-between mb-4">
-              <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                志愿者服务时长 <span className="normal-case">({globalVolunteers.length} 人) · 同部门同色</span>
-              </h3>
-              <p className="text-[11px] text-muted-foreground">点击柱子查看记录</p>
-            </div>
-            {globalVolunteers.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground">暂无数据</p>
-            ) : (
-              <ScrollableBarChart
-                bars={globalVolunteers.map((v) => ({
-                  key: v.volunteerId,
-                  label: v.chineseName,
-                  sublabel: `${v.totalHours}h`,
-                  value: v.totalHours,
-                  color: deptColor(v.departmentId),
-                  onClick: () => openRecordsDialog(v.chineseName, { volunteerId: v.volunteerId }),
-                }))}
-                height={160}
-                formatValue={(n) => `${n}h`}
-              />
+          <div className="space-y-4">
+            <Card variant="elevated" className="p-5 sm:p-6">
+              <div className="flex items-baseline justify-between mb-4">
+                <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  志愿者服务时长 <span className="normal-case">({globalVolunteers.length} 人) · 同部门同色</span>
+                </h3>
+                <p className="text-[11px] text-muted-foreground">点击柱子展开服务分布</p>
+              </div>
+              {globalVolunteers.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground">暂无数据</p>
+              ) : (
+                <ScrollableBarChart
+                  bars={globalVolunteers.map((v) => ({
+                    key: v.volunteerId,
+                    label: v.chineseName,
+                    sublabel: `${v.totalHours}h`,
+                    active: expandedVolunteer?.id === v.volunteerId,
+                    value: v.totalHours,
+                    color: deptColor(v.departmentId),
+                    onClick: () => setExpandedVolunteer(
+                      expandedVolunteer?.id === v.volunteerId
+                        ? null
+                        : { id: v.volunteerId, name: v.chineseName },
+                    ),
+                  }))}
+                  height={160}
+                  formatValue={(n) => `${n}h`}
+                />
+              )}
+            </Card>
+
+            {/* Expanded: service dimension for the picked volunteer */}
+            {expandedVolunteer && (
+              <Card variant="elevated" className="p-5 sm:p-6">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+                  <h4 className="font-serif text-sm font-semibold text-foreground">
+                    {expandedVolunteer.name} / 服务分布
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      同部门同色 · 点击柱子看具体条目
+                    </span>
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => openRecordsDialog(
+                      expandedVolunteer.name,
+                      { volunteerId: expandedVolunteer.id },
+                    )}
+                    className="text-[11px] font-medium text-primary hover:underline"
+                  >
+                    跳过服务层 · 直接看全部记录 →
+                  </button>
+                </div>
+                {volunteerServicesData.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground">该志愿者暂无记录</p>
+                ) : (
+                  <ScrollableBarChart
+                    bars={volunteerServicesData.map((s) => ({
+                      key: s.serviceItemId,
+                      label: s.serviceItemName,
+                      sublabel: s.departmentName,
+                      value: Number(s.totalHours),
+                      color: deptColor(s.departmentId),
+                      onClick: () => openRecordsDialog(
+                        `${expandedVolunteer.name} / ${s.serviceItemName}`,
+                        { volunteerId: expandedVolunteer.id, serviceItemId: s.serviceItemId },
+                      ),
+                    }))}
+                    height={140}
+                    formatValue={(n) => `${n}h`}
+                  />
+                )}
+              </Card>
             )}
-          </Card>
+          </div>
         )}
       </div>
 
