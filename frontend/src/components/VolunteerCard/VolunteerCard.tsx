@@ -8,6 +8,7 @@ import { ChevronRight, MapPin, Briefcase } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Volunteer } from '@services/types';
 import { cn } from '@/lib/utils';
+import { FollowHeart } from '@/components/shared/follow-heart';
 
 export interface VolunteerCardProps {
   volunteer: Volunteer;
@@ -49,6 +50,13 @@ const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compa
   const hasRealPhoto = volunteer.avatar && !volunteer.avatar.startsWith(AVATAR_DEFAULT_PREFIX);
 
   return (
+    <div className="relative">
+      <FollowHeart
+        volunteerId={volunteer.id}
+        volunteerName={volunteer.chineseName}
+        size="sm"
+        className="absolute right-2 top-2 z-10"
+      />
     <button
       type="button"
       onClick={() => onClick?.(volunteer.id)}
@@ -127,6 +135,7 @@ const VolunteerCard: React.FC<VolunteerCardProps> = ({ volunteer, onClick, compa
         <ChevronRight className="h-4 w-4 shrink-0 self-center text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
       </div>
     </button>
+    </div>
   );
 };
 

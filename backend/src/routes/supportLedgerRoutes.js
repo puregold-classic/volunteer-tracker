@@ -9,14 +9,21 @@ import { authorizeReviewer } from '../middleware/authorizeReviewer.js';
 
 const router = express.Router();
 
-router.use(authenticate, authorizeReviewer);
+// Auth required on every endpoint; reviewer gate only on the admin-only
+// aggregates. The two "drill data" endpoints (volunteer→services,
+// service→volunteers) feed the shared ScrollableBarChart drill used by
+// both ReviewPage (reviewer-only) and MePage "我的关注" section (any
+// authed user), so they gate on authenticate only.
+router.use(authenticate);
 
-router.get('/overview', SupportLedgerController.overview);
-router.get('/time-series', SupportLedgerController.timeSeries);
-router.get('/category-breakdown', SupportLedgerController.categoryBreakdown);
-router.get('/proxy-contributions', SupportLedgerController.proxyContributions);
-router.get('/recent-activity', SupportLedgerController.recentActivity);
-router.get('/volunteers/:volunteerId', SupportLedgerController.volunteerDetail);
+router.get('/overview', authorizeReviewer, SupportLedgerController.overview);
+router.get('/time-series', authorizeReviewer, SupportLedgerController.timeSeries);
+router.get('/category-breakdown', authorizeReviewer, SupportLedgerController.categoryBreakdown);
+router.get('/proxy-contributions', authorizeReviewer, SupportLedgerController.proxyContributions);
+router.get('/recent-activity', authorizeReviewer, SupportLedgerController.recentActivity);
+router.get('/volunteers/:volunteerId', authorizeReviewer, SupportLedgerController.volunteerDetail);
+
+// Auth-only (any logged-in user can drill) — used by MePage follow section
 router.get('/volunteers/:volunteerId/services', SupportLedgerController.volunteerServices);
 router.get('/service-items/:serviceItemId/volunteers', SupportLedgerController.serviceVolunteers);
 

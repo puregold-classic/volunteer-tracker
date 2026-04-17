@@ -179,6 +179,24 @@ export interface Project {
   updatedAt?: string;
 }
 
+// ─── Volunteer list (v3 wave-3 "我的关注") ────────────────────────────────────
+
+export interface VolunteerListMember {
+  id: string;
+  note: string | null;
+  addedAt: string;
+  volunteer: Volunteer;
+}
+
+export interface VolunteerList {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  members: VolunteerListMember[];
+}
+
 // ─── System settings ──────────────────────────────────────────────────────────
 
 export interface SystemSettings {

@@ -98,6 +98,11 @@ enum AuditAction {
   project_delete
   project_attendance_batch
   project_link_support
+  list_create
+  list_update
+  list_delete
+  list_member_add
+  list_member_remove
 }
 
 // Classifies a ServiceItem into the v3 三大板块 buckets. Category is assigned
@@ -202,6 +207,9 @@ model Volunteer {
   ownedSupports      ProjectSupport[] @relation("OwnedSupports")
   submittedSupports  ProjectSupport[] @relation("SubmittedSupports")
   createdProjects    Project[]        @relation("CreatedProjects")
+  // v3 wave-3: lists this volunteer owns, and lists that include this volunteer
+  ownedLists         VolunteerList[]       @relation("ListOwner")
+  listMemberships    VolunteerListMember[] @relation("ListMember")
 
   @@index([status])
   @@index([region])
@@ -247,6 +255,47 @@ model ProjectSupport {
   //   UNIQUE (volunteer_id, service_date, service_item_id, duration, description)
   //   WHERE status = 'ACTIVE'
   @@map("project_supports")
+}
+
+// ─── Volunteer lists (v3 wave 3) ──────────────────────────────────────────────
+//
+// Private per-volunteer tracking lists. Primary use case: admins / 部长
+// keeping an eye on specific volunteers ("我的关注"), and regular volunteers
+// remembering friends they commonly代提交 for. MVP only supports a single
+// default list per owner (lazy-created on first follow), but the schema
+// is ready for multi-list when user asks for it.
+//
+// Admin accounts without a volunteer binding (pure system admin, v2.1 only
+// role allowed to have volunteerId=null) do not own lists — they use the
+// ledger instead. All other roles have a Volunteer FK.
+
+model VolunteerList {
+  id        String                @id @default(cuid())
+  ownerId   String
+  owner     Volunteer             @relation("ListOwner", fields: [ownerId], references: [id])
+  name      String                // "我的关注", "翻译同事", …
+  isDefault Boolean               @default(false)
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  members   VolunteerListMember[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
+  @@map("volunteer_lists")
+}
+
+model VolunteerListMember {
+  id          String        @id @default(cuid())
+  listId      String
+  list        VolunteerList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  volunteerId String
+  volunteer   Volunteer     @relation("ListMember", fields: [volunteerId], references: [id])
+  note        String?
+  addedAt     DateTime      @default(now())
+
+  @@unique([listId, volunteerId])
+  @@index([volunteerId])
+  @@map("volunteer_list_members")
 }
 
 // ─── Project (v3 wave 2) ──────────────────────────────────────────────────────

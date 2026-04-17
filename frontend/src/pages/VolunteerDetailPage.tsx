@@ -40,6 +40,8 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { parseLocalDate, formatLocalDate } from '@/lib/date-utils';
 import { HeroAvatar } from '@/components/shared/hero-avatar';
+import { FollowHeart } from '@/components/shared/follow-heart';
+import volunteerListService from '@services/volunteerListService';
 import { SupportRecordCard } from '@/components/shared/support-record-card';
 import { SubmitFormDialog } from '@/components/shared/submit-form-dialog';
 
@@ -61,6 +63,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitOpen, setSubmitOpen] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
 
   // Defensive self-redirect: should be unreachable when navigating from
   // Home (App.tsx blocks it) but catches deep-links and bookmarks.
@@ -83,12 +86,14 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
 
       // Records and service items both need auth.
       if (isAuthenticated) {
-        const [sRes, itemsRes] = await Promise.all([
+        const [sRes, itemsRes, fRes] = await Promise.all([
           projectSupportService.list({ volunteerId: vRes.data.id, limit: 50 }),
           canProxySubmit ? serviceItemService.listGrouped() : Promise.resolve({ success: false }) as any,
+          volunteerListService.followerCount(vRes.data.id),
         ]);
         if (sRes?.success && sRes.data?.records) setSupports(sRes.data.records);
         if (itemsRes?.success && itemsRes.data) setServiceItemsGrouped(itemsRes.data);
+        if (fRes?.success && fRes.data) setFollowerCount(fRes.data.count);
       } else {
         setSupports([]);
       }
@@ -187,9 +192,23 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
           <div className="flex items-start gap-4">
             <HeroAvatar name={volunteer.chineseName} code={volunteer.volunteerCode} size="lg" />
             <div className="min-w-0 flex-1">
-              <h1 className="font-serif text-xl font-semibold text-foreground">
-                {volunteer.chineseName}
-              </h1>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="font-serif text-xl font-semibold text-foreground">
+                    {volunteer.chineseName}
+                  </h1>
+                  {followerCount > 0 && (
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {followerCount} 人关注
+                    </p>
+                  )}
+                </div>
+                <FollowHeart
+                  volunteerId={volunteer.id}
+                  volunteerName={volunteer.chineseName}
+                  size="md"
+                />
+              </div>
               {volunteer.englishName && (
                 <p className="text-sm text-muted-foreground italic">{volunteer.englishName}</p>
               )}

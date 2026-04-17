@@ -57,6 +57,14 @@ import { HeroAvatar } from '@/components/shared/hero-avatar';
 import { SupportRecordCard } from '@/components/shared/support-record-card';
 import { SubmitFormDialog } from '@/components/shared/submit-form-dialog';
 import { LinkProjectDialog } from '@/components/shared/link-project-dialog';
+import { ScrollableBarChart } from '@/components/shared/scrollable-bar-chart';
+import { useRecordsDialog } from '@/components/shared/records-dialog';
+import volunteerListService from '@services/volunteerListService';
+import ledgerService, { type LedgerVolunteerService } from '@services/ledgerService';
+import { useFollowed } from '@/context/FollowedContext';
+import { deptColor } from '@/lib/ledger-colors';
+import type { VolunteerList } from '@services/types';
+import { Heart, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface MePageProps {
   onBackHome: () => void;
@@ -203,16 +211,25 @@ function MePage({ onBackHome }: MePageProps) {
   const [recordFilter, setRecordFilter] = useState<'ACTIVE' | 'PENDING' | 'HISTORY'>('ACTIVE');
   const [linkingSupport, setLinkingSupport] = useState<ProjectSupport | null>(null);
 
+  // v3 wave-3: 我的关注 section state
+  const [followedList, setFollowedList] = useState<VolunteerList | null>(null);
+  const [expandedFollowId, setExpandedFollowId] = useState<string | null>(null);
+  const [followServices, setFollowServices] = useState<LedgerVolunteerService[]>([]);
+  const [proxyTarget, setProxyTarget] = useState<{ id: string; chineseName: string } | null>(null);
+  const { refresh: refreshFollowed } = useFollowed();
+  const recordsDialog = useRecordsDialog();
+
   const refresh = async () => {
     if (!account?.volunteerId) return;
     setLoading(true);
     try {
-      const [vRes, sRes, pRes, proxyRes, itemsRes] = await Promise.all([
+      const [vRes, sRes, pRes, proxyRes, itemsRes, listRes] = await Promise.all([
         volunteerService.getVolunteerById(account.volunteerId),
         projectSupportService.list({ volunteerId: account.volunteerId, limit: 50 }),
         projectSupportService.listPendingForMe(),
         projectSupportService.list({ submittedById: account.volunteerId, limit: 50 }),
         serviceItemService.listGrouped(),
+        volunteerListService.listMine(),
       ]);
       if (vRes?.success && vRes.data) setVolunteer(vRes.data);
       if (sRes?.success && sRes.data?.records) setSupports(sRes.data.records);
@@ -222,12 +239,24 @@ function MePage({ onBackHome }: MePageProps) {
         setProxyForOthers(proxyRes.data.records.filter((r: ProjectSupport) => r.isProxy));
       }
       if (itemsRes?.success && itemsRes.data) setServiceItemsGrouped(itemsRes.data);
+      if (listRes?.success && listRes.data) {
+        const def = listRes.data.find((l) => l.isDefault) ?? null;
+        setFollowedList(def);
+      }
     } catch (err: any) {
       toast({ title: '加载失败', description: err?.message || '未知错误', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   };
+
+  // Fetch service breakdown for the currently-expanded followed volunteer.
+  useEffect(() => {
+    if (!expandedFollowId) { setFollowServices([]); return; }
+    ledgerService.volunteerServices(expandedFollowId).then((res) => {
+      if (res?.success && res.data) setFollowServices(res.data);
+    });
+  }, [expandedFollowId]);
 
   useEffect(() => {
     if (!isAuthenticated || isSystemAdmin) return;
@@ -674,6 +703,104 @@ function MePage({ onBackHome }: MePageProps) {
         </section>
       )}
 
+      {/* ─── 我的关注 (v3 wave-3) ─────────────────────────────────────── */}
+      <section className="space-y-3">
+        <div className="flex items-baseline gap-2">
+          <Heart className="h-4 w-4 text-rose-500" />
+          <h2 className="font-serif text-lg font-semibold text-foreground">我的关注</h2>
+          {followedList && (
+            <span className="text-xs text-muted-foreground tabular-nums">
+              ({followedList.members.length})
+            </span>
+          )}
+        </div>
+        {!followedList || followedList.members.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center text-xs text-muted-foreground">
+            还没有关注任何志愿者。去首页或志愿者详情页点 ❤︎ 加入。
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {followedList.members.map((m) => {
+              const isExpanded = expandedFollowId === m.volunteer.id;
+              return (
+                <li
+                  key={m.id}
+                  className="rounded-xl border border-border bg-card"
+                >
+                  <div className="flex items-center gap-3 p-3">
+                    <div
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-semibold text-white"
+                      style={{ backgroundColor: deptColor(m.volunteer.departmentId) }}
+                    >
+                      {m.volunteer.chineseName.charAt(0)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="truncate font-medium text-foreground">
+                          {m.volunteer.chineseName}
+                        </span>
+                        <span className="font-mono text-[11px] text-muted-foreground">
+                          {m.volunteer.volunteerCode}
+                        </span>
+                      </div>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {m.volunteer.department?.name} · {m.volunteer.region}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setProxyTarget({ id: m.volunteer.id, chineseName: m.volunteer.chineseName });
+                        setSubmitOpen(true);
+                      }}
+                    >
+                      <Send className="mr-1 h-3.5 w-3.5" />
+                      代提交
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setExpandedFollowId(isExpanded ? null : m.volunteer.id)}
+                      aria-label={isExpanded ? '收起' : '展开'}
+                    >
+                      {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  {isExpanded && (
+                    <div className="border-t border-border p-3">
+                      {followServices.length === 0 ? (
+                        <p className="py-6 text-center text-xs text-muted-foreground">
+                          该志愿者暂无记录
+                        </p>
+                      ) : (
+                        <ScrollableBarChart
+                          bars={followServices.map((s) => ({
+                            key: s.serviceItemId,
+                            label: s.serviceItemName,
+                            sublabel: s.departmentName,
+                            value: Number(s.totalHours),
+                            color: deptColor(s.departmentId),
+                            onClick: () => recordsDialog.open(
+                              `${m.volunteer.chineseName} / ${s.serviceItemName}`,
+                              { volunteerId: m.volunteer.id, serviceItemId: s.serviceItemId },
+                            ),
+                          }))}
+                          height={120}
+                          formatValue={(n) => `${n}h`}
+                        />
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
       {/* ─── Footer link to home ─────────────────────────────────────────── */}
       <button
         type="button"
@@ -687,10 +814,14 @@ function MePage({ onBackHome }: MePageProps) {
       {/* ─── Submit dialog ───────────────────────────────────────────────── */}
       <SubmitFormDialog
         open={submitOpen}
-        onOpenChange={setSubmitOpen}
+        onOpenChange={(v) => { setSubmitOpen(v); if (!v) setProxyTarget(null); }}
         groupedItems={serviceItemsGrouped}
-        onSubmitted={() => void refresh()}
+        targetVolunteer={proxyTarget ?? undefined}
+        onSubmitted={() => { void refresh(); void refreshFollowed(); }}
       />
+
+      {/* Records drill-down dialog (shared primitive) */}
+      <recordsDialog.node />
 
       {/* ─── Reject dialog ───────────────────────────────────────────────── */}
       <RejectDialog
