@@ -52,4 +52,9 @@ docker-data/
 docker-compose.override.yml
 
 # 本地笔记（密码、备忘、临时记录等，不入版本控制）
-.local-notes/image.png
+.local-notes/
+
+# dev sandbox artifacts (playwright screenshots + ad-hoc live screenshots)
+.playwright-mcp/
+live-*.png
+live-*.jpg

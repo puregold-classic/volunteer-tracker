@@ -131,6 +131,22 @@ make test              # vitest run, ~86 tests, 全 mock 不需要 DB
 make test-coverage     # 覆盖率报告
 ```
 
+## 视觉约定
+
+**柱图宽度规则** —— 所有用 `<ScrollableBarChart>` 渲染的柱图：
+
+- N ≤ 6 柱 → 按 6 柱宽度算，左对齐，右边留空（不拉伸撑满）
+- 6 < N ≤ 12 → 自然分宽填满
+- N > 12 → 按 12 柱宽度，横向 overflow 滚动
+
+避免 3 柱图撑满看起来比例奇怪，也避免 50 志愿者柱挤成一片。
+
+**配色真值源** `frontend/src/lib/ledger-colors.ts`：
+
+- `CATEGORY_COLOR[cat]` —— 4 板块主色（项目管理 indigo / 项目培训 emerald / 项目支持 amber / 受训考勤 slate）
+- `DEPT_COLOR[deptId]` —— 12 部门色，按所属 category 家族取同色系不同档
+- 所有图表、submit dialog、record card 都从这里取，别硬编 hex
+
 ## 浏览器调试（Playwright MCP）
 
 项目装了 `@playwright/mcp`（默认 headed + bundled Chromium，在 WSLg 里弹 Linux 窗口给 user 看）。可用工具：`browser_navigate / click / fill / snapshot / screenshot / evaluate / wait_for / console_messages / network_requests` 等。

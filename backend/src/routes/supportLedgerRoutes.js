@@ -13,8 +13,10 @@ router.use(authenticate, authorizeReviewer);
 
 router.get('/overview', SupportLedgerController.overview);
 router.get('/time-series', SupportLedgerController.timeSeries);
+router.get('/category-breakdown', SupportLedgerController.categoryBreakdown);
 router.get('/proxy-contributions', SupportLedgerController.proxyContributions);
 router.get('/recent-activity', SupportLedgerController.recentActivity);
 router.get('/volunteers/:volunteerId', SupportLedgerController.volunteerDetail);
+router.get('/volunteers/:volunteerId/services', SupportLedgerController.volunteerServices);
 
 export default router;

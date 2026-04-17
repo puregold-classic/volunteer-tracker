@@ -14,6 +14,7 @@ class SupportLedgerController {
         dateFrom: req.query.dateFrom,
         dateTo: req.query.dateTo,
         departmentId: req.query.departmentId,
+        category: req.query.category,
       });
       return ok(res, data);
     } catch (err) {
@@ -28,7 +29,35 @@ class SupportLedgerController {
         dateFrom: req.query.dateFrom,
         dateTo: req.query.dateTo,
         departmentId: req.query.departmentId,
+        category: req.query.category,
+        groupBy: req.query.groupBy === 'category' ? 'category' : undefined,
         granularity: req.query.granularity === 'day' ? 'day' : 'month',
+      });
+      return ok(res, data);
+    } catch (err) {
+      return fail(res, 500, err.message);
+    }
+  }
+
+  static async categoryBreakdown(req, res) {
+    try {
+      const data = await SupportLedgerService.categoryBreakdown({
+        dateFrom: req.query.dateFrom,
+        dateTo: req.query.dateTo,
+        departmentId: req.query.departmentId,
+        category: req.query.category,
+      });
+      return ok(res, data);
+    } catch (err) {
+      return fail(res, 500, err.message);
+    }
+  }
+
+  static async volunteerServices(req, res) {
+    try {
+      const data = await SupportLedgerService.volunteerServices(req.params.volunteerId, {
+        dateFrom: req.query.dateFrom,
+        dateTo: req.query.dateTo,
       });
       return ok(res, data);
     } catch (err) {
