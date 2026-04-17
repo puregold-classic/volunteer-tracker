@@ -42,7 +42,10 @@ import { parseLocalDate, formatLocalDate } from '@/lib/date-utils';
 import { HeroAvatar } from '@/components/shared/hero-avatar';
 import { FollowHeart } from '@/components/shared/follow-heart';
 import volunteerListService from '@services/volunteerListService';
-import { SupportRecordCard } from '@/components/shared/support-record-card';
+import ledgerService, { type LedgerVolunteerService } from '@services/ledgerService';
+import { ScrollableBarChart } from '@/components/shared/scrollable-bar-chart';
+import { useRecordsDialog } from '@/components/shared/records-dialog';
+import { deptColor } from '@/lib/ledger-colors';
 import { SubmitFormDialog } from '@/components/shared/submit-form-dialog';
 
 interface VolunteerDetailPageProps {
@@ -64,6 +67,8 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
   const [error, setError] = useState('');
   const [submitOpen, setSubmitOpen] = useState(false);
   const [followerCount, setFollowerCount] = useState(0);
+  const [services, setServices] = useState<LedgerVolunteerService[]>([]);
+  const recordsDialog = useRecordsDialog();
 
   // Defensive self-redirect: should be unreachable when navigating from
   // Home (App.tsx blocks it) but catches deep-links and bookmarks.
@@ -86,16 +91,19 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
 
       // Records and service items both need auth.
       if (isAuthenticated) {
-        const [sRes, itemsRes, fRes] = await Promise.all([
+        const [sRes, itemsRes, fRes, svcRes] = await Promise.all([
           projectSupportService.list({ volunteerId: vRes.data.id, limit: 50 }),
           canProxySubmit ? serviceItemService.listGrouped() : Promise.resolve({ success: false }) as any,
           volunteerListService.followerCount(vRes.data.id),
+          ledgerService.volunteerServices(vRes.data.id),
         ]);
         if (sRes?.success && sRes.data?.records) setSupports(sRes.data.records);
         if (itemsRes?.success && itemsRes.data) setServiceItemsGrouped(itemsRes.data);
         if (fRes?.success && fRes.data) setFollowerCount(fRes.data.count);
+        if (svcRes?.success && svcRes.data) setServices(svcRes.data);
       } else {
         setSupports([]);
+        setServices([]);
       }
     } catch (err: any) {
       setError(err?.message || '加载失败');
@@ -112,7 +120,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
   // ─── Stat / heatmap / month grouping ─────────────────────────────────────
   // Mirrors MePage but only counts ACTIVE records and skips status filtering
   // (someone else's REJECTED records are not surfaced).
-  const { stats, heatmap, monthlyGroups } = useMemo(() => {
+  const { stats, heatmap } = useMemo(() => {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     let monthHours = 0;
@@ -122,8 +130,6 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
 
     const heatmapMap = new Map<string, number>();
     const ninetyDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 89);
-
-    const groupMap = new Map<string, { key: string; label: string; hours: number; count: number; records: ProjectSupport[] }>();
 
     for (const s of supports) {
       if (s.status !== 'ACTIVE') continue;
@@ -137,13 +143,6 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         heatmapMap.set(key, (heatmapMap.get(key) || 0) + dur);
       }
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = `${d.getFullYear()} 年 ${d.getMonth() + 1} 月`;
-      const g = groupMap.get(monthKey) || { key: monthKey, label: monthLabel, hours: 0, count: 0, records: [] };
-      g.records.push(s);
-      g.count += 1;
-      g.hours += dur;
-      groupMap.set(monthKey, g);
     }
 
     const heatmapArr: Array<{ key: string; hours: number }> = [];
@@ -153,12 +152,9 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
       heatmapArr.push({ key, hours: heatmapMap.get(key) || 0 });
     }
 
-    const groups = Array.from(groupMap.values()).sort((a, b) => (a.key < b.key ? 1 : -1));
-
     return {
       stats: { totalHours, totalCount, monthHours, monthCount },
       heatmap: heatmapArr,
-      monthlyGroups: groups,
     };
   }, [supports]);
 
@@ -365,7 +361,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
         </Button>
       )}
 
-      {/* ─── Support records ─────────────────────────────────────────────── */}
+      {/* ─── Support records → service distribution (v3 wave-3) ─────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="font-serif text-base font-semibold text-foreground">
@@ -393,30 +389,35 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
           <p className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
             加载中…
           </p>
-        ) : monthlyGroups.length === 0 ? (
+        ) : services.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
             <p className="text-sm text-muted-foreground">暂无已生效的支援记录</p>
           </div>
         ) : (
-          <div className="space-y-5">
-            {monthlyGroups.map((g) => (
-              <div key={g.key} className="space-y-2.5">
-                <div className="sticky top-14 z-10 -mx-1 flex items-baseline justify-between border-b border-border/60 bg-background/85 px-1 py-1.5 backdrop-blur-sm">
-                  <h3 className="font-serif text-sm font-semibold text-foreground">{g.label}</h3>
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {g.hours}h · {g.count} 条
-                  </p>
-                </div>
-                <div className="space-y-2.5">
-                  {g.records.map((s) => (
-                    <SupportRecordCard key={s.id} support={s} showDelete={false} />
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="mb-3 text-[11px] font-medium text-muted-foreground">
+              服务分布 · 同部门同色 · 点击柱子看条目
+            </p>
+            <ScrollableBarChart
+              bars={services.map((s) => ({
+                key: s.serviceItemId,
+                label: s.serviceItemName,
+                sublabel: s.departmentName,
+                value: Number(s.totalHours),
+                color: deptColor(s.departmentId),
+                onClick: () => recordsDialog.open(
+                  `${volunteer.chineseName} / ${s.serviceItemName}`,
+                  { volunteerId: volunteer.id, serviceItemId: s.serviceItemId },
+                ),
+              }))}
+              height={160}
+              formatValue={(n) => `${n}h`}
+            />
           </div>
         )}
       </section>
+
+      <recordsDialog.node />
 
       {/* ─── Footer link to home ─────────────────────────────────────────── */}
       <button

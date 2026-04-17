@@ -219,17 +219,22 @@ function MePage({ onBackHome }: MePageProps) {
   const { refresh: refreshFollowed } = useFollowed();
   const recordsDialog = useRecordsDialog();
 
+  // My own service distribution (used in "已生效" view in place of the old
+  // grouped-by-month list). Fetched on refresh along with everything else.
+  const [mySelfServices, setMySelfServices] = useState<LedgerVolunteerService[]>([]);
+
   const refresh = async () => {
     if (!account?.volunteerId) return;
     setLoading(true);
     try {
-      const [vRes, sRes, pRes, proxyRes, itemsRes, listRes] = await Promise.all([
+      const [vRes, sRes, pRes, proxyRes, itemsRes, listRes, servicesRes] = await Promise.all([
         volunteerService.getVolunteerById(account.volunteerId),
         projectSupportService.list({ volunteerId: account.volunteerId, limit: 50 }),
         projectSupportService.listPendingForMe(),
         projectSupportService.list({ submittedById: account.volunteerId, limit: 50 }),
         serviceItemService.listGrouped(),
         volunteerListService.listMine(),
+        ledgerService.volunteerServices(account.volunteerId),
       ]);
       if (vRes?.success && vRes.data) setVolunteer(vRes.data);
       if (sRes?.success && sRes.data?.records) setSupports(sRes.data.records);
@@ -243,6 +248,7 @@ function MePage({ onBackHome }: MePageProps) {
         const def = listRes.data.find((l) => l.isDefault) ?? null;
         setFollowedList(def);
       }
+      if (servicesRes?.success && servicesRes.data) setMySelfServices(servicesRes.data);
     } catch (err: any) {
       toast({ title: '加载失败', description: err?.message || '未知错误', variant: 'destructive' });
     } finally {
@@ -627,6 +633,39 @@ function MePage({ onBackHome }: MePageProps) {
               </p>
             </div>
           </div>
+        ) : recordFilter === 'ACTIVE' ? (
+          // v3 wave-3: ACTIVE view becomes a service-distribution chart.
+          // Point of change: service structure > chronological list here —
+          // time summaries are already on the stat tiles above. Drill to
+          // records via dialog for anyone wanting the raw rows.
+          mySelfServices.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+              该筛选下暂无记录
+            </p>
+          ) : (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <div className="mb-3 flex items-baseline justify-between">
+                <p className="text-[11px] font-medium text-muted-foreground">
+                  服务分布 · 同部门同色 · 点击柱子看条目
+                </p>
+              </div>
+              <ScrollableBarChart
+                bars={mySelfServices.map((s) => ({
+                  key: s.serviceItemId,
+                  label: s.serviceItemName,
+                  sublabel: s.departmentName,
+                  value: Number(s.totalHours),
+                  color: deptColor(s.departmentId),
+                  onClick: () => recordsDialog.open(
+                    `我 / ${s.serviceItemName}`,
+                    { volunteerId: account?.volunteerId ?? '', serviceItemId: s.serviceItemId },
+                  ),
+                }))}
+                height={160}
+                formatValue={(n) => `${n}h`}
+              />
+            </div>
+          )
         ) : filteredGroups.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
             该筛选下暂无记录
