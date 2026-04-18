@@ -11,6 +11,7 @@ import prisma from '../utils/prismaClient.js';
 import { hashPassword, verifyPassword } from '../utils/passwordUtils.js';
 import { serializeAccount } from '../utils/serializer.js';
 import IDGenerator from '../utils/IDGenerator.js';
+import { detectIdentifierKind } from '../utils/identifierUtils.js';
 
 const serializeOperator = (op) => ({
   id: op?.accountId ?? null,
@@ -82,13 +83,43 @@ export const register = async ({ email, password, name, volunteerCode }) => {
   return { account: serializeAccount(account) };
 };
 
-export const login = async ({ email, password, rememberMe = false }) => {
-  if (!email || !password) return { missingFields: true };
+/**
+ * v3.3: tri-modal login. Accepts `identifier` (email / phone / volunteerCode)
+ * or the legacy `email` field for backward compatibility. Detection is
+ * content-based:
+ *   - contains @         → email
+ *   - contains - (no @)  → volunteerCode (case-insensitive)
+ *   - digits only        → phone (normalized via identifierUtils)
+ *
+ * Non-email identifiers only resolve to volunteer-bound accounts (admin
+ * role has no volunteer binding, so admins must log in by email).
+ */
+export const login = async ({ identifier, email, password, rememberMe = false }) => {
+  const raw = identifier ?? email;
+  if (!raw || !password) return { missingFields: true };
 
-  const account = await prisma.account.findUnique({
-    where: { email: String(email).trim().toLowerCase() },
-    include: { volunteer: { include: { department: true } } },
-  });
+  const { kind, value } = detectIdentifierKind(raw);
+  if (kind === 'invalid') return { invalidCredentials: true };
+
+  const accountInclude = { volunteer: { include: { department: true } } };
+
+  let account = null;
+  if (kind === 'email') {
+    account = await prisma.account.findUnique({ where: { email: value }, include: accountInclude });
+  } else if (kind === 'volunteerCode') {
+    const v = await prisma.volunteer.findUnique({
+      where: { volunteerCode: value },
+      include: { account: { include: accountInclude } },
+    });
+    account = v?.account ?? null;
+  } else if (kind === 'phone') {
+    const v = await prisma.volunteer.findUnique({
+      where: { phone: value },
+      include: { account: { include: accountInclude } },
+    });
+    account = v?.account ?? null;
+  }
+
   if (!account || !account.isActive) return { invalidCredentials: true };
 
   const valid = await verifyPassword(password, account.passwordHash);
@@ -97,7 +128,7 @@ export const login = async ({ email, password, rememberMe = false }) => {
   const updated = await prisma.account.update({
     where: { id: account.id },
     data: { lastLoginAt: new Date() },
-    include: { volunteer: { include: { department: true } } },
+    include: accountInclude,
   });
   const token = signToken(updated, { rememberMe: !!rememberMe });
   return { token, account: serializeAccount(updated) };

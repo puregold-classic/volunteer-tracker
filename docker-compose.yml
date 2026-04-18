@@ -45,9 +45,10 @@ services:
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-8h}
       - BCRYPT_SALT_ROUNDS=${BCRYPT_SALT_ROUNDS:-10}
       # Local-dev bootstrap admin — auto-created on first start when DB has no admin.
-      - BOOTSTRAP_ADMIN_EMAIL=${BOOTSTRAP_ADMIN_EMAIL:-admin@vt.local}
-      - BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD:-Admin@123}
-      - BOOTSTRAP_ADMIN_NAME=${BOOTSTRAP_ADMIN_NAME:-Admin}
+      # Kept in sync with .local-notes/mac-mini-sandbox.md so local mirrors the sandbox.
+      - BOOTSTRAP_ADMIN_EMAIL=${BOOTSTRAP_ADMIN_EMAIL:-admin@puregoldclassictranslation.com}
+      - BOOTSTRAP_ADMIN_PASSWORD=${BOOTSTRAP_ADMIN_PASSWORD:-q4m2GlqtriDp0cglzGqa}
+      - BOOTSTRAP_ADMIN_NAME=${BOOTSTRAP_ADMIN_NAME:-Sandbox Admin}
     depends_on:
       postgres:
         condition: service_healthy

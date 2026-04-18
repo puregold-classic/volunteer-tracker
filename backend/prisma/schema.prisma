@@ -247,7 +247,10 @@ model Volunteer {
   department      Department      @relation(fields: [departmentId], references: [id])
   activityLevel   ActivityLevel   @default(MEDIUM)
   email           String?
-  phone           String?
+  // v3.3: phone is also a login identifier, so non-null values must be unique.
+  // Normalized to digits-only canonical form by AccountService / VolunteerService
+  // on write. Empty strings are normalized to NULL so they don't collide.
+  phone           String?         @unique
   joinDate        DateTime        @default(now())
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt

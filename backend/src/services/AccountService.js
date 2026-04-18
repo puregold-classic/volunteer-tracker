@@ -12,6 +12,7 @@
 import prisma from '../utils/prismaClient.js';
 import { hashPassword } from '../utils/passwordUtils.js';
 import IDGenerator from '../utils/IDGenerator.js';
+import { normalizePhone } from '../utils/identifierUtils.js';
 import {
   serializeAccount,
   serializeVolunteer,
@@ -56,7 +57,7 @@ export const createVolunteerAccount = async ({ volunteer = {}, account = {} } = 
     subRegion: String(volunteer.subRegion || '').trim(),
     departmentId: String(volunteer.departmentId || '').trim(),
     email: String(volunteer.email || '').trim(),
-    phone: String(volunteer.phone || '').trim(),
+    phone: normalizePhone(volunteer.phone),
   };
   const vError = validateVolunteerPayload(vPayload);
   if (vError) return { validationError: vError };
@@ -82,6 +83,11 @@ export const createVolunteerAccount = async ({ volunteer = {}, account = {} } = 
 
   const existingEmail = await prisma.account.findUnique({ where: { email: aPayload.email } });
   if (existingEmail) return { conflict: `邮箱已存在: ${aPayload.email}` };
+
+  if (vPayload.phone) {
+    const existingPhone = await prisma.volunteer.findUnique({ where: { phone: vPayload.phone } });
+    if (existingPhone) return { conflict: `手机号已被占用: ${vPayload.phone}` };
+  }
 
   // ─── Generate volunteerCode + transaction ────────────────────────────────
   const volunteerCode = await IDGenerator.generateVolunteerCode();

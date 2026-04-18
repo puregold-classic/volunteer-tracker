@@ -12,10 +12,11 @@ const { mockPrisma, mockHash } = vi.hoisted(() => {
     volunteer: { update: vi.fn() },
     auditLog: { create: vi.fn() },
   };
+  const volFindUnique = vi.fn();
   return {
     mockPrisma: {
       account: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
-      volunteer: { findUnique: vi.fn() },
+      volunteer: { findUnique: volFindUnique },
       auditLog: { create: vi.fn() },
       $transaction: vi.fn(async (fn) => fn(tx)),
       _tx: tx,
@@ -163,6 +164,74 @@ describe('AuthService.login', () => {
   it('returns missingFields when email or password absent', async () => {
     expect((await login({ email: '', password: 'x' })).missingFields).toBe(true);
     expect((await login({ email: 'a@b.com', password: '' })).missingFields).toBe(true);
+  });
+
+  it('accepts `identifier` field and routes email-shaped values to account.findUnique by email', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({
+      id: 'acc-e', email: 'u@vt.local', passwordHash: 'h', role: 'user',
+      isActive: true, volunteer: { volunteerCode: 'PG-0007' },
+    });
+    mockHash.verifyPassword.mockResolvedValue(true);
+    mockPrisma.account.update.mockResolvedValue({
+      id: 'acc-e', email: 'u@vt.local', role: 'user', isActive: true,
+      volunteer: { volunteerCode: 'PG-0007' },
+    });
+    const r = await login({ identifier: 'U@vt.local', password: 'goodpass' });
+    expect(r.token).toBeDefined();
+    expect(mockPrisma.account.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { email: 'u@vt.local' } }),
+    );
+    // volunteer.findUnique should NOT be used for email kind
+    expect(mockPrisma.volunteer.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('volunteerCode identifier routes via volunteer.findUnique by volunteerCode (upper-cased)', async () => {
+    const volunteerRow = {
+      id: 'vol-7', volunteerCode: 'PG-0007',
+      account: {
+        id: 'acc-v', email: 'vol@vt.local', passwordHash: 'h', role: 'user',
+        isActive: true, volunteer: { volunteerCode: 'PG-0007' },
+      },
+    };
+    mockPrisma.volunteer.findUnique.mockResolvedValue(volunteerRow);
+    mockHash.verifyPassword.mockResolvedValue(true);
+    mockPrisma.account.update.mockResolvedValue({
+      id: 'acc-v', email: 'vol@vt.local', role: 'user', isActive: true,
+      volunteer: { volunteerCode: 'PG-0007' },
+    });
+    const r = await login({ identifier: 'pg-0007', password: 'goodpass' });
+    expect(r.token).toBeDefined();
+    expect(mockPrisma.volunteer.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { volunteerCode: 'PG-0007' } }),
+    );
+  });
+
+  it('phone identifier normalizes +86 / dashes and looks up by canonical digits', async () => {
+    const volunteerRow = {
+      id: 'vol-8', volunteerCode: 'PG-0008',
+      account: {
+        id: 'acc-p', email: 'p@vt.local', passwordHash: 'h', role: 'user',
+        isActive: true, volunteer: { volunteerCode: 'PG-0008' },
+      },
+    };
+    mockPrisma.volunteer.findUnique.mockResolvedValue(volunteerRow);
+    mockHash.verifyPassword.mockResolvedValue(true);
+    mockPrisma.account.update.mockResolvedValue({
+      id: 'acc-p', email: 'p@vt.local', role: 'user', isActive: true,
+      volunteer: { volunteerCode: 'PG-0008' },
+    });
+    const r = await login({ identifier: '+86 138-0013-8001', password: 'goodpass' });
+    expect(r.token).toBeDefined();
+    expect(mockPrisma.volunteer.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { phone: '13800138001' } }),
+    );
+  });
+
+  it('unrecognized identifier returns invalidCredentials without hitting DB', async () => {
+    const r = await login({ identifier: 'random nonsense 🌶', password: 'goodpass' });
+    expect(r.invalidCredentials).toBe(true);
+    expect(mockPrisma.account.findUnique).not.toHaveBeenCalled();
+    expect(mockPrisma.volunteer.findUnique).not.toHaveBeenCalled();
   });
 
   it('rememberMe=true issues a longer-lived token', async () => {

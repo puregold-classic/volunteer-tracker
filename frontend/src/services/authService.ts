@@ -77,13 +77,18 @@ export const authService = {
     return publicApi.post('/auth/register', payload);
   },
 
+  /**
+   * v3.3 tri-modal login. `identifier` is email / phone / volunteerCode —
+   * the backend sniffs by content (contains @ → email, contains - → code,
+   * else → phone).
+   */
   login: async (
-    email: string,
+    identifier: string,
     password: string,
     rememberMe: boolean = false,
   ): Promise<ApiResponse<LoginResponse>> => {
     const response = (await publicApi.post('/auth/login', {
-      email,
+      identifier,
       password,
       rememberMe,
     })) as ApiResponse<LoginResponse>;

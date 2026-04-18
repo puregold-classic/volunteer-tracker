@@ -11,6 +11,7 @@
 
 import prisma from '../utils/prismaClient.js';
 import QueryUtils from '../utils/queryUtils.js';
+import { normalizePhone } from '../utils/identifierUtils.js';
 import {
   serializeVolunteer,
   VOLUNTEER_STATUS_TO_PG,
@@ -176,7 +177,7 @@ export const update = async (idOrCode, body) => {
     data.activityLevel = body.activityLevel === '高' ? 'HIGH' : body.activityLevel === '低' ? 'LOW' : 'MEDIUM';
   }
   if (body.email !== undefined) data.email = body.email;
-  if (body.phone !== undefined) data.phone = body.phone;
+  if (body.phone !== undefined) data.phone = normalizePhone(body.phone);
 
   const updated = await prisma.volunteer.update({
     where: { id: target.id },

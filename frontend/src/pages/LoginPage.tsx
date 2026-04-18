@@ -19,7 +19,7 @@ function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -27,15 +27,15 @@ function LoginPage() {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!email || !password) {
-      setError('请输入邮箱和密码');
-      toast({ title: '登录失败', description: '请输入邮箱和密码', variant: 'destructive' });
+    if (!identifier || !password) {
+      setError('请输入账号和密码');
+      toast({ title: '登录失败', description: '请输入账号和密码', variant: 'destructive' });
       return;
     }
     setSubmitting(true);
     setError('');
     try {
-      await login(email, password, rememberMe);
+      await login(identifier, password, rememberMe);
       // Resume original target if redirected here from a protected page
       const state = location.state as LocationState | undefined;
       const next = state?.from?.pathname || '/me';
@@ -70,18 +70,18 @@ function LoginPage() {
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <label htmlFor="login-email" className="text-sm font-medium text-foreground">
-              邮箱
+            <label htmlFor="login-identifier" className="text-sm font-medium text-foreground">
+              邮箱 / 手机号 / 志愿者 ID
             </label>
             <Input
-              id="login-email"
-              type="email"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(''); }}
-              placeholder="admin@example.com"
+              id="login-identifier"
+              type="text"
+              value={identifier}
+              onChange={(e) => { setIdentifier(e.target.value); setError(''); }}
+              placeholder="admin@example.com · 13812345678 · PG-0001"
               disabled={submitting}
-              autoComplete="email"
-              error={!!error && !email}
+              autoComplete="username"
+              error={!!error && !identifier}
             />
           </div>
           <div className="space-y-2">
