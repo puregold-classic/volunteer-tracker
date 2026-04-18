@@ -12,14 +12,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Plus, Tag as TagIcon, Layers, ListPlus, Trash2, Pencil, Check, X as XIcon,
-  ChevronRight, Users,
+  ChevronRight, Users, Edit3, Link as LinkIcon, MinusCircle,
 } from 'lucide-react';
-import tagService from '@services/tagService';
+import tagService, { type BatchPreview } from '@services/tagService';
 import serviceItemService from '@services/serviceItemService';
 import volunteerService from '@services/volunteerService';
+import projectSupportService from '@services/projectSupportService';
 import type {
   TagGroup, Tag, ServiceItemsByDepartment, Volunteer, TagSelectionMode,
-  TagOpMode, TagOpenness,
+  TagOpMode, TagOpenness, ProjectSupport,
 } from '@services/types';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -445,6 +446,299 @@ function BatchCreateDialog({
   );
 }
 
+// ─── Batch update dialog (managed groups only) ────────────────────────────
+
+function BatchUpdateDialog({
+  open, onOpenChange, tag, onDone,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  tag: Tag | null;
+  onDone: () => void;
+}) {
+  const [duration, setDuration] = useState('');
+  const [serviceDate, setServiceDate] = useState('');
+  const [description, setDescription] = useState('');
+  const [preview, setPreview] = useState<BatchPreview | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setDuration('');
+      setServiceDate('');
+      setDescription('');
+      setPreview(null);
+    }
+  }, [open]);
+
+  const buildPatch = () => {
+    const patch: { duration?: number; serviceDate?: string; description?: string } = {};
+    if (duration) {
+      const d = parseFloat(duration);
+      if (d > 0 && (d * 2) % 1 === 0) patch.duration = d;
+    }
+    if (serviceDate) patch.serviceDate = serviceDate;
+    if (description.trim()) patch.description = description.trim();
+    return patch;
+  };
+
+  const doPreview = async () => {
+    if (!tag) return;
+    const patch = buildPatch();
+    if (Object.keys(patch).length === 0) {
+      toast({ title: '至少填一项要改的字段', variant: 'destructive' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await tagService.batchUpdate(tag.id, { patch, scope: 'all', dryRun: true });
+      if (res?.success && res.data?.preview) setPreview(res.data.preview);
+      else toast({ title: '预览失败', description: (res as { error?: string })?.error, variant: 'destructive' });
+    } finally { setBusy(false); }
+  };
+
+  const doApply = async () => {
+    if (!tag || !preview) return;
+    const patch = buildPatch();
+    if (!window.confirm(`确认应用？将影响 ${preview.scopeCount} 条 PS，此操作写入审计日志。`)) return;
+    setBusy(true);
+    try {
+      const res = await tagService.batchUpdate(tag.id, { patch, scope: 'all', dryRun: false });
+      if (res?.success) {
+        toast({ title: '批量修改完成', description: `更新 ${res.data?.updatedCount ?? 0} 条` });
+        onDone();
+        onOpenChange(false);
+      } else {
+        toast({ title: '应用失败', description: (res as { error?: string })?.error, variant: 'destructive' });
+      }
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`批量修改 · ${tag?.name ?? ''}`}
+      description="对 tag 下所有 PS 应用同一 patch；必须先预览再应用"
+    >
+      <div className="space-y-3 px-6 py-4">
+        <FormField label="新时长（小时，0.5 倍数）">
+          <FormInput value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="留空则不改" />
+        </FormField>
+        <FormField label="新日期">
+          <FormInput type="date" value={serviceDate} onChange={(e) => setServiceDate(e.target.value)} />
+        </FormField>
+        <FormField label="新描述">
+          <FormTextarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="留空则不改" />
+        </FormField>
+        {preview && (
+          <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-xs space-y-1.5">
+            <p className="font-medium text-foreground">预览</p>
+            <p>影响条数：<span className="font-mono tabular-nums">{preview.scopeCount}</span></p>
+            {preview.currentDurationRange && (
+              <p>原时长范围：{preview.currentDurationRange.min}h – {preview.currentDurationRange.max}h（{preview.currentDurationRange.distinct} 种）</p>
+            )}
+            {preview.willUpdate && (
+              <p>将更新为：
+                {preview.willUpdate.duration !== undefined && <span className="ml-1">时长 <b>{preview.willUpdate.duration}h</b></span>}
+                {preview.willUpdate.serviceDate !== undefined && <span className="ml-1">日期 <b>{new Date(preview.willUpdate.serviceDate).toISOString().slice(0, 10)}</b></span>}
+                {preview.willUpdate.description !== undefined && <span className="ml-1">描述 <b>"{preview.willUpdate.description}"</b></span>}
+              </p>
+            )}
+            {preview.sample && preview.sample.length > 0 && (
+              <p className="text-muted-foreground">样本：{preview.sample.slice(0, 5).map((s) => s.volunteer).join('、')}{preview.sample.length > 5 ? '…' : ''}</p>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>取消</Button>
+        <Button type="button" variant="outline" onClick={doPreview} disabled={busy}>预览</Button>
+        <Button type="button" onClick={doApply} disabled={busy || !preview}>应用</Button>
+      </div>
+    </Dialog>
+  );
+}
+
+// ─── Manual attach dialog (attach one volunteer's PS to a tag) ────────────
+
+function ManualAttachDialog({
+  open, onOpenChange, tag, tagGroup, allVolunteers, onDone,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  tag: Tag | null;
+  tagGroup: TagGroup | null;
+  allVolunteers: Volunteer[];
+  onDone: () => void;
+}) {
+  const [volunteerQuery, setVolunteerQuery] = useState('');
+  const [pickedVolunteer, setPickedVolunteer] = useState<Volunteer | null>(null);
+  const [supports, setSupports] = useState<ProjectSupport[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setVolunteerQuery('');
+      setPickedVolunteer(null);
+      setSupports([]);
+      setPicked(new Set());
+    }
+  }, [open]);
+
+  // Once volunteer picked, fetch their ACTIVE PS records
+  useEffect(() => {
+    if (!pickedVolunteer) { setSupports([]); return; }
+    setLoading(true);
+    void projectSupportService
+      .list({ volunteerId: pickedVolunteer.id, status: 'ACTIVE', limit: 100 })
+      .then((r) => {
+        if (r?.success && r.data?.records) {
+          let rows = r.data.records;
+          // Filter by bound service items if the group limits them
+          if (tagGroup?.boundServiceItemIds && tagGroup.boundServiceItemIds.length > 0) {
+            const boundSet = new Set(tagGroup.boundServiceItemIds);
+            rows = rows.filter((s) => boundSet.has(s.serviceItemId));
+          }
+          setSupports(rows);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [pickedVolunteer, tagGroup]);
+
+  const volunteerMatches = useMemo(() => {
+    const q = volunteerQuery.trim().toLowerCase();
+    if (q.length < 1) return [] as Volunteer[];
+    return allVolunteers
+      .filter((v) =>
+        v.chineseName?.toLowerCase().includes(q) ||
+        v.englishName?.toLowerCase().includes(q) ||
+        v.volunteerCode?.toLowerCase().includes(q),
+      )
+      .slice(0, 8);
+  }, [volunteerQuery, allVolunteers]);
+
+  const toggle = (id: string) => {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const doAttach = async () => {
+    if (!tag || picked.size === 0) return;
+    setBusy(true);
+    try {
+      const supportIds = Array.from(picked);
+      // batchAttach takes support IDs (cuid not supportId). Our supports list
+      // carries the full row; `id` is the cuid we want.
+      const res = await tagService.batchAttach(tag.id, supportIds);
+      if (res?.success && res.data) {
+        const { attached, alreadyAttached, rejectedByBinding } = res.data;
+        toast({
+          title: '挂接完成',
+          description: `新挂 ${attached.length} / 已在 ${alreadyAttached.length} / 被拒 ${rejectedByBinding.length}`,
+        });
+        onDone();
+        onOpenChange(false);
+      } else {
+        toast({ title: '挂接失败', description: (res as { error?: string })?.error, variant: 'destructive' });
+      }
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`挂接 PS · ${tag?.name ?? ''}`}
+      description="按志愿者查找已有 ACTIVE PS 并打上标签"
+    >
+      <div className="space-y-3 px-6 py-4">
+        {!pickedVolunteer ? (
+          <div className="space-y-2">
+            <FormField label="志愿者（姓名 / code）">
+              <FormInput
+                autoFocus
+                value={volunteerQuery}
+                onChange={(e) => setVolunteerQuery(e.target.value)}
+                placeholder="张三 / PG-0001"
+              />
+            </FormField>
+            {volunteerMatches.length > 0 && (
+              <ul className="divide-y divide-border rounded-lg border border-border">
+                {volunteerMatches.map((v) => (
+                  <li key={v.id}>
+                    <button
+                      type="button"
+                      onClick={() => setPickedVolunteer(v)}
+                      className="w-full px-3 py-2 text-left text-xs hover:bg-muted/50"
+                    >
+                      <span className="font-medium">{v.chineseName}</span>
+                      <span className="ml-2 font-mono text-muted-foreground">{v.volunteerCode}</span>
+                      <span className="ml-2 text-muted-foreground">· {v.department?.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs">
+              <div>
+                <span className="font-medium">{pickedVolunteer.chineseName}</span>
+                <span className="ml-2 font-mono text-muted-foreground">{pickedVolunteer.volunteerCode}</span>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setPickedVolunteer(null)}>换人</Button>
+            </div>
+            {loading ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">加载中…</p>
+            ) : supports.length === 0 ? (
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                该志愿者没有符合条件的 ACTIVE PS
+                {tagGroup?.boundServiceItemIds && tagGroup.boundServiceItemIds.length > 0 && '（按组的 boundServiceItemIds 已过滤）'}
+              </p>
+            ) : (
+              <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+                {supports.map((s) => (
+                  <li key={s.id} className="flex items-center gap-2 px-3 py-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={picked.has(s.id)}
+                      onChange={() => toggle(s.id)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium">
+                        {s.serviceItem?.departmentName} / {s.serviceItem?.name}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {new Date(s.serviceDate).toISOString().slice(0, 10)} · {s.duration}h · {s.description.slice(0, 40)}
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 text-[9px]">{s.supportId}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>取消</Button>
+        <Button type="button" onClick={doAttach} disabled={busy || picked.size === 0}>
+          挂接 {picked.size > 0 ? `(${picked.size})` : ''}
+        </Button>
+      </div>
+    </Dialog>
+  );
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────
 
 export default function TagsPage() {
@@ -465,6 +759,8 @@ export default function TagsPage() {
   const [addingTagInGroupId, setAddingTagInGroupId] = useState<string | null>(null);
   const [batchCreateOpen, setBatchCreateOpen] = useState(false);
   const [batchCreateTag, setBatchCreateTag] = useState<Tag | null>(null);
+  const [batchUpdateOpen, setBatchUpdateOpen] = useState(false);
+  const [manualAttachOpen, setManualAttachOpen] = useState(false);
 
   // Supporting data
   const [serviceItems, setServiceItems] = useState<ServiceItemsByDepartment[]>([]);
@@ -551,6 +847,17 @@ export default function TagsPage() {
       await refresh();
     } else {
       toast({ title: '删除失败', description: (res as { error?: string })?.error, variant: 'destructive' });
+    }
+  };
+
+  const handleDetachMember = async (tagId: string, supportId: string, volunteerName: string) => {
+    if (!window.confirm(`从本 tag 解除挂接 ${volunteerName} 的这条 PS？PS 本身保留。`)) return;
+    const res = await tagService.detach(tagId, supportId);
+    if (res?.success) {
+      toast({ title: '已解除挂接' });
+      void tagService.listTagSupports(tagId).then((r) => setTagSupports(r));
+    } else {
+      toast({ title: '解除失败', description: (res as { error?: string })?.error, variant: 'destructive' });
     }
   };
 
@@ -727,24 +1034,44 @@ export default function TagsPage() {
                     组：{activeGroup.name} · {activeGroup.opMode === 'managed' ? '可批量改删' : '纯标签'}
                   </p>
                 </div>
-                {activeGroup.opMode === 'managed' && canWriteTags && (
+                {canWriteTags && (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => { setBatchCreateTag(activeTag); setBatchCreateOpen(true); }}
+                      onClick={() => { setBatchCreateTag(activeTag); setManualAttachOpen(true); }}
                     >
-                      <ListPlus className="mr-1 h-3.5 w-3.5" />
-                      批量录入
+                      <LinkIcon className="mr-1 h-3.5 w-3.5" />
+                      挂接 PS
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void handleBatchDelete(activeTag, 'all')}
-                    >
-                      <Trash2 className="mr-1 h-3.5 w-3.5" />
-                      全部软删
-                    </Button>
+                    {activeGroup.opMode === 'managed' && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setBatchCreateTag(activeTag); setBatchCreateOpen(true); }}
+                        >
+                          <ListPlus className="mr-1 h-3.5 w-3.5" />
+                          粘名单建 PS
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => { setBatchCreateTag(activeTag); setBatchUpdateOpen(true); }}
+                        >
+                          <Edit3 className="mr-1 h-3.5 w-3.5" />
+                          批量改
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void handleBatchDelete(activeTag, 'all')}
+                        >
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          全部软删
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -768,6 +1095,22 @@ export default function TagsPage() {
                           </div>
                         </div>
                         <Badge variant="outline" className="shrink-0 text-[9px]">{m.support.supportId}</Badge>
+                        {canWriteTags && (
+                          <Button
+                            type="button"
+                            size="icon-sm"
+                            variant="ghost"
+                            onClick={() => void handleDetachMember(
+                              activeTag.id,
+                              m.support.id,
+                              m.support.volunteer?.chineseName ?? '该志愿者',
+                            )}
+                            aria-label="解除挂接"
+                            title="从本 tag 解除挂接（PS 保留）"
+                          >
+                            <MinusCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                          </Button>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -792,7 +1135,23 @@ export default function TagsPage() {
         tag={batchCreateTag}
         allVolunteers={allVolunteers}
         attendanceServiceItems={attendanceServiceItems}
-        onDone={() => void refresh()}
+        onDone={() => { void refresh(); if (batchCreateTag) void tagService.listTagSupports(batchCreateTag.id).then((r) => setTagSupports(r)); }}
+      />
+
+      <BatchUpdateDialog
+        open={batchUpdateOpen}
+        onOpenChange={setBatchUpdateOpen}
+        tag={batchCreateTag}
+        onDone={() => { if (batchCreateTag) void tagService.listTagSupports(batchCreateTag.id).then((r) => setTagSupports(r)); }}
+      />
+
+      <ManualAttachDialog
+        open={manualAttachOpen}
+        onOpenChange={setManualAttachOpen}
+        tag={batchCreateTag}
+        tagGroup={activeGroup}
+        allVolunteers={allVolunteers}
+        onDone={() => { if (batchCreateTag) void tagService.listTagSupports(batchCreateTag.id).then((r) => setTagSupports(r)); }}
       />
     </div>
   );
