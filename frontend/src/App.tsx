@@ -30,7 +30,6 @@ const MePage = lazy(() => import('./pages/MePage'));
 const ReviewPage = lazy(() => import('./pages/ReviewPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const VolunteerDetailPage = lazy(() => import('./pages/VolunteerDetailPage'));
-const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
 const TagsPage = lazy(() => import('./pages/TagsPage'));
 import { useHomeState, QUICK_FOCUS_OPTIONS } from './hooks/useHomeState';
 import { useAuth } from './context/AuthContext';
@@ -153,7 +152,6 @@ function App() {
     ...(isAuthenticated && account && ['b_admin', 'a_admin', 'admin'].includes(account.role)
       ? [
           { label: '项目支援台账', to: '/review', end: false },
-          { label: '项目级录入', to: '/projects', end: false },
           { label: '标签管理', to: '/tags', end: false },
         ]
       : []),
@@ -229,14 +227,6 @@ function App() {
               element={
                 <RequireRole allowed={['b_admin', 'a_admin', 'admin']}>
                   <ReviewPageWrapper />
-                </RequireRole>
-              }
-            />
-            <Route
-              path="/projects"
-              element={
-                <RequireRole allowed={['b_admin', 'a_admin', 'admin']}>
-                  <ProjectsPage />
                 </RequireRole>
               }
             />

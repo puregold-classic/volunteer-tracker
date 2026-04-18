@@ -12,8 +12,8 @@ import { formatLocalDate } from '@/lib/date-utils';
 export interface SupportRecordCardProps {
   support: ProjectSupport;
   onDelete?: (supportId: string) => void;
-  /** v3 wave-2 step 3: open the link-project dialog for this record. */
-  onLinkProject?: (support: ProjectSupport) => void;
+  /** v3.2: open the edit-tags dialog (post-hoc attach/detach tags on own PS). */
+  onEditTags?: (support: ProjectSupport) => void;
   busy?: boolean;
   showDelete?: boolean;
   showId?: boolean;
@@ -22,7 +22,7 @@ export interface SupportRecordCardProps {
 export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
   support,
   onDelete,
-  onLinkProject,
+  onEditTags,
   busy = false,
   showDelete = true,
   showId = true,
@@ -47,14 +47,7 @@ export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
               代提交
             </Badge>
           )}
-          {/* v3.2: show all attached tags. Legacy `project` badge also shown
-              until the deprecated Project column is dropped. */}
-          {support.project && (!support.tags || support.tags.length === 0) && (
-            <Badge variant="outline" className="gap-1 text-[10px] py-0.5">
-              <Tag className="h-2.5 w-2.5" />
-              {support.project.name}
-            </Badge>
-          )}
+          {/* v3.2: show all attached tags (Project concept fully replaced). */}
           {support.tags && support.tags.map((t) => (
             <Badge
               key={t.attachmentId}
@@ -79,15 +72,15 @@ export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
-        {onLinkProject && support.status === 'ACTIVE' && (
+        {onEditTags && support.status === 'ACTIVE' && (
           <Button
             type="button"
             size="icon-sm"
             variant="ghost"
-            onClick={() => onLinkProject(support)}
+            onClick={() => onEditTags(support)}
             disabled={busy}
-            aria-label={support.project ? '修改关联项目' : '关联项目'}
-            title={support.project ? '修改关联项目' : '关联项目'}
+            aria-label={support.tags && support.tags.length > 0 ? '修改标签' : '添加标签'}
+            title={support.tags && support.tags.length > 0 ? '修改标签' : '添加标签'}
           >
             <Link2 className="h-3.5 w-3.5" />
           </Button>

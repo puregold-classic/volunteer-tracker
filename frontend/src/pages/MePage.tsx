@@ -56,7 +56,7 @@ import { parseLocalDate, formatLocalDate } from '@/lib/date-utils';
 import { HeroAvatar } from '@/components/shared/hero-avatar';
 import { SupportRecordCard } from '@/components/shared/support-record-card';
 import { SubmitFormDialog } from '@/components/shared/submit-form-dialog';
-import { LinkProjectDialog } from '@/components/shared/link-project-dialog';
+import { LinkTagsDialog } from '@/components/shared/link-tags-dialog';
 import { AccountSettingsDialog } from '@/components/shared/account-settings-dialog';
 import { ScrollableBarChart } from '@/components/shared/scrollable-bar-chart';
 import { useRecordsDialog } from '@/components/shared/records-dialog';
@@ -713,7 +713,7 @@ function MePage({ onBackHome }: MePageProps) {
                       key={s.id}
                       support={s}
                       onDelete={handleDelete}
-                      onLinkProject={setLinkingSupport}
+                      onEditTags={setLinkingSupport}
                       busy={busy}
                     />
                   ))}
@@ -896,8 +896,8 @@ function MePage({ onBackHome }: MePageProps) {
         onClose={() => setRejectingId(null)}
       />
 
-      {/* ─── Link-project dialog (v3 wave-2 step 3) ──────────────────────── */}
-      <LinkProjectDialog
+      {/* ─── Edit-tags dialog (v3.2 — replaces LinkProjectDialog) ──────── */}
+      <LinkTagsDialog
         open={!!linkingSupport}
         support={linkingSupport}
         onOpenChange={(v) => { if (!v) setLinkingSupport(null); }}

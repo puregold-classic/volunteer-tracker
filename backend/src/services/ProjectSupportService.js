@@ -31,9 +31,6 @@ const SUPPORT_INCLUDE = {
       department: { select: { id: true, name: true } },
     },
   },
-  project: {
-    select: { id: true, projectCode: true, name: true, category: true },
-  },
   tagAttachments: {
     include: {
       tag: {
@@ -384,20 +381,6 @@ class ProjectSupportService {
       }
       trackChange('description', existing.description, desc);
       data.description = desc;
-    }
-    if (patch.projectId !== undefined) {
-      // Explicit null unlinks the record. A non-null value must reference
-      // an existing Project; category is not constrained — linking any
-      // ProjectSupport to any Project is intentional (tagging, per v3-plan).
-      const newProjectId = patch.projectId || null;
-      if (newProjectId) {
-        const project = await prisma.project.findUnique({ where: { id: newProjectId } });
-        if (!project) return { validationError: `项目不存在: ${newProjectId}` };
-      }
-      if ((existing.projectId ?? null) !== newProjectId) {
-        data.projectId = newProjectId;
-        changes.push({ field: 'projectId', from: existing.projectId ?? null, to: newProjectId });
-      }
     }
 
     if (changes.length === 0) {

@@ -181,7 +181,6 @@ model Department {
 
   volunteers   Volunteer[]
   serviceItems ServiceItem[]
-  projects     Project[]
 
   @@map("departments")
 }
@@ -256,7 +255,6 @@ model Volunteer {
   account            Account?
   ownedSupports      ProjectSupport[] @relation("OwnedSupports")
   submittedSupports  ProjectSupport[] @relation("SubmittedSupports")
-  createdProjects    Project[]        @relation("CreatedProjects")
   // v3 wave-3: lists this volunteer owns, and lists that include this volunteer
   ownedLists         VolunteerList[]       @relation("ListOwner")
   listMemberships    VolunteerListMember[] @relation("ListMember")
@@ -286,12 +284,8 @@ model ProjectSupport {
   submittedBy     Volunteer            @relation("SubmittedSupports", fields: [submittedById], references: [id])
   serviceItemId   String
   serviceItem     ServiceItem          @relation(fields: [serviceItemId], references: [id])
-  // Optional link to a Project (session). DEPRECATED in v3.2 — Project concept
-  // superseded by TagGroup + Tag + TagAttachment. Column + FK dropped in the
-  // v3.2 migration after projectId data is backfilled into TagAttachments.
-  projectId       String?
-  project         Project?             @relation(fields: [projectId], references: [id])
-  // v3.2 tag attachments (M:N to Tag via TagAttachment)
+  // v3.2 tag attachments (M:N to Tag via TagAttachment). Replaces the old
+  // single projectId FK — dropped in 20260420 migration.
   tagAttachments  TagAttachment[]
   serviceDate     DateTime
   duration        Float
@@ -306,7 +300,6 @@ model ProjectSupport {
   @@index([submittedById, status])
   @@index([serviceItemId])
   @@index([status])
-  @@index([projectId])
   // Partial unique index for dedup added in migration SQL:
   //   UNIQUE (volunteer_id, service_date, service_item_id, duration, description)
   //   WHERE status = 'ACTIVE'
@@ -352,47 +345,6 @@ model VolunteerListMember {
   @@unique([listId, volunteerId])
   @@index([volunteerId])
   @@map("volunteer_list_members")
-}
-
-// ─── Project (v3 wave 2) ──────────────────────────────────────────────────────
-//
-// A Project is a specific session/instance — e.g. "2026-04 笔译培训 第 12 期".
-// It groups ProjectSupport records that belong to the same real-world event.
-//
-// The 大类 is Project.category (reuses ServiceCategory). At MVP only
-// TRAINING_ATTENDANCE is accepted by the service layer — batch-attendance
-// entry populates ProjectSupport rows with projectId set and duration
-// snapshotted from Project.sessionDuration. Duration on TRAINING_ATTENDANCE
-// projects is immutable after creation (ledger integrity).
-//
-// `attributes` is JSONB for flexible tagging: { language, level, noteType, ... }
-// — see v3-plan.md for the planned tag splits (XZT 中英笔记 / 培训内容级别).
-
-// DEPRECATED v3.2: Project is replaced by TagGroup + Tag. The model + table
-// are dropped in the v3.2 migration after all Project rows are backfilled
-// into Tag rows under the default "会话" (Session) group. Kept in schema
-// until the migration lands; next schema sweep removes it entirely.
-model Project {
-  id              String          @id @default(cuid())
-  projectCode     String          @unique      // human-readable, e.g. "PROJ-0001"
-  name            String
-  category        ServiceCategory              // 大类, MVP: TRAINING_ATTENDANCE only
-  departmentId    String
-  department      Department      @relation(fields: [departmentId], references: [id])
-  sessionDate     DateTime
-  sessionDuration Float?                       // session length in hours; required for TRAINING_ATTENDANCE
-  attributes      Json            @default("{}")
-  createdById     String
-  createdBy       Volunteer       @relation("CreatedProjects", fields: [createdById], references: [id])
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-
-  projectSupports ProjectSupport[]
-
-  @@index([category])
-  @@index([departmentId])
-  @@index([sessionDate(sort: Desc)])
-  @@map("projects")
 }
 
 // ─── Tag system (v3.2) ────────────────────────────────────────────────────────
