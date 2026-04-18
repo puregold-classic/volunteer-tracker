@@ -24,18 +24,19 @@ const prisma = new PrismaClient();
 // ─── Reference data (organizational truth) ────────────────────────────────────
 
 const DEPARTMENTS = [
-  { id: 'BY_PROJECT',   name: '笔译项目部', displayOrder: 1 },
-  { id: 'KY_PROJECT',   name: '口译项目部', displayOrder: 2 },
-  { id: 'XZT',          name: 'XZT',         displayOrder: 3 },
-  { id: 'BY_TRAINING',  name: '笔译培训部', displayOrder: 4 },
-  { id: 'KY_TRAINING',  name: '口译培训部', displayOrder: 5 },
-  { id: 'DOCS',         name: '文档部',     displayOrder: 6 },
-  { id: 'PROMO',        name: '推广部',     displayOrder: 7 },
-  { id: 'TECH',         name: '技术部',     displayOrder: 8 },
-  { id: 'CARE',         name: '人文部',     displayOrder: 9 },
-  { id: 'MGMT',         name: '管理部',     displayOrder: 10 },
-  { id: 'READING_CLUB', name: '共读会',     displayOrder: 11 },
-  { id: 'VIDEO',        name: '视频部',     displayOrder: 12 },
+  { id: 'BY_PROJECT',   name: '笔译项目部',   displayOrder: 1 },
+  { id: 'KY_PROJECT',   name: '口译项目部',   displayOrder: 2 },
+  { id: 'XZT',          name: 'XZT',           displayOrder: 3 },
+  { id: 'BY_TRAINING',  name: '笔译培训部',   displayOrder: 4 },
+  { id: 'KY_TRAINING',  name: '口译培训部',   displayOrder: 5 },
+  { id: 'DOCS',         name: '文档部',       displayOrder: 6 },
+  { id: 'PROMO',        name: '推广部',       displayOrder: 7 },
+  { id: 'TECH',         name: '技术部',       displayOrder: 8 },
+  { id: 'CARE',         name: '人文部',       displayOrder: 9 },
+  { id: 'MGMT',         name: '管理部',       displayOrder: 10 },
+  { id: 'READING_CLUB', name: '共读会',       displayOrder: 11 },
+  { id: 'VIDEO',        name: '视频部',       displayOrder: 12 },
+  { id: 'NET_TECH',     name: '网络技术部',   displayOrder: 13 },  // v3.2 新增
 ];
 
 // ServiceItem shape: { name, category }
@@ -47,11 +48,14 @@ const SERVICE_ITEMS = {
     { name: '服务统计', category: 'PROJECT_MGMT' },
     { name: '沟通反馈', category: 'PROJECT_MGMT' },
     { name: '管理策划', category: 'PROJECT_MGMT' },
+    { name: '笔译执行', category: 'PROJECT_MGMT' },  // v3.2: 触发 笔译岗位 + 项目方 tag popup
+    { name: '文稿整理', category: 'PROJECT_MGMT' },  // v3.2 新增
   ],
   KY_PROJECT: [
     { name: '服务统计', category: 'PROJECT_MGMT' },
     { name: '沟通反馈', category: 'PROJECT_MGMT' },
     { name: '管理策划', category: 'PROJECT_MGMT' },
+    { name: '口译执行', category: 'PROJECT_MGMT' },  // v3.2: 触发 口译岗位 + 项目方 tag popup
   ],
   XZT: [
     { name: '录制',     category: 'PROJECT_MGMT' },
@@ -127,9 +131,78 @@ const SERVICE_ITEMS = {
     { name: '受训',     category: 'TRAINING_ATTENDANCE' },
   ],
   VIDEO: [
+    { name: '字幕稿',   category: 'PROJECT_SUPPORT' },
+    { name: '上字幕',   category: 'PROJECT_SUPPORT' },
+    { name: '录音',     category: 'PROJECT_SUPPORT' },
     { name: '视频剪辑', category: 'PROJECT_SUPPORT' },
+    { name: '沟通管理', category: 'PROJECT_SUPPORT' },
+    { name: '服务统计', category: 'PROJECT_SUPPORT' },
+  ],
+  NET_TECH: [  // v3.2 新增部门
+    { name: '网站开发', category: 'PROJECT_SUPPORT' },
   ],
 };
+
+// ─── v3.2 Tag seed — initial groups + values ────────────────────────────────
+//
+// Each group has 3 orthogonal config axes:
+//   selectionMode: single (radio) | multi (checkbox) in submit UI
+//   opMode:        managed (enables batch ops) | tag_only (label-only)
+//   openness:      closed (fixed by admin) | open (runtime-addable)
+//
+// Seed 3 closed tag_only dimensions + 1 default session group. Admin can
+// create more groups at runtime via /tags UI.
+
+const TAG_GROUPS = [
+  {
+    name: '项目方',
+    description: '委托翻译/口译服务的客户方。选了 笔译执行 / 口译执行 item 时会弹出选择。',
+    // boundServiceItems by (deptId, itemName) pairs — resolved after items seed.
+    boundServiceItems: [
+      { departmentId: 'BY_PROJECT', name: '笔译执行' },
+      { departmentId: 'KY_PROJECT', name: '口译执行' },
+    ],
+    selectionMode: 'single',
+    opMode: 'tag_only',
+    openness: 'closed',
+    required: false,
+    tags: ['DCI', 'YSI', 'ACI', 'XZT', 'DSEU', 'IR', 'PG'],
+  },
+  {
+    name: '笔译岗位',
+    description: '一条笔译执行 PS 在翻译链路中承担的角色。',
+    boundServiceItems: [
+      { departmentId: 'BY_PROJECT', name: '笔译执行' },
+    ],
+    selectionMode: 'single',
+    opMode: 'tag_only',
+    openness: 'closed',
+    required: true,
+    tags: ['初翻', '一校', '二校', '终校', '终审质检'],
+  },
+  {
+    name: '口译岗位',
+    description: '一条口译执行 PS 担任的岗位。',
+    boundServiceItems: [
+      { departmentId: 'KY_PROJECT', name: '口译执行' },
+    ],
+    selectionMode: 'single',
+    opMode: 'tag_only',
+    openness: 'closed',
+    required: true,
+    tags: ['A岗', 'B岗'],
+  },
+  {
+    name: '会话',
+    description: 'Session-style 自由标签组。一次培训 / 一个批次 / 一次活动就是一个 tag。admin 在项目级录入建新 session 时走这个组。',
+    boundServiceItems: [],
+    selectionMode: 'multi',
+    opMode: 'managed',
+    openness: 'open',
+    required: false,
+    tags: [],  // 留空由 admin 运行时创建
+  },
+];
 
 // ─── Sample volunteer accounts for sandbox testing ────────────────────────────
 //
@@ -267,6 +340,94 @@ async function ensureSystemSettings() {
   console.log('  ✓ system_settings ready');
 }
 
+async function seedTagGroups() {
+  console.log('→ seeding tag groups + tags…');
+  // Tag groups require an owner volunteer. We pick the first a_admin sample
+  // (sample-ky-reviewer → 李口译) if present, else any volunteer, else skip.
+  const adminVol = await prisma.volunteer.findFirst({
+    where: {
+      account: { role: { in: ['a_admin', 'admin', 'b_admin'] } },
+    },
+    select: { id: true, chineseName: true, volunteerCode: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  const ownerVol = adminVol ?? await prisma.volunteer.findFirst({
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, chineseName: true, volunteerCode: true },
+  });
+  if (!ownerVol) {
+    console.log('  ⚠ no volunteer in DB — skipping tag group seed');
+    return;
+  }
+
+  let groupsCreated = 0;
+  let groupsUpdated = 0;
+  let tagsCreated = 0;
+
+  for (const g of TAG_GROUPS) {
+    // Resolve boundServiceItems (dept+name) → serviceItemId list
+    const itemIds = [];
+    for (const pair of g.boundServiceItems) {
+      const si = await prisma.serviceItem.findUnique({
+        where: { departmentId_name: { departmentId: pair.departmentId, name: pair.name } },
+        select: { id: true },
+      });
+      if (si) itemIds.push(si.id);
+    }
+
+    const existing = await prisma.tagGroup.findUnique({ where: { name: g.name } });
+    const groupData = {
+      description: g.description,
+      boundServiceItemIds: itemIds,
+      selectionMode: g.selectionMode,
+      opMode: g.opMode,
+      openness: g.openness,
+      required: g.required,
+    };
+
+    let group;
+    if (existing) {
+      // Don't overwrite non-structural fields admin may have edited. Update
+      // only the configuration axes and boundServiceItemIds to keep them in
+      // sync with new service items.
+      group = await prisma.tagGroup.update({
+        where: { id: existing.id },
+        data: groupData,
+      });
+      groupsUpdated += 1;
+    } else {
+      group = await prisma.tagGroup.create({
+        data: {
+          name: g.name,
+          ...groupData,
+          createdById: ownerVol.id,
+        },
+      });
+      groupsCreated += 1;
+    }
+
+    // Upsert tags within the group
+    for (const tagName of g.tags) {
+      const existingTag = await prisma.tag.findUnique({
+        where: { groupId_name: { groupId: group.id, name: tagName } },
+      });
+      if (!existingTag) {
+        await prisma.tag.create({
+          data: {
+            groupId: group.id,
+            name: tagName,
+            createdById: ownerVol.id,
+          },
+        });
+        tagsCreated += 1;
+      }
+    }
+  }
+
+  console.log(`  ✓ tag groups: ${groupsCreated} created, ${groupsUpdated} updated`);
+  console.log(`  ✓ ${tagsCreated} new tags`);
+}
+
 async function seedSampleVolunteers() {
   console.log('→ seeding sample volunteers (skipping existing)…');
   let created = 0;
@@ -321,6 +482,8 @@ async function main() {
   await seedServiceItems();
   await ensureSystemSettings();
   await seedSampleVolunteers();
+  // Tag groups need volunteers in DB (for createdBy FK) — seed last.
+  await seedTagGroups();
   console.log('=== seed done ===');
   console.log('');
   console.log('Sample login credentials (sandbox only):');

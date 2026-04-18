@@ -75,6 +75,8 @@ enum AuditTargetType {
   Account
   SystemSettings
   Project
+  TagGroup
+  Tag
 
   @@map("AuditTargetType")
 }
@@ -93,6 +95,8 @@ enum AuditAction {
   month_lock
   system_cleanup
   seed_import
+  // v2: Project actions. Deprecated in v3.2 (Project 概念被 Tag/TagGroup 替代);
+  // old audit rows still carry these for historical accuracy, do not emit new ones.
   project_create
   project_update
   project_delete
@@ -103,6 +107,52 @@ enum AuditAction {
   list_delete
   list_member_add
   list_member_remove
+  // v3.2: Tag system actions
+  tag_group_create
+  tag_group_update
+  tag_group_delete
+  tag_create
+  tag_update
+  tag_delete
+  tag_attach
+  tag_detach
+  support_batch_create
+  support_batch_update
+  support_batch_delete
+  support_batch_attach
+  support_batch_detach
+  // v3.2: account-self actions
+  account_password_change
+  account_password_reset
+  account_avatar_update
+}
+
+// v3.2 tag system — 3 orthogonal config axes on the group level.
+//
+// selectionMode: UI picker behavior inside submit form (radio vs checkbox)
+// opMode:         which batch operations the group exposes
+// openness:       whether tag values are fixed (closed) or admin can add at
+//                 runtime (open)
+
+enum TagSelectionMode {
+  single
+  multi
+
+  @@map("TagSelectionMode")
+}
+
+enum TagOpMode {
+  managed     // allows batch create/update/delete of ProjectSupport via this group
+  tag_only    // only attach / detach — tag values are pure labels
+
+  @@map("TagOpMode")
+}
+
+enum TagOpenness {
+  closed      // tag values fixed by admin, cannot be added at submit time
+  open        // authorized user can add new tag values on the fly
+
+  @@map("TagOpenness")
 }
 
 // Classifies a ServiceItem into the v3 三大板块 buckets. Category is assigned
@@ -210,6 +260,10 @@ model Volunteer {
   // v3 wave-3: lists this volunteer owns, and lists that include this volunteer
   ownedLists         VolunteerList[]       @relation("ListOwner")
   listMemberships    VolunteerListMember[] @relation("ListMember")
+  // v3.2: tag system authorship + attachment attribution
+  createdTagGroups   TagGroup[]            @relation("CreatedTagGroups")
+  createdTags        Tag[]                 @relation("CreatedTags")
+  tagAttachments     TagAttachment[]       @relation("TagAttachments")
 
   @@index([status])
   @@index([region])
@@ -232,11 +286,13 @@ model ProjectSupport {
   submittedBy     Volunteer            @relation("SubmittedSupports", fields: [submittedById], references: [id])
   serviceItemId   String
   serviceItem     ServiceItem          @relation(fields: [serviceItemId], references: [id])
-  // Optional link to a Project (session). Set automatically when a record is
-  // created via project-level batch entry, and can be set later by admin/self
-  // to tag an existing support to a specific session.
+  // Optional link to a Project (session). DEPRECATED in v3.2 — Project concept
+  // superseded by TagGroup + Tag + TagAttachment. Column + FK dropped in the
+  // v3.2 migration after projectId data is backfilled into TagAttachments.
   projectId       String?
   project         Project?             @relation(fields: [projectId], references: [id])
+  // v3.2 tag attachments (M:N to Tag via TagAttachment)
+  tagAttachments  TagAttachment[]
   serviceDate     DateTime
   duration        Float
   description     String
@@ -312,6 +368,10 @@ model VolunteerListMember {
 // `attributes` is JSONB for flexible tagging: { language, level, noteType, ... }
 // — see v3-plan.md for the planned tag splits (XZT 中英笔记 / 培训内容级别).
 
+// DEPRECATED v3.2: Project is replaced by TagGroup + Tag. The model + table
+// are dropped in the v3.2 migration after all Project rows are backfilled
+// into Tag rows under the default "会话" (Session) group. Kept in schema
+// until the migration lands; next schema sweep removes it entirely.
 model Project {
   id              String          @id @default(cuid())
   projectCode     String          @unique      // human-readable, e.g. "PROJ-0001"
@@ -333,6 +393,80 @@ model Project {
   @@index([departmentId])
   @@index([sessionDate(sort: Desc)])
   @@map("projects")
+}
+
+// ─── Tag system (v3.2) ────────────────────────────────────────────────────────
+//
+// Replaces the Project concept. A tag is a label that can be attached to
+// project_supports (M:N). Tag values are grouped; each group declares the
+// structure & rules that apply to its tags.
+//
+// Design axes on the group level (all orthogonal):
+// - selectionMode: radio (single) vs checkbox (multi) in submit UI
+// - opMode:        managed (enables batch create/update/delete) vs tag_only
+// - openness:      closed (fixed values) vs open (runtime-addable)
+//
+// Examples:
+//   项目方       = single + tag_only  + closed  + required
+//   笔译岗位     = single + tag_only  + closed  + required
+//   Session 容器 = multi  + managed   + open    + not-required
+//   自由分类     = multi  + tag_only  + open    + not-required
+//
+// boundServiceItemIds: when a submit form picks one of these service items,
+// the UI prompts the user for a tag from this group. Empty array = group
+// always shown / never auto-prompted (session tags attach manually).
+
+model TagGroup {
+  id                   String            @id @default(cuid())
+  name                 String            @unique
+  description          String?
+  boundServiceItemIds  String[]
+  selectionMode        TagSelectionMode  @default(single)
+  opMode               TagOpMode         @default(tag_only)
+  openness             TagOpenness       @default(closed)
+  required             Boolean           @default(false)
+  createdById          String
+  createdBy            Volunteer         @relation("CreatedTagGroups", fields: [createdById], references: [id])
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  tags                 Tag[]
+
+  @@index([createdById])
+  @@map("tag_groups")
+}
+
+model Tag {
+  id           String    @id @default(cuid())
+  groupId      String
+  group        TagGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name         String
+  createdById  String
+  createdBy    Volunteer @relation("CreatedTags", fields: [createdById], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  attachments  TagAttachment[]
+
+  @@unique([groupId, name])
+  @@index([groupId])
+  @@map("tags")
+}
+
+model TagAttachment {
+  id           String         @id @default(cuid())
+  tagId        String
+  tag          Tag            @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  supportId    String
+  support      ProjectSupport @relation(fields: [supportId], references: [id], onDelete: Cascade)
+  attachedById String
+  attachedBy   Volunteer      @relation("TagAttachments", fields: [attachedById], references: [id])
+  attachedAt   DateTime       @default(now())
+
+  @@unique([tagId, supportId])
+  @@index([supportId])
+  @@index([tagId])
+  @@map("tag_attachments")
 }
 
 // ─── Global settings ──────────────────────────────────────────────────────────
