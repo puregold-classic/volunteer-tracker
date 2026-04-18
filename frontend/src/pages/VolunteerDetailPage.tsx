@@ -186,7 +186,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
       <Card variant="elevated" className="overflow-hidden">
         <div className="p-5 sm:p-6">
           <div className="flex items-start gap-4">
-            <HeroAvatar name={volunteer.chineseName} code={volunteer.volunteerCode} size="lg" />
+            <HeroAvatar name={volunteer.chineseName} code={volunteer.volunteerCode} size="lg" avatarUrl={volunteer.avatar} />
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">

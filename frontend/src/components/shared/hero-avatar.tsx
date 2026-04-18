@@ -22,10 +22,23 @@ export const HeroAvatar: React.FC<{
   name: string;
   code: string;
   size?: 'lg' | 'md';
-}> = ({ name, code, size = 'lg' }) => {
+  /** v3.2: optional uploaded avatar. Default `ui-avatars.com/...` URL falls back to initial. */
+  avatarUrl?: string;
+}> = ({ name, code, size = 'lg', avatarUrl }) => {
   const tone = AVATAR_TONES[hashCode(code) % AVATAR_TONES.length];
   const initial = name?.charAt(0) || '?';
   const sizeCls = size === 'lg' ? 'h-16 w-16 text-2xl' : 'h-10 w-10 text-base';
+  // Skip the ui-avatars.com placeholder — it's just a fancy initial anyway.
+  const hasCustomAvatar = avatarUrl && !avatarUrl.includes('ui-avatars.com');
+  if (hasCustomAvatar) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name}
+        className={cn('shrink-0 rounded-2xl object-cover ring-2 ring-border', sizeCls)}
+      />
+    );
+  }
   return (
     <div
       aria-hidden="true"

@@ -10,6 +10,14 @@ import jwt from 'jsonwebtoken';
 import prisma from '../utils/prismaClient.js';
 import { hashPassword, verifyPassword } from '../utils/passwordUtils.js';
 import { serializeAccount } from '../utils/serializer.js';
+import IDGenerator from '../utils/IDGenerator.js';
+
+const serializeOperator = (op) => ({
+  id: op?.accountId ?? null,
+  volunteerId: op?.volunteerId ?? null,
+  name: op?.name ?? null,
+  role: op?.role ?? null,
+});
 
 export const signToken = (account, { rememberMe = false } = {}) => {
   const jwtSecret = process.env.JWT_SECRET;
@@ -115,4 +123,122 @@ export const getMe = async (accountId) => {
   });
   if (!account || !account.isActive) return null;
   return serializeAccount(account);
+};
+
+// ─── v3.2: self-service account ops ─────────────────────────────────────────
+
+/**
+ * User self-change password. Requires current password.
+ * Bumps tokenValidAfter so other sessions are invalidated.
+ */
+export const changePassword = async (accountId, { currentPassword, newPassword }, operator) => {
+  if (!currentPassword || !newPassword) return { missingFields: true };
+  if (newPassword.length < 8) return { weakPassword: true };
+  if (currentPassword === newPassword) return { sameAsCurrent: true };
+
+  const account = await prisma.account.findUnique({ where: { id: accountId } });
+  if (!account || !account.isActive) return { notFound: true };
+
+  const valid = await verifyPassword(currentPassword, account.passwordHash);
+  if (!valid) return { invalidCurrent: true };
+
+  const passwordHash = await hashPassword(newPassword);
+  await prisma.$transaction(async (tx) => {
+    await tx.account.update({
+      where: { id: accountId },
+      data: { passwordHash, tokenValidAfter: new Date() },
+    });
+    await tx.auditLog.create({
+      data: {
+        auditId: IDGenerator.generateAuditId(),
+        targetType: 'Account',
+        targetId: accountId,
+        action: 'account_password_change',
+        actionDetails: { self: true },
+        modifiedId: accountId,
+        changes: [],
+        operator: serializeOperator(operator),
+        submitter: serializeOperator(operator),
+      },
+    });
+  });
+  return { ok: true };
+};
+
+/**
+ * Admin reset another account's password. Operator must be admin.
+ */
+export const adminResetPassword = async (targetAccountId, { newPassword }, operator) => {
+  if (!newPassword) return { missingFields: true };
+  if (newPassword.length < 8) return { weakPassword: true };
+
+  const target = await prisma.account.findUnique({ where: { id: targetAccountId } });
+  if (!target) return { notFound: true };
+
+  const passwordHash = await hashPassword(newPassword);
+  await prisma.$transaction(async (tx) => {
+    await tx.account.update({
+      where: { id: targetAccountId },
+      data: { passwordHash, tokenValidAfter: new Date() },
+    });
+    await tx.auditLog.create({
+      data: {
+        auditId: IDGenerator.generateAuditId(),
+        targetType: 'Account',
+        targetId: targetAccountId,
+        action: 'account_password_reset',
+        actionDetails: { targetEmail: target.email, self: false },
+        modifiedId: targetAccountId,
+        changes: [],
+        operator: serializeOperator(operator),
+        submitter: serializeOperator(operator),
+      },
+    });
+  });
+  return { ok: true };
+};
+
+/**
+ * Update own avatar. Accepts data-URL (base64) or plain URL string.
+ * Size capped at ~500KB of base64 payload (roughly 375KB raw).
+ */
+const MAX_AVATAR_BYTES = 512 * 1024;
+
+export const updateAvatar = async (volunteerId, { avatar }, operator) => {
+  if (!volunteerId) return { notFound: true };
+  if (typeof avatar !== 'string' || !avatar.trim()) return { missingFields: true };
+  if (avatar.length > MAX_AVATAR_BYTES) return { tooLarge: true };
+
+  // Reject obvious non-image strings when a data-URL prefix is present
+  if (avatar.startsWith('data:') && !/^data:image\/(png|jpe?g|gif|webp);base64,/.test(avatar)) {
+    return { invalidFormat: true };
+  }
+
+  const volunteer = await prisma.volunteer.findUnique({ where: { id: volunteerId } });
+  if (!volunteer) return { notFound: true };
+
+  const previous = volunteer.avatar;
+  await prisma.$transaction(async (tx) => {
+    await tx.volunteer.update({
+      where: { id: volunteerId },
+      data: { avatar },
+    });
+    await tx.auditLog.create({
+      data: {
+        auditId: IDGenerator.generateAuditId(),
+        targetType: 'Volunteer',
+        targetId: volunteerId,
+        action: 'account_avatar_update',
+        actionDetails: {
+          size: avatar.length,
+          previousWasDefault: previous.startsWith('https://ui-avatars.com/'),
+        },
+        modifiedId: volunteerId,
+        changes: [{ field: 'avatar', from: '(omitted)', to: '(omitted)' }],
+        operator: serializeOperator(operator),
+        submitter: serializeOperator(operator),
+      },
+    });
+  });
+  return { ok: true };
 };

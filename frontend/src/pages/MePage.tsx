@@ -57,6 +57,7 @@ import { HeroAvatar } from '@/components/shared/hero-avatar';
 import { SupportRecordCard } from '@/components/shared/support-record-card';
 import { SubmitFormDialog } from '@/components/shared/submit-form-dialog';
 import { LinkProjectDialog } from '@/components/shared/link-project-dialog';
+import { AccountSettingsDialog } from '@/components/shared/account-settings-dialog';
 import { ScrollableBarChart } from '@/components/shared/scrollable-bar-chart';
 import { useRecordsDialog } from '@/components/shared/records-dialog';
 import volunteerListService from '@services/volunteerListService';
@@ -64,7 +65,7 @@ import ledgerService, { type LedgerVolunteerService } from '@services/ledgerServ
 import { useFollowed } from '@/context/FollowedContext';
 import { deptColor } from '@/lib/ledger-colors';
 import type { VolunteerList } from '@services/types';
-import { Heart, ChevronDown, ChevronUp } from 'lucide-react';
+import { Heart, ChevronDown, ChevronUp, Settings } from 'lucide-react';
 
 interface MePageProps {
   onBackHome: () => void;
@@ -210,6 +211,7 @@ function MePage({ onBackHome }: MePageProps) {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [recordFilter, setRecordFilter] = useState<'ACTIVE' | 'PENDING' | 'HISTORY'>('ACTIVE');
   const [linkingSupport, setLinkingSupport] = useState<ProjectSupport | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // v3 wave-3: 我的关注 section state
   const [followedList, setFollowedList] = useState<VolunteerList | null>(null);
@@ -429,7 +431,20 @@ function MePage({ onBackHome }: MePageProps) {
       <Card variant="elevated" className="overflow-hidden">
         <div className="p-5 sm:p-6">
           <div className="flex items-start gap-4">
-            <HeroAvatar name={volunteer?.chineseName || '?'} code={volunteer?.volunteerCode || ''} size="lg" />
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="rounded-2xl ring-2 ring-transparent transition hover:ring-primary/40 focus:outline-none focus:ring-primary/60"
+              aria-label="账号设置"
+              title="账号设置"
+            >
+              <HeroAvatar
+                name={volunteer?.chineseName || '?'}
+                code={volunteer?.volunteerCode || ''}
+                size="lg"
+                avatarUrl={volunteer?.avatar}
+              />
+            </button>
             <div className="min-w-0 flex-1">
               <h1 className="font-serif text-xl font-semibold text-foreground">
                 {volunteer?.chineseName || '加载中…'}
@@ -454,16 +469,28 @@ function MePage({ onBackHome }: MePageProps) {
                 )}
               </div>
             </div>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              onClick={() => void logout()}
-              aria-label="退出登录"
-              title="退出登录"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
+            <div className="flex flex-col gap-1">
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => setSettingsOpen(true)}
+                aria-label="账号设置"
+                title="账号设置"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => void logout()}
+                aria-label="退出登录"
+                title="退出登录"
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Stat tiles: 本月 / 累计 / 代提交 */}
@@ -875,6 +902,17 @@ function MePage({ onBackHome }: MePageProps) {
         support={linkingSupport}
         onOpenChange={(v) => { if (!v) setLinkingSupport(null); }}
         onChanged={() => void refresh()}
+      />
+
+      {/* ─── Account settings (v3.2) ─────────────────────────────────────── */}
+      <AccountSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        volunteerId={volunteer?.id}
+        currentAvatar={volunteer?.avatar}
+        onAvatarChanged={(newAvatar) => {
+          setVolunteer((prev) => (prev ? { ...prev, avatar: newAvatar } : prev));
+        }}
       />
     </div>
   );

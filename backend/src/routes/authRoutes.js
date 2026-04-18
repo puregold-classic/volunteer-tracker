@@ -18,6 +18,11 @@ router.post('/login', authLimiter, AuthController.login);
 router.post('/logout', authenticate, AuthController.logout);
 router.get('/me', authenticate, AuthController.me);
 
+// v3.2: account self-service
+router.post('/change-password', authenticate, AuthController.changePassword);
+router.post('/me/avatar', authenticate, AuthController.updateAvatar);
+router.post('/admin/accounts/:accountId/reset-password', authenticate, authorizeRoles('admin'), AuthController.adminResetPassword);
+
 // Admin-only account management
 router.get('/admin/accounts', authenticate, authorizeRoles('admin'), AdminController.listAccounts);
 router.patch('/admin/accounts/:accountId', authenticate, authorizeRoles('admin'), AdminController.updateAccount);

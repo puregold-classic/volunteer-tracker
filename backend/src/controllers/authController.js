@@ -49,6 +49,50 @@ class AuthController {
       return res.status(500).json({ success: false, error: '登出失败' });
     }
   }
+
+  // ─── v3.2: account self-service ──────────────────────────────────────────
+
+  static async changePassword(req, res) {
+    try {
+      const result = await AuthService.changePassword(req.user.accountId, req.body, req.user);
+      if (result.missingFields) return res.status(400).json({ success: false, error: 'currentPassword 和 newPassword 为必填' });
+      if (result.weakPassword) return res.status(400).json({ success: false, error: '新密码长度至少 8 位' });
+      if (result.sameAsCurrent) return res.status(400).json({ success: false, error: '新密码不能与当前密码一致' });
+      if (result.notFound) return res.status(404).json({ success: false, error: '账号不存在' });
+      if (result.invalidCurrent) return res.status(401).json({ success: false, error: '当前密码错误' });
+      return res.status(200).json({ success: true, message: '密码已更新，请重新登录' });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: '修改密码失败', detail: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    }
+  }
+
+  static async adminResetPassword(req, res) {
+    try {
+      const { accountId } = req.params;
+      const result = await AuthService.adminResetPassword(accountId, req.body, req.user);
+      if (result.missingFields) return res.status(400).json({ success: false, error: 'newPassword 为必填' });
+      if (result.weakPassword) return res.status(400).json({ success: false, error: '新密码长度至少 8 位' });
+      if (result.notFound) return res.status(404).json({ success: false, error: '目标账号不存在' });
+      return res.status(200).json({ success: true, message: '密码已重置，对方已登出' });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: '重置密码失败', detail: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    }
+  }
+
+  static async updateAvatar(req, res) {
+    try {
+      const volunteerId = req.user.volunteerId;
+      if (!volunteerId) return res.status(400).json({ success: false, error: '当前账号未绑定志愿者，无法设置头像' });
+      const result = await AuthService.updateAvatar(volunteerId, req.body, req.user);
+      if (result.missingFields) return res.status(400).json({ success: false, error: 'avatar 为必填（data-URL 或 URL）' });
+      if (result.tooLarge) return res.status(413).json({ success: false, error: '头像数据过大（>512KB），请压缩后再上传' });
+      if (result.invalidFormat) return res.status(400).json({ success: false, error: '仅支持 png/jpeg/gif/webp 图片' });
+      if (result.notFound) return res.status(404).json({ success: false, error: '志愿者不存在' });
+      return res.status(200).json({ success: true, message: '头像已更新' });
+    } catch (err) {
+      return res.status(500).json({ success: false, error: '更新头像失败', detail: process.env.NODE_ENV === 'development' ? err.message : undefined });
+    }
+  }
 }
 
 export default AuthController;

@@ -27,6 +27,7 @@ import { z } from 'zod';
 import {
   AlertTriangle,
   FileSpreadsheet,
+  KeyRound,
   Pencil,
   RefreshCcw,
   Search,
@@ -756,6 +757,21 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
     }
   };
 
+  const handleResetPassword = async (accountId: string, name: string) => {
+    const newPw = window.prompt(`为 ${name} 重置密码（至少 8 位）：`);
+    if (!newPw) return;
+    if (newPw.length < 8) {
+      toast({ title: '密码长度至少 8 位', variant: 'destructive' });
+      return;
+    }
+    const result = await authService.adminResetPassword(accountId, newPw);
+    if (result?.success) {
+      toast({ title: '密码已重置', description: `${name} 的所有会话已登出` });
+    } else {
+      toast({ title: '重置失败', description: (result as any)?.error || '未知错误', variant: 'destructive' });
+    }
+  };
+
   // ─── Filtering ────────────────────────────────────────────────────────────
 
   const filteredAccounts = useMemo(() => {
@@ -957,6 +973,16 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
                         type="button"
                         size="icon-sm"
                         variant="ghost"
+                        onClick={() => handleResetPassword(account.id, account.name)}
+                        aria-label="重置密码"
+                        title="重置密码"
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
                         onClick={() => handleDelete(account.id, account.name)}
                         disabled={isSelf}
                         title={isSelf ? '不能删除自己' : '删除账号'}
@@ -1024,6 +1050,16 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
                           title="编辑账号"
                         >
                           <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => handleResetPassword(account.id, account.name)}
+                          aria-label="重置密码"
+                          title="重置密码"
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                           type="button"

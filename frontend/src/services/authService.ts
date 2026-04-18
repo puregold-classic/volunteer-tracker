@@ -103,6 +103,26 @@ export const authService = {
     return response;
   },
 
+  // ─── v3.2: account self-service ───────────────────────────────────────────
+  changePassword: async (
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<ApiResponse<unknown>> => {
+    return api.post('/auth/change-password', { currentPassword, newPassword });
+  },
+
+  /** Upload avatar as data-URL (base64). Server caps at ~512KB of encoded data. */
+  updateAvatar: async (avatar: string): Promise<ApiResponse<unknown>> => {
+    return api.post('/auth/me/avatar', { avatar });
+  },
+
+  adminResetPassword: async (
+    accountId: string,
+    newPassword: string,
+  ): Promise<ApiResponse<unknown>> => {
+    return api.post(`/auth/admin/accounts/${accountId}/reset-password`, { newPassword });
+  },
+
   // ─── Admin: account / volunteer management ──────────────────────────────
   adminListAccounts: async (): Promise<ApiResponse<AdminAccountItem[]>> => {
     return api.get('/auth/admin/accounts');
