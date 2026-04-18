@@ -47,12 +47,25 @@ export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
               代提交
             </Badge>
           )}
-          {support.project && (
+          {/* v3.2: show all attached tags. Legacy `project` badge also shown
+              until the deprecated Project column is dropped. */}
+          {support.project && (!support.tags || support.tags.length === 0) && (
             <Badge variant="outline" className="gap-1 text-[10px] py-0.5">
               <Tag className="h-2.5 w-2.5" />
               {support.project.name}
             </Badge>
           )}
+          {support.tags && support.tags.map((t) => (
+            <Badge
+              key={t.attachmentId}
+              variant="outline"
+              className="gap-1 text-[10px] py-0.5"
+              title={t.group ? `${t.group.name}: ${t.name}` : t.name}
+            >
+              <Tag className="h-2.5 w-2.5" />
+              {t.name}
+            </Badge>
+          ))}
         </div>
         <p className="mt-1 font-serif text-sm font-semibold text-foreground">
           {support.serviceItem?.departmentName} / {support.serviceItem?.name}
