@@ -131,7 +131,8 @@ export interface ProjectSupport {
     departmentName: string | null;
   } | null;
   // Optional link to a Project (session). v3 wave 2: set by batch-attendance
-  // entry or by admin/self tagging an existing record to a session.
+  // entry or by admin/self tagging an existing record to a session. Deprecated
+  // in v3.2 — superseded by `tags` M:N.
   projectId: string | null;
   project: {
     id: string;
@@ -139,6 +140,8 @@ export interface ProjectSupport {
     name: string;
     category: ServiceCategory;
   } | null;
+  // v3.2 tag attachments — multiple tags per PS, each carries its group info.
+  tags: SupportTagAttachment[];
   serviceDate: string;
   duration: number;
   description: string;
@@ -177,6 +180,50 @@ export interface Project {
   supportCount: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+// ─── Tag system (v3.2) ────────────────────────────────────────────────────────
+
+export type TagSelectionMode = 'single' | 'multi';
+export type TagOpMode = 'managed' | 'tag_only';
+export type TagOpenness = 'closed' | 'open';
+
+export interface Tag {
+  id: string;
+  groupId: string;
+  name: string;
+  createdById?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TagGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  boundServiceItemIds: string[];
+  selectionMode: TagSelectionMode;
+  opMode: TagOpMode;
+  openness: TagOpenness;
+  required: boolean;
+  tags: Tag[];
+  createdById: string;
+  createdBy: VolunteerSummary | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SupportTagAttachment {
+  attachmentId: string;
+  tagId: string;
+  name: string;
+  groupId: string;
+  group: {
+    id: string;
+    name: string;
+    selectionMode: TagSelectionMode;
+    opMode: TagOpMode;
+  } | null;
 }
 
 // ─── Volunteer list (v3 wave-3 "我的关注") ────────────────────────────────────
