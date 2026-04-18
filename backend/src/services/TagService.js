@@ -12,6 +12,7 @@
 
 import prisma from '../utils/prismaClient.js';
 import IDGenerator from '../utils/IDGenerator.js';
+import { serializeProjectSupport } from '../utils/serializer.js';
 
 const isPrivileged = (op) => op?.role === 'admin' || op?.role === 'a_admin';
 const isBAdminOrAbove = (op) => isPrivileged(op) || op?.role === 'b_admin';
@@ -270,7 +271,9 @@ class TagService {
     return attachments.map((a) => ({
       attachedAt: a.attachedAt,
       attachedById: a.attachedById,
-      support: a.support,
+      // Use the shared serializer so the shape matches everywhere else
+      // (flattens serviceItem.department.name → serviceItem.departmentName).
+      support: serializeProjectSupport(a.support),
     }));
   }
 
