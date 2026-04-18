@@ -5,7 +5,7 @@
 -- 1. Adds new enum values for AuditTargetType / AuditAction
 -- 2. Creates new enums TagSelectionMode / TagOpMode / TagOpenness
 -- 3. Creates tag_groups / tags / tag_attachments tables
--- 4. Backfills existing projects → tags under a default "会话" TagGroup
+-- 4. Backfills existing projects → tags under a default "培训" TagGroup
 -- 5. Migrates project_supports.projectId → tag_attachments rows
 -- 6. Schema-only: projects table + project_supports.projectId column are NOT
 --    dropped here — that happens in a follow-up sweep after we verify no
@@ -113,7 +113,7 @@ ALTER TABLE "tag_attachments"
   FOREIGN KEY ("attachedById") REFERENCES "volunteers"("id")
   ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- ─── Backfill: existing projects → tags under default "会话" group ──
+-- ─── Backfill: existing projects → tags under default "培训" group ──
 --
 -- The default group is created idempotently; seeder later on first run may
 -- upsert it too but the unique constraint on name makes this safe.
@@ -138,14 +138,14 @@ BEGIN
                             "createdById", "updatedAt")
   VALUES (
     'tg_session_default_cbf0000000000000',
-    '会话',
+    '培训',
     'Session-style 自由标签组。一次培训 / 一个批次就是一个 tag。由 v3 → v3.2 migration 自动创建，承接原 Project 数据。',
     ARRAY[]::TEXT[], 'multi', 'managed', 'open', false,
     first_volunteer_id, CURRENT_TIMESTAMP
   )
   ON CONFLICT (name) DO NOTHING;
 
-  SELECT id INTO session_group_id FROM "tag_groups" WHERE name = '会话';
+  SELECT id INTO session_group_id FROM "tag_groups" WHERE name = '培训';
 
   -- For each existing project, create a tag with the same name under the session group
   FOR proj IN SELECT * FROM projects LOOP

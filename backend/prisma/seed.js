@@ -193,14 +193,16 @@ const TAG_GROUPS = [
     tags: ['A岗', 'B岗'],
   },
   {
-    name: '会话',
-    description: 'Session-style 自由标签组。一次培训 / 一个批次 / 一次活动就是一个 tag。admin 在项目级录入建新 session 时走这个组。',
+    name: '培训',
+    description: '受训考勤批量录入池。每个 tag 代表一次具体培训事件（如"2026-04 新译员培训 第 3 期"），a_admin 粘贴名单批量建 PS + 自动打 tag。未来非培训的批量场景可以让 admin 另建 managed 组。',
+    // 绑 TRAINING_ATTENDANCE 类所有 service item — 批量建 PS 时从这个清单里选具体哪门课
+    boundCategory: 'TRAINING_ATTENDANCE',
     boundServiceItems: [],
     selectionMode: 'multi',
     opMode: 'managed',
     openness: 'open',
     required: false,
-    tags: [],  // 留空由 admin 运行时创建
+    tags: [],  // 留空由 a_admin 运行时创建
   },
 ];
 
@@ -365,20 +367,30 @@ async function seedTagGroups() {
   let tagsCreated = 0;
 
   for (const g of TAG_GROUPS) {
-    // Resolve boundServiceItems (dept+name) → serviceItemId list
-    const itemIds = [];
+    // Resolve boundServiceItems → serviceItemId list.
+    // Two mechanisms (additive): explicit (departmentId, name) pairs, and/or
+    // boundCategory (all ServiceItems with that ServiceCategory).
+    const itemIds = new Set();
     for (const pair of g.boundServiceItems) {
       const si = await prisma.serviceItem.findUnique({
         where: { departmentId_name: { departmentId: pair.departmentId, name: pair.name } },
         select: { id: true },
       });
-      if (si) itemIds.push(si.id);
+      if (si) itemIds.add(si.id);
     }
+    if (g.boundCategory) {
+      const catItems = await prisma.serviceItem.findMany({
+        where: { category: g.boundCategory },
+        select: { id: true },
+      });
+      for (const si of catItems) itemIds.add(si.id);
+    }
+    const boundServiceItemIds = Array.from(itemIds);
 
     const existing = await prisma.tagGroup.findUnique({ where: { name: g.name } });
     const groupData = {
       description: g.description,
-      boundServiceItemIds: itemIds,
+      boundServiceItemIds,
       selectionMode: g.selectionMode,
       opMode: g.opMode,
       openness: g.openness,
