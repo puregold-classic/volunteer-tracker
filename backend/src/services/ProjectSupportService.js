@@ -34,6 +34,13 @@ const SUPPORT_INCLUDE = {
   project: {
     select: { id: true, projectCode: true, name: true, category: true },
   },
+  tagAttachments: {
+    include: {
+      tag: {
+        include: { group: { select: { id: true, name: true, selectionMode: true, opMode: true } } },
+      },
+    },
+  },
 };
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────

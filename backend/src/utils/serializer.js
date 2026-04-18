@@ -213,6 +213,22 @@ export function serializeProjectSupport(p) {
           category: p.project.category,
         }
       : null,
+    // v3.2 tag attachments (replaces single project link). Each element is
+    // { id, tagId, tag: { name, groupId, group?: { name, selectionMode,
+    // opMode } } } when the service include joined them.
+    tags: Array.isArray(p.tagAttachments)
+      ? p.tagAttachments
+          .filter((a) => a.tag)
+          .map((a) => ({
+            attachmentId: a.id,
+            tagId: a.tagId,
+            name: a.tag.name,
+            groupId: a.tag.groupId,
+            group: a.tag.group
+              ? { id: a.tag.group.id, name: a.tag.group.name, selectionMode: a.tag.group.selectionMode, opMode: a.tag.group.opMode }
+              : null,
+          }))
+      : [],
     serviceDate: p.serviceDate,
     duration: p.duration,
     description: p.description,
@@ -228,6 +244,41 @@ export function serializeProjectSupport(p) {
 export function serializeAuditLog(log) {
   if (!log) return null;
   return { ...log };
+}
+
+// v3.2: TagGroup + Tag serializers
+
+export function serializeTagGroup(g) {
+  if (!g) return null;
+  return {
+    id: g.id,
+    name: g.name,
+    description: g.description,
+    boundServiceItemIds: g.boundServiceItemIds ?? [],
+    selectionMode: g.selectionMode,
+    opMode: g.opMode,
+    openness: g.openness,
+    required: g.required,
+    tags: g.tags ? g.tags.map(serializeTag) : [],
+    createdById: g.createdById,
+    createdBy: g.createdBy
+      ? { id: g.createdBy.id, volunteerCode: g.createdBy.volunteerCode, chineseName: g.createdBy.chineseName }
+      : null,
+    createdAt: g.createdAt,
+    updatedAt: g.updatedAt,
+  };
+}
+
+export function serializeTag(t) {
+  if (!t) return null;
+  return {
+    id: t.id,
+    groupId: t.groupId,
+    name: t.name,
+    createdById: t.createdById,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+  };
 }
 
 export function serializeProject(p) {
