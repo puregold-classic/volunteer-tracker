@@ -22,7 +22,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import volunteerService from '@services/volunteerService';
 import projectSupportService from '@services/projectSupportService';
-import type { ServiceCategory, ServiceItemsByDepartment } from '@services/types';
+import tagService from '@services/tagService';
+import type { ServiceCategory, ServiceItemsByDepartment, TagGroup } from '@services/types';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
@@ -157,6 +158,13 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
     [selectedItemId, categoryGroups],
   );
 
+  // v3.2: tag group picker state — when user picks a serviceItem, fetch
+  // any TagGroups bound to that item and show inline pickers. Selected tag
+  // ids per group id (array for both single + multi; single enforced by UI).
+  const [boundGroups, setBoundGroups] = useState<TagGroup[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<Record<string, string[]>>({});
+  const [boundGroupsLoading, setBoundGroupsLoading] = useState(false);
+
   useEffect(() => {
     if (open) {
       reset({
@@ -168,8 +176,50 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
         targetVolunteerCode: '',
       });
       setActiveCategory(firstNonEmptyCategory);
+      setBoundGroups([]);
+      setSelectedTagIds({});
     }
   }, [open, reset, today, firstNonEmptyCategory]);
+
+  // When serviceItem changes, fetch bound tag groups
+  useEffect(() => {
+    if (!selectedItemId) {
+      setBoundGroups([]);
+      setSelectedTagIds({});
+      return;
+    }
+    setBoundGroupsLoading(true);
+    tagService.getGroupsBoundTo(selectedItemId)
+      .then((res) => {
+        if (res?.success && res.data) {
+          setBoundGroups(res.data);
+          // Reset selections when service item changes
+          setSelectedTagIds({});
+        }
+      })
+      .finally(() => setBoundGroupsLoading(false));
+  }, [selectedItemId]);
+
+  const toggleTagInGroup = (group: TagGroup, tagId: string) => {
+    setSelectedTagIds((prev) => {
+      const current = prev[group.id] ?? [];
+      if (group.selectionMode === 'single') {
+        // Radio: replace
+        return { ...prev, [group.id]: current[0] === tagId ? [] : [tagId] };
+      }
+      // Checkbox: toggle
+      return {
+        ...prev,
+        [group.id]: current.includes(tagId)
+          ? current.filter((x) => x !== tagId)
+          : [...current, tagId],
+      };
+    });
+  };
+
+  const missingRequiredGroups = boundGroups.filter(
+    (g) => g.required && (selectedTagIds[g.id] ?? []).length === 0,
+  );
 
   // When user picks an item from another tab via selectedInfo, follow them
   // there so the active-tab highlight matches the picked item.
@@ -181,6 +231,12 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
   }, [selectedInfo?.category]);
 
   const onSubmit = async (data: SubmitFormData) => {
+    // Block submit if any required bound group isn't filled
+    if (missingRequiredGroups.length > 0) {
+      setError('root', { message: `必填标签未选：${missingRequiredGroups.map((g) => g.name).join('、')}` });
+      return;
+    }
+
     let targetVolunteerId: string | undefined;
 
     if (isLockedProxy) {
@@ -203,6 +259,24 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
     });
 
     if (result?.success && result.data) {
+      // Attach any selected tags. Failures logged but don't fail the submit —
+      // the PS is already saved; user can manually fix tag state after.
+      const createdId = result.data.id;
+      const attachPromises: Promise<unknown>[] = [];
+      for (const group of boundGroups) {
+        const tagIds = selectedTagIds[group.id] ?? [];
+        for (const tagId of tagIds) {
+          attachPromises.push(tagService.attach(tagId, createdId));
+        }
+      }
+      if (attachPromises.length > 0) {
+        const results = await Promise.allSettled(attachPromises);
+        const failures = results.filter((r) => r.status === 'rejected').length;
+        if (failures > 0) {
+          toast({ title: '标签附加部分失败', description: `${failures} 个 tag 未成功挂上，可到记录卡片手动补`, variant: 'destructive' });
+        }
+      }
+
       const isProxy = result.data.isProxy;
       const pending = result.data.status === 'PENDING_CONFIRMATION';
       const targetName = targetVolunteer?.chineseName || data.targetVolunteerCode;
@@ -336,6 +410,59 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
             <p className="text-xs text-destructive">{errors.serviceItemId.message}</p>
           )}
         </div>
+
+        {/* v3.2 bound tag groups — shown inline when service item triggers them */}
+        {selectedItemId && (boundGroups.length > 0 || boundGroupsLoading) && (
+          <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-[11px] font-medium text-muted-foreground">
+              根据所选 service item 附加的标签
+              {boundGroupsLoading && <span className="ml-2 text-muted-foreground">加载中…</span>}
+            </p>
+            {boundGroups.map((g) => {
+              const selected = selectedTagIds[g.id] ?? [];
+              return (
+                <div key={g.id} className="space-y-1.5">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-medium text-foreground">{g.name}</span>
+                    {g.required && <span className="text-xs text-destructive">*必选</span>}
+                    <span className="text-[10px] text-muted-foreground">
+                      ({g.selectionMode === 'single' ? '单选' : '多选'})
+                    </span>
+                  </div>
+                  {g.tags.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">（该组暂无 tag，去 /tags 添加）</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {g.tags.map((t) => {
+                        const isOn = selected.includes(t.id);
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => toggleTagInGroup(g, t.id)}
+                            className={cn(
+                              'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                              isOn
+                                ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                                : 'border-border bg-background text-foreground hover:border-primary/40 hover:bg-primary/5',
+                            )}
+                          >
+                            {t.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {missingRequiredGroups.length > 0 && (
+              <p className="text-xs text-destructive">
+                必选未填：{missingRequiredGroups.map((g) => g.name).join('、')}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
