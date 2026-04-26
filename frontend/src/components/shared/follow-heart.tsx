@@ -36,11 +36,10 @@ export const FollowHeart: React.FC<FollowHeartProps> = ({
   const { isAuthenticated, account } = useAuth();
   const { followedSet, toggle } = useFollowed();
 
-  // Hide for unauthenticated users (follow is auth-only) and admin
-  // accounts without a volunteer binding (their ownerId would be null).
-  // Also hide on the user's own card — following oneself is nonsense.
+  // v3.4: list 系统仅对 a_admin / b_admin 开放. user / 纯 admin 看不到心心.
   if (!isAuthenticated) return null;
   if (!account?.volunteerId) return null;
+  if (account.role !== 'a_admin' && account.role !== 'b_admin') return null;
   const selfId = selfVolunteerId ?? account.volunteerId;
   if (volunteerId === selfId) return null;
 

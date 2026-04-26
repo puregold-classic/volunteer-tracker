@@ -309,17 +309,15 @@ model ProjectSupport {
   @@map("project_supports")
 }
 
-// ─── Volunteer lists (v3 wave 3) ──────────────────────────────────────────────
+// ─── Volunteer lists (v3 wave 3, multi-list since v3.4) ─────────────────────
 //
-// Private per-volunteer tracking lists. Primary use case: admins / 部长
-// keeping an eye on specific volunteers ("我的关注"), and regular volunteers
-// remembering friends they commonly代提交 for. MVP only supports a single
-// default list per owner (lazy-created on first follow), but the schema
-// is ready for multi-list when user asks for it.
+// Private per-volunteer tracking lists.  Default list "我的关注" lazy-created
+// on first follow; custom lists created via API since v3.4.  Used by admins
+// / 部长 to organize volunteers they代提交 for, segment by sub-team, etc.
 //
-// Admin accounts without a volunteer binding (pure system admin, v2.1 only
-// role allowed to have volunteerId=null) do not own lists — they use the
-// ledger instead. All other roles have a Volunteer FK.
+// 权限 (v3.4): list 系统仅对 a_admin / b_admin 开放（路由层 gate
+// authorizeListOwner）.  Pure system admin (volunteerId=null) 也不能拥有
+// list — list 是志愿者工作区的私有数据.  普通 user 不再看到心心 / list 入口.
 
 model VolunteerList {
   id        String                @id @default(cuid())

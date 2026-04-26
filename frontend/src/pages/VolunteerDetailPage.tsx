@@ -41,6 +41,7 @@ import { cn } from '@/lib/utils';
 import { parseLocalDate, formatLocalDate } from '@/lib/date-utils';
 import { HeroAvatar } from '@/components/shared/hero-avatar';
 import { FollowHeart } from '@/components/shared/follow-heart';
+import { FollowListPopover } from '@/components/shared/follow-list-popover';
 import volunteerListService from '@services/volunteerListService';
 import ledgerService, { type LedgerVolunteerService } from '@services/ledgerService';
 import { ScrollableBarChart } from '@/components/shared/scrollable-bar-chart';
@@ -199,11 +200,18 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
                     </p>
                   )}
                 </div>
-                <FollowHeart
-                  volunteerId={volunteer.id}
-                  volunteerName={volunteer.chineseName}
-                  size="md"
-                />
+                <div className="flex items-center gap-1">
+                  <FollowHeart
+                    volunteerId={volunteer.id}
+                    volunteerName={volunteer.chineseName}
+                    size="md"
+                  />
+                  <FollowListPopover
+                    volunteerId={volunteer.id}
+                    volunteerName={volunteer.chineseName}
+                    size="md"
+                  />
+                </div>
               </div>
               {volunteer.englishName && (
                 <p className="text-sm text-muted-foreground italic">{volunteer.englishName}</p>

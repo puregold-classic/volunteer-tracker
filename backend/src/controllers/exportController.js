@@ -10,8 +10,15 @@ import ExportService from '../services/ExportService.js';
 class ExportController {
   static async exportSupports(req, res) {
     try {
+      const rawIds = req.query.volunteerIds;
+      const volunteerIds = Array.isArray(rawIds)
+        ? rawIds
+        : typeof rawIds === 'string' && rawIds.length > 0
+          ? rawIds.split(',').map((s) => s.trim()).filter(Boolean)
+          : undefined;
       const filters = {
         volunteerId: req.query.volunteerId,
+        volunteerIds,
         departmentId: req.query.departmentId,
         serviceItemId: req.query.serviceItemId,
         dateFrom: req.query.dateFrom,

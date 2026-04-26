@@ -17,6 +17,9 @@ class ExportService {
 
     const where = { status: 'ACTIVE' };
     if (filters.volunteerId) where.volunteerId = filters.volunteerId;
+    if (Array.isArray(filters.volunteerIds) && filters.volunteerIds.length > 0) {
+      where.volunteerId = { in: filters.volunteerIds };
+    }
     if (filters.departmentId) where.serviceItem = { departmentId: filters.departmentId };
     if (filters.serviceItemId) where.serviceItemId = filters.serviceItemId;
     if (filters.dateFrom || filters.dateTo) {

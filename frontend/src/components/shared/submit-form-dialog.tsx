@@ -28,6 +28,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
+import { useVolunteerLists } from '@/context/FollowedContext';
 
 const submitSchema = z
   .object({
@@ -126,6 +128,13 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const isLockedProxy = !!targetVolunteer;
   const categoryGroups = useMemo(() => buildCategoryGroups(groupedItems), [groupedItems]);
+  const { account } = useAuth();
+  const { lists } = useVolunteerLists();
+  const showListPicker =
+    !isLockedProxy &&
+    (account?.role === 'a_admin' || account?.role === 'b_admin') &&
+    lists.length > 0;
+  const [listFilterId, setListFilterId] = useState<string>('');
 
   const firstNonEmptyCategory =
     categoryGroups.find((g) => g.departments.length > 0)?.category ?? 'PROJECT_MGMT';
@@ -535,6 +544,54 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
                 />
                 {errors.targetVolunteerCode && (
                   <p className="text-xs text-destructive">{errors.targetVolunteerCode.message}</p>
+                )}
+                {showListPicker && (
+                  <div className="space-y-1 rounded-md border border-border bg-background/40 p-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground">从我的 list 选：</span>
+                      <select
+                        value={listFilterId}
+                        onChange={(e) => setListFilterId(e.target.value)}
+                        className="h-7 flex-1 rounded border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <option value="">— 全部志愿者（手填 code） —</option>
+                        {lists.map((l) => (
+                          <option key={l.id} value={l.id}>
+                            {l.name} ({l.members.length})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {listFilterId && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {(lists.find((l) => l.id === listFilterId)?.members ?? []).length === 0 ? (
+                          <span className="text-[11px] text-muted-foreground">该 list 还没有成员</span>
+                        ) : (
+                          lists
+                            .find((l) => l.id === listFilterId)
+                            ?.members.map((m) => (
+                              <button
+                                key={m.id}
+                                type="button"
+                                onClick={() =>
+                                  setValue('targetVolunteerCode', m.volunteer.volunteerCode, {
+                                    shouldValidate: true,
+                                    shouldDirty: true,
+                                  })
+                                }
+                                className="rounded border border-border bg-card px-2 py-0.5 text-[11px] hover:bg-accent"
+                                title={`${m.volunteer.chineseName} · ${m.volunteer.department?.name ?? ''}`}
+                              >
+                                <span className="font-medium">{m.volunteer.chineseName}</span>
+                                <span className="ml-1 font-mono text-muted-foreground">
+                                  {m.volunteer.volunteerCode}
+                                </span>
+                              </button>
+                            ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   普通志愿者代提交需要对方 confirm；管理员（a_admin / b_admin）代提交直接生效。
