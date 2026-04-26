@@ -25,6 +25,7 @@ import {
 import volunteerService from '@services/volunteerService';
 import ledgerService, { type LedgerVolunteerService } from '@services/ledgerService';
 import { useVolunteerLists } from '@/context/FollowedContext';
+import { useAuth } from '@/context/AuthContext';
 import type { Volunteer } from '@services/types';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
@@ -292,6 +293,8 @@ export interface ListsSectionProps {
 }
 
 export const ListsSection: React.FC<ListsSectionProps> = ({ onProxySubmit, recordsDialog }) => {
+  const { account } = useAuth();
+  const isListOwner = account?.role === 'a_admin' || account?.role === 'b_admin';
   const { lists, setMemberOf, setMemberNote, createList, renameList, deleteList } =
     useVolunteerLists();
   const [activeListId, setActiveListId] = useState<string | null>(null);
@@ -327,9 +330,33 @@ export const ListsSection: React.FC<ListsSectionProps> = ({ onProxySubmit, recor
     });
   }, [expandedVolId]);
 
-  // Don't render if there are no lists at all (provider returns empty for
-  // non-list-owner roles; this section just disappears for them).
-  if (lists.length === 0) return null;
+  // Non-list-owner roles never see this section.
+  if (!isListOwner) return null;
+
+  if (lists.length === 0 && !creatingNew) {
+    // Empty cold-start: show a slim header + "新建 list" CTA so admin_a/b
+    // can create their first list without first having to follow anyone.
+    return (
+      <section className="space-y-3">
+        <div className="flex items-baseline gap-2">
+          <Heart className="h-4 w-4 text-rose-500" />
+          <h2 className="font-serif text-lg font-semibold text-foreground">我的 list</h2>
+        </div>
+        <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center text-xs text-muted-foreground">
+          <p>还没有任何 list. 去首页 / 详情页点 ❤︎ 关注会自动建「我的关注」list.</p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => setCreatingNew(true)}
+          >
+            <ListPlus className="mr-1 h-3.5 w-3.5" />
+            或直接新建一个 list
+          </Button>
+        </div>
+      </section>
+    );
+  }
 
   const memberIds = new Set(activeList?.members.map((m) => m.volunteer.id) ?? []);
 

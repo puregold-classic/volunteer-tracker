@@ -9,9 +9,9 @@
 //   ├────────────────────────────────┤
 //   │  联系方式 (inline strip)        │
 //   ├────────────────────────────────┤
-//   │  [+ 为 XX 提交项目支援]         │ ← only for logged-in non-self volunteers/admins
+//   │  [+ 为 XX 提交项目服务]         │ ← only for logged-in non-self volunteers/admins
 //   ├────────────────────────────────┤
-//   │  支援记录 (按月分组, sticky)    │
+//   │  服务记录 (按月分组, sticky)    │
 //   └────────────────────────────────┘
 //
 // Auth model:
@@ -365,7 +365,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
           onClick={() => setSubmitOpen(true)}
         >
           <PlusCircle className="h-5 w-5" />
-          为 {volunteer.chineseName} 提交项目支援
+          为 {volunteer.chineseName} 提交项目服务
         </Button>
       )}
 
@@ -373,7 +373,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="font-serif text-base font-semibold text-foreground">
-            项目支援记录{' '}
+            项目服务记录{' '}
             {isAuthenticated && (
               <span className="text-muted-foreground">({stats.totalCount})</span>
             )}
@@ -382,7 +382,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
 
         {!isAuthenticated ? (
           <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
-            <p className="text-sm text-muted-foreground">登录后可查看该志愿者的项目支援记录</p>
+            <p className="text-sm text-muted-foreground">登录后可查看该志愿者的项目服务记录</p>
             <Button
               type="button"
               variant="outline"
@@ -399,7 +399,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
           </p>
         ) : services.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-muted/30 p-8 text-center">
-            <p className="text-sm text-muted-foreground">暂无已生效的支援记录</p>
+            <p className="text-sm text-muted-foreground">暂无已生效的服务记录</p>
           </div>
         ) : (
           <div className="rounded-xl border border-border bg-card p-4">

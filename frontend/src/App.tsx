@@ -151,7 +151,7 @@ function App() {
     ...(isAuthenticated ? [{ label: '个人中心', to: '/me', end: false }] : []),
     ...(isAuthenticated && account && ['b_admin', 'a_admin', 'admin'].includes(account.role)
       ? [
-          { label: '项目支援台账', to: '/review', end: false },
+          { label: '项目服务台账', to: '/review', end: false },
           { label: '标签管理', to: '/tags', end: false },
         ]
       : []),

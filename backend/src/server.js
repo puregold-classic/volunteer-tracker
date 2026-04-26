@@ -149,8 +149,8 @@ const start = async () => {
     console.log(`👤 志愿者: /api/v1/volunteers`);
     console.log(`🏢 部门: /api/v1/departments`);
     console.log(`📋 服务项: /api/v1/service-items`);
-    console.log(`📝 项目支援: /api/v1/project-supports`);
-    console.log(`📊 项目支援台账: /api/v1/support-ledger`);
+    console.log(`📝 项目服务: /api/v1/project-supports`);
+    console.log(`📊 项目服务台账: /api/v1/support-ledger`);
     console.log(`📜 审计日志: /api/v1/audit`);
     console.log(`💾 导出: /api/v1/exports`);
   });

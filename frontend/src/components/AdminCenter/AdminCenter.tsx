@@ -424,7 +424,7 @@ const SystemResetDialog: React.FC<{
       open={open}
       onOpenChange={onOpenChange}
       title="⚠️ 系统重置"
-      description="清空所有志愿者、项目支援、审计日志和非 admin 账号。仅 dev sandbox 使用。"
+      description="清空所有志愿者、项目服务、审计日志和非 admin 账号。仅 dev sandbox 使用。"
     >
       <div className="space-y-4">
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
@@ -433,7 +433,7 @@ const SystemResetDialog: React.FC<{
             <div>
               <p className="font-semibold">不可撤销操作</p>
               <p className="mt-1 text-foreground">
-                此操作会删除所有志愿者档案、项目支援记录、审计日志，并清空所有非 admin
+                此操作会删除所有志愿者档案、项目服务记录、审计日志，并清空所有非 admin
                 账号。当前 admin 账号会保留。
               </p>
             </div>
@@ -1097,7 +1097,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
               危险区域
             </h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              清空所有志愿者、项目支援、审计日志和非 admin 账号。仅 dev sandbox 使用。
+              清空所有志愿者、项目服务、审计日志和非 admin 账号。仅 dev sandbox 使用。
             </p>
           </div>
           <Button

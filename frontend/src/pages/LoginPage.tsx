@@ -119,7 +119,7 @@ function LoginPage() {
             {submitting ? '登录中...' : '登录'}
           </Button>
           <p className="text-center text-xs text-muted-foreground">
-            登录后可访问个人中心、项目支援台账与提交流程
+            登录后可访问个人中心、项目服务台账与提交流程
           </p>
         </form>
       </div>

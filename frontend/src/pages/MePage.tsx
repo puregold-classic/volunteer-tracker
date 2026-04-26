@@ -12,9 +12,9 @@
 //   │  · 显眼的 cards                 │
 //   │  · 一键 [确认] [拒绝]           │
 //   ├────────────────────────────────┤
-//   │  [+ 提交项目支援]  ← big CTA    │
+//   │  [+ 提交项目服务]  ← big CTA    │
 //   ├────────────────────────────────┤
-//   │  我的项目支援 (N)               │
+//   │  我的项目服务 (N)               │
 //   │  · 时间倒序 cards               │
 //   └────────────────────────────────┘
 //
@@ -566,14 +566,14 @@ function MePage({ onBackHome }: MePageProps) {
         onClick={() => setSubmitOpen(true)}
       >
         <PlusCircle className="h-5 w-5" />
-        提交项目支援
+        提交项目服务
       </Button>
 
       {/* ─── My support records ──────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="font-serif text-base font-semibold text-foreground">
-            我的支援记录 <span className="text-muted-foreground">({supports.length})</span>
+            我的服务记录 <span className="text-muted-foreground">({supports.length})</span>
           </h2>
         </div>
 
@@ -639,7 +639,7 @@ function MePage({ onBackHome }: MePageProps) {
                 你的第一条记录会出现在这里
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                点击上方「提交项目支援」开始记录
+                点击上方「提交项目服务」开始记录
               </p>
             </div>
           </div>

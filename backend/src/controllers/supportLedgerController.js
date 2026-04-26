@@ -1,6 +1,6 @@
 // src/controllers/supportLedgerController.js — v2.1
 //
-// Read-only admin ledger ("项目支援台账"). Replaces the v1 ReviewController.
+// Read-only admin ledger ("项目服务台账"). Replaces the v1 ReviewController.
 
 import SupportLedgerService from '../services/SupportLedgerService.js';
 

@@ -1,7 +1,7 @@
 // frontend/src/services/ledgerService.ts — v2.1
 //
 // Replaces v1's reviewService entirely. v2.1 has no approval queue — admins
-// see a read-only "项目支援台账" with stats and drill-down. All endpoints
+// see a read-only "项目服务台账" with stats and drill-down. All endpoints
 // require b_admin / a_admin / admin (the supportLedger router enforces this).
 
 import { api } from './api';

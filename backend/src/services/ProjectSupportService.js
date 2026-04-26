@@ -204,7 +204,7 @@ class ProjectSupportService {
       where: { supportId },
       include: SUPPORT_INCLUDE,
     });
-    if (!record) throw new Error(`项目支援记录不存在: ${supportId}`);
+    if (!record) throw new Error(`项目服务记录不存在: ${supportId}`);
     return serializeProjectSupport(record);
   }
 
@@ -253,7 +253,7 @@ class ProjectSupportService {
     // Operator must be a real volunteer (admin can also use this endpoint; admin
     // submitting for someone else is treated as proxy).
     if (!operator?.volunteerId && !isAdmin(operator)) {
-      return { forbidden: '只有志愿者或管理员可以提交项目支援记录' };
+      return { forbidden: '只有志愿者或管理员可以提交项目服务记录' };
     }
 
     // Lock check (skipped for admin)
@@ -319,7 +319,7 @@ class ProjectSupportService {
       return { record: serializeProjectSupport(created) };
     } catch (err) {
       if (err.code === 'P2002' || /project_supports_active_dedup/.test(err.message)) {
-        return { duplicate: '已存在完全相同的支援记录（同一志愿者、日期、服务项、时长、描述）' };
+        return { duplicate: '已存在完全相同的服务记录（同一志愿者、日期、服务项、时长、描述）' };
       }
       throw err;
     }

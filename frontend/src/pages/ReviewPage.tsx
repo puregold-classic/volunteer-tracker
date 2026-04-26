@@ -414,7 +414,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
       {/* ─── Header ──────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-baseline justify-between gap-2 px-1">
         <div>
-          <h1 className="font-serif text-2xl font-semibold text-foreground">项目支援台账</h1>
+          <h1 className="font-serif text-2xl font-semibold text-foreground">项目服务台账</h1>
           <p className="mt-0.5 text-xs text-muted-foreground">
             管理员只读视图 · 数据生成于{' '}
             <span className="tabular-nums">
@@ -937,7 +937,7 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
         open={recordsDialogOpen}
         onOpenChange={setRecordsDialogOpen}
         title={recordsDialogTitle}
-        description="项目支援记录"
+        description="项目服务记录"
         className="sm:max-w-xl"
       >
         {recordsLoading ? (
@@ -984,9 +984,9 @@ function ReviewPage({ isReviewer }: ReviewPageProps) {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const ACTION_LABELS: Record<string, string> = {
-  support_create: '提交支援',
-  support_update: '修改支援',
-  support_delete: '删除支援',
+  support_create: '提交服务',
+  support_update: '修改服务',
+  support_delete: '删除服务',
   support_confirm: '确认代提交',
   support_reject: '拒绝代提交',
   volunteer_create: '创建志愿者',

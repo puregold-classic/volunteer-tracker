@@ -2,7 +2,7 @@
 //   • MePage — self-submit (no targetVolunteer prop) with optional
 //     "为他人提交" checkbox that asks for a volunteer code.
 //   • VolunteerDetailPage — locked proxy mode (targetVolunteer set);
-//     dialog title becomes "为 XX 提交项目支援", checkbox is hidden,
+//     dialog title becomes "为 XX 提交项目服务", checkbox is hidden,
 //     volunteerId is auto-supplied.
 //
 // v3 service-item picker:
@@ -112,7 +112,7 @@ export interface SubmitFormDialogProps {
   onSubmitted: () => void;
   /**
    * Lock the dialog into proxy mode for a specific volunteer.
-   * When set: title becomes "为 XX 提交项目支援", checkbox is hidden,
+   * When set: title becomes "为 XX 提交项目服务", checkbox is hidden,
    * volunteerId is forced. Used from VolunteerDetailPage.
    */
   targetVolunteer?: { id: string; chineseName: string };
@@ -307,8 +307,8 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
   };
 
   const title = isLockedProxy
-    ? `为 ${targetVolunteer.chineseName} 提交项目支援`
-    : '提交项目支援';
+    ? `为 ${targetVolunteer.chineseName} 提交项目服务`
+    : '提交项目服务';
   const description = isLockedProxy
     ? '选择类别 → 服务项，填写时长与描述即可录入'
     : '选择类别 → 服务项，填写时长与描述即可录入';

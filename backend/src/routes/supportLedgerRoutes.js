@@ -1,6 +1,6 @@
 // src/routes/supportLedgerRoutes.js — v2.1
 //
-// Read-only admin "项目支援台账" endpoints. Replaces v1's /api/v1/reviews.
+// Read-only admin "项目服务台账" endpoints. Replaces v1's /api/v1/reviews.
 
 import express from 'express';
 import SupportLedgerController from '../controllers/supportLedgerController.js';

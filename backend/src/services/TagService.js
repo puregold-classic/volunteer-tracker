@@ -164,9 +164,9 @@ class TagService {
       where: { id: supportId },
       include: { serviceItem: true },
     });
-    if (!support) return { validationError: `支援记录不存在: ${supportId}` };
+    if (!support) return { validationError: `服务记录不存在: ${supportId}` };
     if (support.status !== 'ACTIVE') {
-      return { validationError: `仅能给 ACTIVE 支援记录贴标签，当前状态 ${support.status}` };
+      return { validationError: `仅能给 ACTIVE 服务记录贴标签，当前状态 ${support.status}` };
     }
 
     // permission: owner OR a_admin/b_admin+
@@ -179,7 +179,7 @@ class TagService {
     if (tag.group.boundServiceItemIds.length > 0 &&
         !tag.group.boundServiceItemIds.includes(support.serviceItemId)) {
       return {
-        validationError: `标签组 "${tag.group.name}" 限定于特定 service item，不适用于当前支援`,
+        validationError: `标签组 "${tag.group.name}" 限定于特定 service item，不适用于当前服务`,
       };
     }
 
@@ -229,7 +229,7 @@ class TagService {
 
   static async detach(tagId, supportId, operator) {
     const support = await prisma.projectSupport.findUnique({ where: { id: supportId } });
-    if (!support) return { validationError: `支援记录不存在: ${supportId}` };
+    if (!support) return { validationError: `服务记录不存在: ${supportId}` };
 
     const isOwner = operator?.volunteerId === support.volunteerId;
     if (!isOwner && !isBAdminOrAbove(operator)) {

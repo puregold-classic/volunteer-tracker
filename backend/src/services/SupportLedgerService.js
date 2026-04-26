@@ -1,6 +1,6 @@
 // src/services/SupportLedgerService.js — v2.1
 //
-// Read-only ledger for the「项目支援台账」admin page. Replaces v1's
+// Read-only ledger for the「项目服务台账」admin page. Replaces v1's
 // ReviewService entirely (which was a gatekeeping queue) — under v2.1 there's
 // no approval queue, just a comprehensive view of what's been recorded plus
 // the ability to drill into individual records.

@@ -382,7 +382,7 @@ function BatchCreateDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={`批量录入 · ${tag?.name ?? ''}`}
-      description="一次创建多条支援记录并自动挂本 tag"
+      description="一次创建多条服务记录并自动挂本 tag"
     >
       <div className="space-y-3">
         <FormField label="受训服务项" required>

@@ -12,11 +12,11 @@ import prisma from '../utils/prismaClient.js';
 import QueryUtils from '../utils/queryUtils.js';
 
 const ACTION_DESCRIPTIONS = {
-  support_create:       (log) => `创建项目支援记录 ${log.modifiedId || ''}`,
-  support_update:       (log) => `修改项目支援记录 ${log.modifiedId || ''}`,
-  support_delete:       (log) => `删除项目支援记录 ${log.modifiedId || ''}`,
-  support_confirm:      (log) => `确认了代提交的项目支援 ${log.modifiedId || ''}`,
-  support_reject:       (log) => `拒绝了代提交的项目支援 ${log.modifiedId || ''}`,
+  support_create:       (log) => `创建项目服务记录 ${log.modifiedId || ''}`,
+  support_update:       (log) => `修改项目服务记录 ${log.modifiedId || ''}`,
+  support_delete:       (log) => `删除项目服务记录 ${log.modifiedId || ''}`,
+  support_confirm:      (log) => `确认了代提交的项目服务 ${log.modifiedId || ''}`,
+  support_reject:       (log) => `拒绝了代提交的项目服务 ${log.modifiedId || ''}`,
   volunteer_create:     ()    => `创建了志愿者档案`,
   volunteer_update:     ()    => `修改了志愿者档案`,
   volunteer_deactivate: ()    => `停用了志愿者`,

@@ -60,3 +60,4 @@ live-*.png
 live-*.jpg
 mobile-*.png
 mobile-*.jpg
+.playwright-mcp/

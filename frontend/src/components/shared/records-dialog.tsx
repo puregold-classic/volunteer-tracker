@@ -71,7 +71,7 @@ export function useRecordsDialog(): UseRecordsDialog {
       open={isOpen}
       onOpenChange={setIsOpen}
       title={title}
-      description="项目支援记录"
+      description="项目服务记录"
       className="sm:max-w-xl"
     >
       {loading ? (
