@@ -16,20 +16,21 @@
 // PENDING_CONFIRMATION vs ACTIVE based on operator role (v3: a_admin /
 // b_admin proxy auto-confirms) and submittedById vs volunteerId.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import volunteerService from '@services/volunteerService';
 import projectSupportService from '@services/projectSupportService';
 import tagService from '@services/tagService';
-import type { ServiceCategory, ServiceItemsByDepartment, TagGroup } from '@services/types';
+import type { ProjectSupport, ServiceCategory, ServiceItemsByDepartment, TagGroup } from '@services/types';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { useVolunteerLists } from '@/context/FollowedContext';
+import { RecentProxyList, type RecentProxyListHandle } from './recent-proxy-list';
 
 const submitSchema = z
   .object({
@@ -116,6 +117,12 @@ export interface SubmitFormDialogProps {
    * volunteerId is forced. Used from VolunteerDetailPage.
    */
   targetVolunteer?: { id: string; chineseName: string };
+  /**
+   * v3.4.1: open in "代提交工作台" mode — wider dialog with a sidebar of
+   * the admin's recent proxy submissions.  Forces forAnother=true,
+   * supports inline edit of an existing record.
+   */
+  proxyConsole?: boolean;
 }
 
 export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
@@ -124,6 +131,7 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
   groupedItems,
   onSubmitted,
   targetVolunteer,
+  proxyConsole,
 }) => {
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const isLockedProxy = !!targetVolunteer;
@@ -135,6 +143,12 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
     (account?.role === 'a_admin' || account?.role === 'b_admin') &&
     lists.length > 0;
   const [listFilterId, setListFilterId] = useState<string>('');
+
+  // v3.4.1 — edit mode for an existing proxy record.  Only relevant when
+  // proxyConsole=true (right-column item clicked).  When set, form fields
+  // pre-fill and the form switches to PATCH instead of POST.
+  const [editingSupport, setEditingSupport] = useState<ProjectSupport | null>(null);
+  const recentListRef = useRef<RecentProxyListHandle>(null);
 
   const firstNonEmptyCategory =
     categoryGroups.find((g) => g.departments.length > 0)?.category ?? 'PROJECT_MGMT';
@@ -181,14 +195,35 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
         serviceDate: today,
         duration: '1',
         description: '',
-        forAnother: false,
+        // proxyConsole forces forAnother=true; otherwise default false.
+        forAnother: !!proxyConsole,
         targetVolunteerCode: '',
       });
       setActiveCategory(firstNonEmptyCategory);
       setBoundGroups([]);
       setSelectedTagIds({});
+      setEditingSupport(null);
+      setListFilterId('');
     }
-  }, [open, reset, today, firstNonEmptyCategory]);
+  }, [open, reset, today, firstNonEmptyCategory, proxyConsole]);
+
+  // When an existing record is selected for edit (via right-column ✎),
+  // pre-fill the form with its values.  Volunteer + service item are locked.
+  useEffect(() => {
+    if (!editingSupport) return;
+    const date =
+      typeof editingSupport.serviceDate === 'string'
+        ? editingSupport.serviceDate.split('T')[0]
+        : new Date(editingSupport.serviceDate).toISOString().split('T')[0];
+    reset({
+      serviceItemId: editingSupport.serviceItemId,
+      serviceDate: date,
+      duration: String(editingSupport.duration),
+      description: editingSupport.description,
+      forAnother: true,
+      targetVolunteerCode: editingSupport.volunteer?.volunteerCode ?? '',
+    });
+  }, [editingSupport, reset]);
 
   // When serviceItem changes, fetch bound tag groups
   useEffect(() => {
@@ -240,7 +275,38 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
   }, [selectedInfo?.category]);
 
   const onSubmit = async (data: SubmitFormData) => {
-    // Block submit if any required bound group isn't filled
+    // ── Edit branch: PATCH existing record (only duration/date/description) ──
+    if (editingSupport) {
+      const r = await projectSupportService.update(editingSupport.supportId, {
+        serviceDate: data.serviceDate,
+        duration: parseFloat(data.duration),
+        description: data.description,
+      });
+      if (r?.success) {
+        toast({ title: '已更新代提交记录' });
+        // Reset to fresh create mode so admin can keep going.
+        setEditingSupport(null);
+        reset({
+          serviceItemId: '',
+          serviceDate: today,
+          duration: '1',
+          description: '',
+          forAnother: !!proxyConsole,
+          targetVolunteerCode: '',
+        });
+        setBoundGroups([]);
+        setSelectedTagIds({});
+        recentListRef.current?.refresh();
+        onSubmitted();
+      } else {
+        const errMsg = (r as any)?.error || '更新失败';
+        toast({ title: '更新失败', description: errMsg, variant: 'destructive' });
+        setError('root', { message: errMsg });
+      }
+      return;
+    }
+
+    // ── Create branch (existing logic) ──────────────────────────────────────
     if (missingRequiredGroups.length > 0) {
       setError('root', { message: `必填标签未选：${missingRequiredGroups.map((g) => g.name).join('、')}` });
       return;
@@ -298,7 +364,23 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
             : '记录已生效',
       });
       onSubmitted();
-      onOpenChange(false);
+      // Proxy console: keep dialog open, reset form, refresh recent list so
+      // admin can keep batching submissions.  Other modes close as before.
+      if (proxyConsole) {
+        reset({
+          serviceItemId: '',
+          serviceDate: today,
+          duration: '1',
+          description: '',
+          forAnother: true,
+          targetVolunteerCode: '',
+        });
+        setBoundGroups([]);
+        setSelectedTagIds({});
+        recentListRef.current?.refresh();
+      } else {
+        onOpenChange(false);
+      }
     } else {
       const errMsg = (result as any)?.error || '提交失败';
       toast({ title: '提交失败', description: errMsg, variant: 'destructive' });
@@ -306,19 +388,48 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
     }
   };
 
-  const title = isLockedProxy
-    ? `为 ${targetVolunteer.chineseName} 提交项目服务`
-    : '提交项目服务';
-  const description = isLockedProxy
-    ? '选择类别 → 服务项，填写时长与描述即可录入'
+  const title = editingSupport
+    ? `编辑代提交记录 · ${editingSupport.volunteer?.chineseName ?? ''}`
+    : isLockedProxy
+      ? `为 ${targetVolunteer.chineseName} 提交项目服务`
+      : proxyConsole
+        ? '为他人提交 · 工作台'
+        : '提交项目服务';
+  const description = editingSupport
+    ? '只能改时长 / 日期 / 描述，要换服务项请撤回重提'
     : '选择类别 → 服务项，填写时长与描述即可录入';
 
   const activeGroup = categoryGroups.find((g) => g.category === activeCategory);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title={title} description={description}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* ─── Service item picker: category tabs + dept-grouped pills ─── */}
+    <Dialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={description}
+      className={cn(proxyConsole && 'max-w-3xl')}
+    >
+      <div className={cn(proxyConsole && 'md:flex md:gap-5')}>
+        <form onSubmit={handleSubmit(onSubmit)} className={cn('space-y-4', proxyConsole && 'md:flex-1 md:min-w-0')}>
+          {editingSupport && (
+            <div className="rounded-md border border-primary/40 bg-primary/5 p-2 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span>
+                  📌 {editingSupport.serviceItem?.departmentName} / {editingSupport.serviceItem?.name}
+                  <span className="ml-1 text-muted-foreground">（service item 锁定）</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEditingSupport(null)}
+                  className="text-primary underline-offset-2 hover:underline"
+                >
+                  ← 取消编辑，回到提交模式
+                </button>
+              </div>
+            </div>
+          )}
+        {/* ─── Service item picker (hidden when editing — service item locked) ─── */}
+        {!editingSupport && (
         <div className="space-y-2.5">
           <div className="flex items-center justify-between gap-2">
             <label className="text-sm font-medium text-foreground">
@@ -419,9 +530,10 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
             <p className="text-xs text-destructive">{errors.serviceItemId.message}</p>
           )}
         </div>
+        )}
 
-        {/* v3.2 bound tag groups — shown inline when service item triggers them */}
-        {selectedItemId && (boundGroups.length > 0 || boundGroupsLoading) && (
+        {/* v3.2 bound tag groups — hidden in edit mode (use link-tags-dialog for tag tweaks) */}
+        {!editingSupport && selectedItemId && (boundGroups.length > 0 || boundGroupsLoading) && (
           <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
             <p className="text-[11px] font-medium text-muted-foreground">
               根据所选 service item 附加的标签
@@ -523,17 +635,21 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
           )}
         </div>
 
-        {/* Proxy submission toggle — hidden in locked-proxy mode */}
-        {!isLockedProxy && (
+        {/* Proxy section — hidden in locked-proxy mode and in edit mode (volunteer locked) */}
+        {!isLockedProxy && !editingSupport && (
           <div className="space-y-2 rounded-lg border border-dashed border-border bg-muted/40 p-3">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <input
-                type="checkbox"
-                {...register('forAnother')}
-                className="h-4 w-4 rounded border-border text-primary"
-              />
-              为他人提交
-            </label>
+            {proxyConsole ? (
+              <p className="text-sm font-medium text-foreground">代他人提交</p>
+            ) : (
+              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <input
+                  type="checkbox"
+                  {...register('forAnother')}
+                  className="h-4 w-4 rounded border-border text-primary"
+                />
+                为他人提交
+              </label>
+            )}
             {forAnother && (
               <div className="space-y-1.5">
                 <input
@@ -605,13 +721,26 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
 
         <div className="flex gap-3 pt-1">
           <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
-            取消
+            {editingSupport ? '关闭' : '取消'}
           </Button>
           <Button type="submit" className="flex-1" disabled={isSubmitting} size="lg">
-            {isSubmitting ? '提交中…' : '提交'}
+            {isSubmitting ? '提交中…' : editingSupport ? '保存' : '提交'}
           </Button>
         </div>
       </form>
+
+      {/* Right column — recent proxy submissions, only in proxyConsole mode */}
+      {proxyConsole && account?.volunteerId && (
+        <div className="mt-5 border-t pt-4 md:mt-0 md:w-72 md:border-t-0 md:border-l md:pl-5 md:pt-0">
+          <RecentProxyList
+            ref={recentListRef}
+            ownerVolunteerId={account.volunteerId}
+            onEdit={(s) => setEditingSupport(s)}
+            editingId={editingSupport?.id ?? null}
+          />
+        </div>
+      )}
+      </div>
     </Dialog>
   );
 };

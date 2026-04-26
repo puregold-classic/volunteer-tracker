@@ -44,10 +44,14 @@ const SUPPORT_INCLUDE = {
 
 const isAdmin = (operator) => operator?.role === 'admin' || operator?.role === 'a_admin';
 
+// v3.4.1: submitter can edit/remove their own proxy submissions (e.g. b_admin
+// fixing a typo in a record they filed for someone else).  Audit log captures
+// the diff, month-lock still applies.
 const requireOwnerOrAdmin = (record, operator) => {
   if (isAdmin(operator)) return null;
   if (record.volunteerId === operator?.volunteerId) return null;
-  return { forbidden: '只有本人或管理员可以操作此记录' };
+  if (record.submittedById && record.submittedById === operator?.volunteerId) return null;
+  return { forbidden: '只有本人、提交者或管理员可以操作此记录' };
 };
 
 const checkLock = async (serviceDate, operator) => {

@@ -214,8 +214,11 @@ function MePage({ onBackHome }: MePageProps) {
 
   // v3.4 multi-list: 代提交 target shared between submit dialog + ListsSection
   const [proxyTarget, setProxyTarget] = useState<{ id: string; chineseName: string } | null>(null);
+  // v3.4.1: when admin_a/b clicks "为他人提交" CTA, dialog opens in proxy-console mode
+  const [proxyConsoleOpen, setProxyConsoleOpen] = useState(false);
   const { refresh: refreshFollowed } = useFollowed();
   const recordsDialog = useRecordsDialog();
+  const isListOwner = account?.role === 'a_admin' || account?.role === 'b_admin';
 
   // My own service distribution (used in "已生效" view in place of the old
   // grouped-by-month list). Fetched on refresh along with everything else.
@@ -558,16 +561,33 @@ function MePage({ onBackHome }: MePageProps) {
         </section>
       )}
 
-      {/* ─── Submit CTA ──────────────────────────────────────────────────── */}
-      <Button
-        type="button"
-        size="lg"
-        className="w-full font-serif text-base h-14 rounded-2xl shadow-md"
-        onClick={() => setSubmitOpen(true)}
-      >
-        <PlusCircle className="h-5 w-5" />
-        提交项目服务
-      </Button>
+      {/* ─── Submit CTAs (admin_a/b sees both; user sees only the first) ─── */}
+      <div className={cn('flex gap-3', isListOwner ? 'flex-col sm:flex-row' : '')}>
+        <Button
+          type="button"
+          size="lg"
+          className={cn(
+            'font-serif text-base h-14 rounded-2xl shadow-md',
+            isListOwner ? 'flex-1' : 'w-full',
+          )}
+          onClick={() => setSubmitOpen(true)}
+        >
+          <PlusCircle className="h-5 w-5" />
+          提交项目服务
+        </Button>
+        {isListOwner && (
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            className="flex-1 font-serif text-base h-14 rounded-2xl"
+            onClick={() => setProxyConsoleOpen(true)}
+          >
+            <Send className="h-5 w-5" />
+            为他人提交
+          </Button>
+        )}
+      </div>
 
       {/* ─── My support records ──────────────────────────────────────────── */}
       <section className="space-y-3">
@@ -771,12 +791,21 @@ function MePage({ onBackHome }: MePageProps) {
         返回首页
       </button>
 
-      {/* ─── Submit dialog ───────────────────────────────────────────────── */}
+      {/* ─── Submit dialog (self / locked-proxy from list/detail) ──────────── */}
       <SubmitFormDialog
         open={submitOpen}
         onOpenChange={(v) => { setSubmitOpen(v); if (!v) setProxyTarget(null); }}
         groupedItems={serviceItemsGrouped}
         targetVolunteer={proxyTarget ?? undefined}
+        onSubmitted={() => { void refresh(); void refreshFollowed(); }}
+      />
+
+      {/* ─── Proxy console (admin_a/b "为他人提交" CTA) ──────────────────── */}
+      <SubmitFormDialog
+        open={proxyConsoleOpen}
+        onOpenChange={setProxyConsoleOpen}
+        groupedItems={serviceItemsGrouped}
+        proxyConsole
         onSubmitted={() => { void refresh(); void refreshFollowed(); }}
       />
 

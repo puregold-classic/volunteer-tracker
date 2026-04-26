@@ -9,13 +9,15 @@
 // - CSV 导出（list 全员的 ACTIVE ProjectSupport 切片）
 // - 代提交 / 展开台账（保留 v3-wave-3 行为）
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Check,
   ChevronDown,
   ChevronUp,
   Download,
   Heart,
   ListPlus,
+  MoreHorizontal,
   Pencil,
   Plus,
   Send,
@@ -26,6 +28,7 @@ import volunteerService from '@services/volunteerService';
 import ledgerService, { type LedgerVolunteerService } from '@services/ledgerService';
 import { useVolunteerLists } from '@/context/FollowedContext';
 import { useAuth } from '@/context/AuthContext';
+import { cn } from '@/lib/utils';
 import type { Volunteer } from '@services/types';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
@@ -309,6 +312,23 @@ export const ListsSection: React.FC<ListsSectionProps> = ({ onProxySubmit, recor
   const [newListName, setNewListName] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // v3.4.1 — title dropdown + gear menu state (replaces old select + button row)
+  const [titleOpen, setTitleOpen] = useState(false);
+  const [gearOpen, setGearOpen] = useState(false);
+  const titleRef = useRef<HTMLDivElement>(null);
+  const gearRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!titleOpen && !gearOpen) return;
+    const onClick = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (titleOpen && titleRef.current && !titleRef.current.contains(t)) setTitleOpen(false);
+      if (gearOpen && gearRef.current && !gearRef.current.contains(t)) setGearOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [titleOpen, gearOpen]);
+
   // Default to the first list (default list) once loaded.
   useEffect(() => {
     if (!activeListId && lists.length > 0) setActiveListId(lists[0].id);
@@ -393,113 +413,174 @@ export const ListsSection: React.FC<ListsSectionProps> = ({ onProxySubmit, recor
 
   return (
     <section className="space-y-3">
-      {/* Header: title + list switcher */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Heart className="h-4 w-4 text-rose-500" />
-        <h2 className="font-serif text-lg font-semibold text-foreground">我的 list</h2>
+      {/* Title row: ❤︎ <list name ▾> (N) ··· (gear menu) */}
+      <div className="flex items-baseline gap-1.5">
+        <Heart className="h-4 w-4 self-center text-rose-500" />
 
-        <div className="ml-auto flex flex-wrap items-center gap-1">
-          <select
-            value={activeListId ?? ''}
-            onChange={(e) => setActiveListId(e.target.value)}
-            className="h-8 rounded border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+        {/* Title is itself the switcher trigger */}
+        <div ref={titleRef} className="relative">
+          <button
+            type="button"
+            onClick={() => { setTitleOpen((o) => !o); setGearOpen(false); }}
+            className="flex items-baseline gap-1 rounded-md px-1 -mx-1 hover:bg-muted/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-haspopup="menu"
+            aria-expanded={titleOpen}
           >
-            {lists.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name} ({l.members.length}){l.isDefault ? ' · 默认' : ''}
-              </option>
-            ))}
-          </select>
+            <h2 className="font-serif text-lg font-semibold text-foreground">
+              {activeList?.name ?? '我的 list'}
+            </h2>
+            <ChevronDown
+              className={cn(
+                'h-3.5 w-3.5 self-center text-muted-foreground transition-transform',
+                titleOpen && 'rotate-180',
+              )}
+            />
+          </button>
 
-          {!creatingNew ? (
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={() => setCreatingNew(true)}
-              aria-label="新建 list"
-              title="新建 list"
+          {titleOpen && (
+            <div
+              className="absolute left-0 top-full z-40 mt-1 w-56 rounded-md border bg-popover p-1 shadow-md"
+              role="menu"
             >
-              <ListPlus className="h-3.5 w-3.5" />
-            </Button>
-          ) : (
-            <div className="flex items-center gap-1">
-              <input
-                autoFocus
-                value={newListName}
-                onChange={(e) => setNewListName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void onCreate();
-                  else if (e.key === 'Escape') { setCreatingNew(false); setNewListName(''); }
-                }}
-                placeholder="list 名称"
-                maxLength={32}
-                className="h-8 w-32 rounded border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-              <Button size="sm" disabled={busy || !newListName.trim()} onClick={() => void onCreate()}>
-                创建
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => { setCreatingNew(false); setNewListName(''); }}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
+              {lists.map((l) => {
+                const active = l.id === activeListId;
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => { setActiveListId(l.id); setTitleOpen(false); }}
+                    className="flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                    role="menuitemradio"
+                    aria-checked={active}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className={cn(
+                        'flex h-3.5 w-3.5 shrink-0 items-center justify-center',
+                        active ? 'text-foreground' : 'text-transparent',
+                      )}>
+                        <Check className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="truncate">{l.name}</span>
+                      {l.isDefault && (
+                        <span className="text-[10px] text-muted-foreground">默认</span>
+                      )}
+                    </span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+                      {l.members.length}
+                    </span>
+                  </button>
+                );
+              })}
+
+              <div className="my-1 h-px bg-border" />
+
+              {!creatingNew ? (
+                <button
+                  type="button"
+                  onClick={() => setCreatingNew(true)}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                >
+                  <ListPlus className="h-4 w-4" />
+                  新建 list
+                </button>
+              ) : (
+                <div className="flex items-center gap-1 px-2 py-1.5">
+                  <input
+                    autoFocus
+                    value={newListName}
+                    onChange={(e) => setNewListName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { void onCreate().then(() => setTitleOpen(false)); }
+                      else if (e.key === 'Escape') { setCreatingNew(false); setNewListName(''); }
+                    }}
+                    placeholder="list 名称"
+                    maxLength={32}
+                    className="h-7 flex-1 rounded border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void onCreate().then(() => setTitleOpen(false))}
+                    disabled={busy || !newListName.trim()}
+                    className="h-7 rounded bg-primary px-2 text-xs text-primary-foreground disabled:opacity-50"
+                  >
+                    创建
+                  </button>
+                </div>
+              )}
             </div>
           )}
-
-          {activeList && !activeList.isDefault && (
-            <>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                onClick={() => setRenameOpen(true)}
-                aria-label="改名"
-                title="改名"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="icon-sm"
-                onClick={() => void onDelete()}
-                aria-label="删除"
-                title="删除"
-                className="text-rose-500"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </>
-          )}
         </div>
-      </div>
 
-      {/* Toolbar: add member + export */}
-      {activeList && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 p-2">
-          <span className="text-xs text-muted-foreground">
-            {activeList.members.length} 名成员
-          </span>
-          <div className="flex gap-1">
-            <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              添加成员
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={activeList.members.length === 0}
-              onClick={() => void downloadCsv(
-                activeList.members.map((m) => m.volunteer.id),
-                activeList.name,
-              )}
+        {/* Member count — subtle, in muted */}
+        <span className="text-xs text-muted-foreground tabular-nums self-center">
+          {activeList ? `(${activeList.members.length})` : null}
+        </span>
+
+        {/* Gear menu: list-level actions, ml-auto pushes to the right */}
+        {activeList && (
+          <div ref={gearRef} className="relative ml-auto self-center">
+            <button
+              type="button"
+              onClick={() => { setGearOpen((o) => !o); setTitleOpen(false); }}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="list 操作"
+              aria-haspopup="menu"
+              aria-expanded={gearOpen}
             >
-              <Download className="mr-1 h-3.5 w-3.5" />
-              CSV
-            </Button>
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+
+            {gearOpen && (
+              <div className="absolute right-0 top-full z-40 mt-1 w-44 rounded-md border bg-popover p-1 shadow-md" role="menu">
+                <button
+                  type="button"
+                  onClick={() => { setAddOpen(true); setGearOpen(false); }}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                >
+                  <Plus className="h-4 w-4" />
+                  添加成员
+                </button>
+                <button
+                  type="button"
+                  disabled={activeList.members.length === 0}
+                  onClick={() => {
+                    void downloadCsv(
+                      activeList.members.map((m) => m.volunteer.id),
+                      activeList.name,
+                    );
+                    setGearOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                >
+                  <Download className="h-4 w-4" />
+                  导出 CSV
+                </button>
+                {!activeList.isDefault && (
+                  <>
+                    <div className="my-1 h-px bg-border" />
+                    <button
+                      type="button"
+                      onClick={() => { setRenameOpen(true); setGearOpen(false); }}
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      改名
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { void onDelete(); setGearOpen(false); }}
+                      className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      删除 list
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Member list */}
       {!activeList || activeList.members.length === 0 ? (
