@@ -1,190 +1,123 @@
-# 志愿者管理系统
+# Volunteer Tracker
 
-- [志愿者管理系统](#志愿者管理系统)
-  - [📋 项目简介](#-项目简介)
-  - [🌐 部署地址](#-部署地址)
-    - [生产环境](#生产环境)
-    - [开发环境](#开发环境)
-  - [🔐 权限管理系统](#-权限管理系统)
-    - [权限等级设计](#权限等级设计)
-  - [📁 项目结构](#-项目结构)
-  - [📚 项目开发框架文档](#-项目开发框架文档)
-    - [🚀 第一阶段：项目初始化与环境搭建](#-第一阶段项目初始化与环境搭建)
-    - [🛠️ 第二阶段：后端开发（数据层 + API）](#️-第二阶段后端开发数据层--api)
-    - [🎨 第三阶段：前端开发](#-第三阶段前端开发)
-    - [📡 第四阶段：前后端联动思路](#-第四阶段前后端联动思路)
-    - [🐳 第五阶段：混合容器化方案](#-第五阶段混合容器化方案)
-    - [🌐 第六阶段：全栈Web应用部署](#-第六阶段全栈web应用部署)
-  - [📚 开发与协作文档](#-开发与协作文档)
-    - [🛠️ 开发环境设置指南](#️-开发环境设置指南)
-    - [🎨 功能设计文档](#-功能设计文档)
-    - [🔄 Git协作流程规范](#-git协作流程规范)
-    - [🏗️ 技术架构与构建蓝图](#️-技术架构与构建蓝图)
-  - [📂 任务说明（Tasks）](#-任务说明tasks)
-    - [📋 任务一：录入审核功能（申请 → 审核 → 正式记录 → 审计）](#-任务一录入审核功能申请--审核--正式记录--审计)
-      - [🎯 核心功能](#-核心功能)
-      - [📋 功能要点](#-功能要点)
+A visualization and management platform for the **Pure Gold Classic Translation (PG)** volunteer team. See where teammates are around the world, log everyone's contributions across translation, interpretation, training and support work, and run the team without spreadsheets.
 
+This is an **internal tool** — there is no public sign-up, accounts are issued by an admin.
 
-## 📋 项目简介
-志愿者管理系统是一个全球志愿者可视化平台，采用现代Web技术栈构建，提供直观的地图界面和强大的志愿者管理功能。本项目采用前后端分离架构，支持容器化部署，具备完整的开发、测试和生产流程。
+> **Live (sandbox):** https://dev.puregoldclassictranslation.com
+>
+> Sample login: `PG-0001` / `Sample@123`  ·  Admin access: contact a maintainer.
 
-## 🌐 部署地址
-### 生产环境
-- 前端网站 (Netlify): https://pgc-volunteer.netlify.app/
-- 后端API (Render): https://volunteer-tracker.onrender.com/
+**Walkthrough video:** [Watch on YouTube](https://youtu.be/csTTi6n-Hmk)
 
-### 开发环境
-- 本地开发: http://localhost:3000 (前端) / http://localhost:5000 (后端)
-- API文档: http://localhost:5000/
+[![Walkthrough video](https://img.youtube.com/vi/csTTi6n-Hmk/maxresdefault.jpg)](https://youtu.be/csTTi6n-Hmk)
 
-## 🔐 权限管理系统
-### 权限等级设计
-| 权限等级       | 权限范围                                                                 |
-|----------------|--------------------------------------------------------------------------|
-| public         | 浏览（非私密信息）                                                       |
-| user           | 浏览（联系方式）+ 其他人非项目服务add（需审核）+ 自身非项目服务增删改（需审核） |
-| b级管理员（部长）| 包含user权限 + 审核权限 + 修改部分人员权限（服务方向、在职与否）           |
-| a级管理员（3-5人）| 包含b级管理员权限 + 审核人员修改权限 + 最高人员权限 + 任命/取消权限      |
-| admin（开发者）| 最高级开发者权限                                                         |
+---
 
-## 📁 项目结构
-```text
-volunteer-tracker/
-├── frontend/                    # 前端应用
-│   ├── src/components/         # React组件
-│   ├── src/services/           # API服务层
-│   ├── src/styles/             # 样式文件
-│   ├── src/hooks/              # 自定义Hooks
-│   └── src/utils/              # 工具函数
-├── backend/                    # 后端API
-│   ├── src/controllers/        # 业务控制器
-│   ├── src/models/             # 数据模型
-│   ├── src/routes/             # API路由
-│   ├── src/middleware/         # 中间件（含权限验证）
-│   └── src/utils/              # 工具函数
-```
+## Features
 
-## 📚 项目开发框架文档
-本项目的完整开发过程被系统性地划分为六个阶段，每个阶段均有详细文档记录：
+### 1. Browsing volunteers
 
-### 🚀 第一阶段：项目初始化与环境搭建
-- **文档位置**：`docs/framework/stage1_structure.md`
-- **核心内容**：
-  - ✅ Git分支管理与清理策略
-  - ✅ 前后端项目结构标准化创建
-  - ✅ 开发环境配置文件初始化（Vite、TypeScript、ESLint）
-  - ✅ 依赖包管理统一配置
-  - ✅ 基础验证文件与健康检查端点
-- **详细内容**：[查看完整文档](./docs/framework/stage1_structure.md)
+The home page is a Leaflet world map with one pin per active volunteer, color-coded by department, alongside a filterable card list of the whole team.
 
-### 🛠️ 第二阶段：后端开发（数据层 + API）
-- **文档位置**：`docs/framework/stage2_backend.md`
-- **核心内容**：
-  - ✅ MongoDB Schema设计与数据验证
-  - ✅ 数据库连接池与健康监控
-  - ✅ 完整的CRUD RESTful API实现
-  - ✅ 错误处理中间件与统一响应格式
-  - ✅ 种子数据生成与API测试脚本
-- **详细内容**：[查看完整文档](./docs/framework/stage2_backend.md)
+- **Filters:** department, region, active / inactive status, free-text search
+- **Map ↔ list:** click a pin or a card to open that person's profile
+- **Profile pages** — same layout for your own (`/me`) and anyone else's (`/volunteers/:id`):
+  - Hero avatar, department badge, region
+  - Three stat tiles: this-month / this-year / all-time hours
+  - 90-day activity heatmap (GitHub-style contribution graph)
+  - Service records grouped by month with sticky month headers
+  - Status chips to filter active / pending-confirmation / rejected entries
 
-### 🎨 第三阶段：前端开发
-- **文档位置**：`docs/framework/stage3_frontend.md`
-- **核心内容**：
-  - ✅ Vite + React + TypeScript项目初始化
-  - ✅ 现代化设计系统（设计令牌、变量体系）
-  - ✅ 核心组件开发（VolunteerCard、VolunteerList）
-  - ✅ API服务层封装与类型安全
-  - ✅ 响应式布局与交互动画实现
-- **详细内容**：[查看完整文档](./docs/framework/stage3_frontend.md)
+### 2. Logging service work
 
-### 📡 第四阶段：前后端联动思路
-- **文档位置**：`docs/framework/stage4_coordinate.md`
-- **核心内容**：
-  - ✅ 分层架构设计（组件→服务→API客户端）
-  - ✅ 开发环境代理配置与跨域解决方案
-  - ✅ 统一的请求/响应拦截器机制
-  - ✅ 错误处理与类型安全最佳实践
-  - ✅ 环境隔离与部署策略
-- **详细内容**：[查看完整文档](./docs/framework/stage4_coordinate.md)
+Every volunteer can log what they did. Records belong to one of **four categories**:
 
-### 🐳 第五阶段：混合容器化方案
-- **文档位置**：`docs/framework/stage5_docker.md`
-- **核心内容**：
-  - ✅ 多环境Docker Compose配置（开发/生产）
-  - ✅ 前后端Dockerfile优化（多阶段构建）
-  - ✅ 数据库持久化与健康检查
-  - ✅ 自动化开发脚本与Makefile
-  - ✅ 数据备份与恢复管理工具
-- **详细内容**：[查看完整文档](./docs/framework/stage5_docker.md)
+| Category | What it covers |
+|---|---|
+| Project Management | Coordination, planning |
+| Project Training | Running training sessions |
+| Project Support | Design, tech, ops, care, etc. |
+| Training Attendance | Sitting in on training (batch entry only — see Tags below) |
 
-### 🌐 第六阶段：全栈Web应用部署
-- **文档位置**：`docs/framework/stage6_deploy.md`
-- **核心内容**：
-  - ✅ MongoDB Atlas云数据库配置
-  - ✅ Render后端服务托管与部署
-  - ✅ Netlify前端静态站点部署
-  - ✅ 跨域（CORS）配置与安全策略
-  - ✅ 故障排查与监控维护指南
-- **详细内容**：[查看完整文档](./docs/framework/stage6_deploy.md)
+Each record carries a date, duration, the specific service item, optional tags, and a short description.
 
-## 📚 开发与协作文档
-### 🛠️ 开发环境设置指南
-文档地址：[./docs/development_environment.md](./docs/project/development_environment.md)
-提供完整的开发环境配置指南，核心内容：
-- 快速启动步骤（支持脚本和Make命令）
-- Docker容器化开发环境架构
-- 前后端开发工作流与常用命令
-- 数据库初始化与管理脚本
-- 常见故障排除与清理资源方法
+- **Self-submit** — your own record goes live immediately
+- **Proxy submission** — coordinators can log work *on behalf of* another volunteer; the owner gets a "pending confirmation" card on their profile and either **confirms** (record goes live) or **rejects** (archived with a reason)
+- **Direct entry mode** — A-level / B-level admins acting as data-entry operators bypass the confirmation step, so historical bulk entry doesn't pile up notifications
+- **Built-in deduplication** — the same person can't accidentally submit the same entry twice
+- **Soft delete** — deleted records are hidden from stats but never actually removed
+- **Month-end lock** — admins can freeze records before a given date so historical numbers can't drift
 
-适用于所有开发者快速搭建本地开发环境。
+### 3. Tags & batch entry
 
-### 🎨 功能设计文档
-文档地址：[./docs/general_design.md](./docs/project/general_design.md)
-详细描述系统核心功能模块与交互流程，核心内容：
-- 地图可视化模块设计与交互逻辑
-- 页面布局与响应式设计
-- 志愿者卡片、筛选器、个人详情面板等UI组件设计
-- 非项目服务记录管理流程
-- 完整的用户交互流程示例
+Service items can be augmented with **tag groups** — sponsor, translation role, interpreter post, specific training session, and so on. Each tag group is configured along three axes:
 
-是理解系统功能和界面设计的核心文档。
+- **Selection mode:** single-pick or multi-pick
+- **Op mode:** *managed* (admins curate, supports batch operations) or *tag-only* (free attach)
+- **Openness:** *closed* (fixed list) or *open* (anyone can add a new tag)
 
-### 🔄 Git协作流程规范
-文档地址：[./docs/git_workflow.md](./docs/project/git_workflow.md)
-制定团队Git协作的标准流程与规范，核心内容：
-- Git分支模型与命名规范
-- 完整功能开发流程（从分支创建到PR合并）
-- 提交信息格式与PR模板要求
-- 分支保护、冲突解决与紧急修复流程
-- 常用Git命令速查与常见问题解决方案
+When you submit a record, any tag group bound to the chosen service item pops up an inline picker — no extra dialogs.
 
-适用于所有团队成员遵循统一的代码协作流程。
+For organizers, the `/tags` page provides **batch tools**:
 
-### 🏗️ 技术架构与构建蓝图
-文档地址：[./docs/technique_standard.md](./docs/project/technique_standard.md)
-定义系统技术栈选型与项目结构规范，核心内容：
-- 前后端技术栈说明（React + Node.js + MongoDB）
-- 模块化架构与数据流设计
-- 前端、后端、共享资源目录结构规范
-- 核心功能模块技术实现方案
-- 地图可视化、志愿者数据管理、统计展示等模块设计
+- **Paste-roster batch entry** — drop in a list of names, preview the impact (how many records, original duration distribution), then apply. This is the only way to log **Training Attendance** records.
+- **Manual attach / detach** — typeahead search against existing records
+- **Tag-level edits** — rename, merge, delete tags with full audit trail
 
-是项目架构与代码组织的参考标准。
+### 4. Watch lists
 
-## 📂 任务说明（Tasks）
+Build private lists of volunteers you want to keep track of — your team, mentees, an event squad. Volunteers can sit in any number of lists; lists can be renamed and reordered.
 
-### 📋 任务一：录入审核功能（申请 → 审核 → 正式记录 → 审计）
+The **proxy-submission workbench** (v3.4.1) takes a list and lets you log a service record for everyone on it in one go — handy for batch attendance after a training session or an event without falling back to the tag-batch flow.
 
-**文档地址：** [Task1-README](./docs/Tasks/T1-backend_NPS_app_audit/README.md)
+### 5. The ledger
 
-#### 🎯 核心功能
-志愿者非项目服务记录的申请、审核、正式入库及审计全流程管理。
+`/review` is a read-only browse of the whole team's records, with **three-level drill-down**:
 
-#### 📋 功能要点
-- **申请提交**：志愿者提交创建、更新或删除服务记录申请
-- **审核流程**：管理员审核申请，支持通过/拒绝操作
-- **数据同步**：审核通过后同步至正式服务记录库
-- **审计跟踪**：完整记录所有操作，确保可追溯性
-- **软删除机制**：支持数据恢复，确保数据完整性
+`category` → `department` → `volunteer` → `individual record`
+
+Each level shows summary charts (bar / distribution) and supports filtering by date range, status, and category. Useful for monthly reporting or spot-checking activity.
+
+- **Export** — one-click CSV / Excel of any filtered view
+- **Audit trail** — every state-changing action across the system (account creation, password reset, record submit / edit / delete, tag attach / detach, list mutation) is logged with operator, timestamp, and a before / after snapshot. Nothing important is unattributable.
+
+### 6. Accounts & access
+
+Accounts are admin-issued — no public registration. Once you have an account, you sign in with one of three identifiers in a single field, auto-detected from what you type:
+
+- Email (contains `@`)
+- Phone number (digits only)
+- Volunteer code (`PG-0001` style)
+
+**Self-service** for any logged-in user:
+
+- Change your own password (auto-logs you out of all sessions on success)
+- Upload an avatar (resized client-side to a sensible JPEG)
+
+**Admin center** (inline panel on `/me` for maintainers):
+
+- Account creation: single-form or bulk CSV import
+- Role assignment: `user` / `b_admin` (review-only) / `a_admin` (locking + onboarding) / `admin` (full)
+- Reset anyone's password and force-logout their sessions
+- Toggle the system-wide month-end lock
+
+---
+
+## For developers
+
+This README is a tour for end users. If you want to run the project locally, contribute, or understand the data model:
+
+- [`docs/architecture.md`](./docs/architecture.md) — tech stack, module layout, data model
+- [`docs/development.md`](./docs/development.md) — local setup, testing, git workflow
+- [`docs/api-overview.md`](./docs/api-overview.md) — backend endpoint reference
+- [`docs/v3-changelog.md`](./docs/v3-changelog.md) — recent feature releases (v3.x)
+- [`docs/deploy/`](./docs/deploy/) — deployment & backup guides
+
+**Stack at a glance:** React 18 · TypeScript · Vite · Tailwind CSS · Node.js · Express · Prisma · PostgreSQL · Docker
+
+---
+
+## Feedback
+
+Bug reports and feature requests welcome — open a GitHub issue on `puregold-classic/volunteer-tracker`, or reach out to a team coordinator.
