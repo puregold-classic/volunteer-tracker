@@ -214,13 +214,11 @@ const MapLeftControls: React.FC<{
   isLocationActive: (type: 'province' | 'region', value: string) => boolean;
   onRegionSelect: (region: string) => void;
   onProvinceSelect: (province: string) => void;
-  onReset: () => void;
-  onRefresh: () => void;
   heatmapAvailable: boolean;
   heatmapOn: boolean;
   onHeatmapToggle: () => void;
 }> = ({
-  quickFocusOptions, hotLocations, isLocationActive, onRegionSelect, onProvinceSelect, onReset, onRefresh,
+  quickFocusOptions, hotLocations, isLocationActive, onRegionSelect, onProvinceSelect,
   heatmapAvailable, heatmapOn, onHeatmapToggle,
 }) => {
   const [open, setOpen] = useState<null | 'region' | 'province'>(null);
@@ -300,17 +298,6 @@ const MapLeftControls: React.FC<{
           </button>
         )}
 
-        {/* 重置 trigger — clears selections + resets map view */}
-        <button
-          type="button"
-          onClick={(e) => { stopAll(e); onReset(); onRefresh(); closeAll(); }}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="重置地理筛选"
-          title="重置"
-        >
-          <RotateCcw className="h-4 w-4" />
-        </button>
-
         {/* Region popover */}
         {open === 'region' && (
           <PopoverPanel title="快速聚焦" onClose={closeAll}>
@@ -367,18 +354,32 @@ const MapLeftControls: React.FC<{
   );
 };
 
-// ─── Right-side zoom/refresh stack ──────────────────────────────────────────
+// ─── Right-side map-view stack: zoom + reset ────────────────────────────────
 
-const MapZoomControls: React.FC = () => {
+const MapZoomControls: React.FC<{
+  onReset: () => void;
+  onRefresh: () => void;
+}> = ({ onReset, onRefresh }) => {
   const map = useMap();
   const stop = (e: React.MouseEvent) => { e.stopPropagation(); e.preventDefault(); };
+  const handleReset = (e: React.MouseEvent) => {
+    stop(e);
+    // Recenter the map directly — FocusRegion's effect only fires when
+    // focusRegion changes, so it won't re-run if it was already empty.
+    map.fitBounds(CHINA_BOUNDS, { padding: [6, 6] });
+    onReset();
+    onRefresh();
+  };
   return (
     <div className="home-map__controls" onClick={stop} onMouseDown={stop}>
-      <button type="button" onClick={(e) => { stop(e); map.zoomIn(); }} aria-label="放大">
+      <button type="button" onClick={(e) => { stop(e); map.zoomIn(); }} aria-label="放大" title="放大">
         <ZoomIn className="h-4 w-4" />
       </button>
-      <button type="button" onClick={(e) => { stop(e); map.zoomOut(); }} aria-label="缩小">
+      <button type="button" onClick={(e) => { stop(e); map.zoomOut(); }} aria-label="缩小" title="缩小">
         <ZoomOut className="h-4 w-4" />
+      </button>
+      <button type="button" onClick={handleReset} aria-label="重置筛选并复位地图" title="重置 / 复位">
+        <RotateCcw className="h-4 w-4" />
       </button>
     </div>
   );
@@ -403,7 +404,10 @@ const HomeMap: React.FC<HomeMapProps> = ({
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
   const [hoveredProvince, setHoveredProvince] = React.useState('');
-  const [heatmapOn, setHeatmapOn] = useState(false);
+  const [heatmapOn, setHeatmapOn] = useState(true);
+  // Cursor-anchored count badge position (heatmap mode only). Null when
+  // cursor is outside the map or heatmap is off.
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
 
   // Build a quick lookup: province-name → count. GeoJSON + API both use
   // Chinese names (e.g. "广东省"), so no normalization needed for mainland.
@@ -515,8 +519,15 @@ const HomeMap: React.FC<HomeMapProps> = ({
       ? `当前区域: ${focusRegion}`
       : '';
 
+  const handleMapMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!heatmapActive) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+  const handleMapMouseLeave = () => setCursorPos(null);
+
   return (
-    <div className="home-map">
+    <div className="home-map" onMouseMove={handleMapMouseMove} onMouseLeave={handleMapMouseLeave}>
       {loading && <div className="home-map__state">地图加载中…</div>}
       {error && <div className="home-map__state home-map__state--error">{error}</div>}
 
@@ -534,7 +545,7 @@ const HomeMap: React.FC<HomeMapProps> = ({
           <ZoomTracker />
           <FocusRegion focusRegion={focusRegion} />
           <FocusBorder focusRegion={focusRegion} />
-          <MapZoomControls />
+          <MapZoomControls onReset={onReset} onRefresh={onRefresh} />
           <TileLayer
             url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
             subdomains="abcd"
@@ -587,29 +598,30 @@ const HomeMap: React.FC<HomeMapProps> = ({
           isLocationActive={isLocationActive}
           onRegionSelect={onQuickFocusSelect}
           onProvinceSelect={onProvinceSelect}
-          onReset={onReset}
-          onRefresh={onRefresh}
           heatmapAvailable={heatmapAvailable}
           heatmapOn={heatmapActive}
           onHeatmapToggle={() => setHeatmapOn((v) => !v)}
         />
       )}
 
-      {/* Bottom selection display — shows count in heatmap mode on hover */}
-      {(selectionLabel || (heatmapActive && hoveredProvince)) && (
+      {/* Bottom selection display — shows current selection only. */}
+      {selectionLabel && (
         <div className="home-map__toolbar">
-          {heatmapActive && hoveredProvince ? (
-            <span>
-              {hoveredProvince}
-              <span className="mx-1 text-muted-foreground">·</span>
-              <span className="font-semibold text-primary tabular-nums">
-                {countByProvince.get(hoveredProvince) ?? 0}
-              </span>
-              <span className="ml-1 text-muted-foreground">人</span>
-            </span>
-          ) : (
-            selectionLabel
-          )}
+          {selectionLabel}
+        </div>
+      )}
+
+      {/* Heatmap cursor-anchored count badge — replaces the old bottom-left
+          count display, putting the per-province number where the cursor is. */}
+      {heatmapActive && hoveredProvince && cursorPos && (
+        <div
+          className="pointer-events-none absolute z-[401] rounded-md border border-border bg-card/95 px-2 py-1 text-xs shadow-md backdrop-blur"
+          style={{ left: cursorPos.x + 14, top: cursorPos.y + 14 }}
+        >
+          <span className="font-semibold tabular-nums text-primary">
+            {countByProvince.get(hoveredProvince) ?? 0}
+          </span>
+          <span className="ml-1 text-muted-foreground">人</span>
         </div>
       )}
     </div>
