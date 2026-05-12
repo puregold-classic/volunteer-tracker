@@ -224,14 +224,10 @@
   /* ── HomeMap (Leaflet container) ── */
   .home-map {
     @apply relative w-full overflow-hidden rounded-2xl border border-border bg-card;
-    /* Leaflet container needs explicit height — fallback for v1 .home-map class */
-    height: 36rem;
-  }
-
-  @media (max-width: 768px) {
-    .home-map {
-      height: 24rem;
-    }
+    /* Fills parent container; parent must size it. min-height keeps mobile /
+       unsized parents from collapsing the leaflet canvas to 0. */
+    height: 100%;
+    min-height: 24rem;
   }
 
   .home-map__leaflet {

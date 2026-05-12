@@ -372,7 +372,7 @@ function HomePage(props: HomePageProps) {
   const mapElement = (
     <Suspense
       fallback={
-        <div className="flex h-[24rem] items-center justify-center rounded-2xl border border-border bg-card text-sm text-muted-foreground md:h-[36rem]">
+        <div className="flex h-[24rem] min-h-[24rem] items-center justify-center rounded-2xl border border-border bg-card text-sm text-muted-foreground md:h-full">
           地图加载中…
         </div>
       }
