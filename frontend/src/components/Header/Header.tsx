@@ -52,7 +52,7 @@ const ActiveBar: React.FC<{ inset: 'desktop' | 'mobile' }> = ({ inset }) => (
 const Header: React.FC<HeaderProps> = ({ navItems = [], actions }) => {
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/[0.92] backdrop-blur-xl">
-      <div className="mx-auto max-w-[92rem] px-4 sm:px-6">
+      <div className="mx-auto max-w-[112rem] px-4 sm:px-6">
         <div className="flex items-stretch" style={{ height: '3.5rem' }}>
           {/* Brand */}
           <NavLink to="/" className="flex shrink-0 items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">

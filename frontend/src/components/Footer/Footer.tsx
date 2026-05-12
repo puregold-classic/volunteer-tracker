@@ -6,7 +6,7 @@ const Footer: React.FC = () => {
 
   return (
     <footer className="mt-auto border-t border-neutral-200/70 bg-white/90 dark:border-neutral-800/70 dark:bg-neutral-950/92">
-      <div className="mx-auto w-full max-w-[92rem] px-4 py-3">
+      <div className="mx-auto w-full max-w-[112rem] px-4 py-3">
         <p className="flex items-center justify-center gap-1 text-sm text-neutral-500 dark:text-neutral-400">
           © {currentYear} Volunteer Tracker ·{' '}
           <a

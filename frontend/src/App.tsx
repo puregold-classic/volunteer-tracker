@@ -208,7 +208,7 @@ function App() {
       />
 
       <main className="flex-1 py-6 md:py-4">
-        <div className="mx-auto w-full max-w-[92rem] px-2 sm:px-4">
+        <div className="mx-auto w-full max-w-[112rem] px-2 sm:px-4">
           <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<HomePageContainer />} />
