@@ -490,9 +490,6 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
                 )}
               </div>
             )}
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              普通志愿者代提交需要对方 confirm；管理员（a_admin / b_admin）代提交直接生效。
-            </p>
           </div>
         )}
 
