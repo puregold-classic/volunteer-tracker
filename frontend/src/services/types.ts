@@ -127,6 +127,7 @@ export interface ProjectSupport {
   serviceItem: {
     id: string;
     name: string;
+    category: ServiceCategory;
     departmentId: string;
     departmentName: string | null;
   } | null;

@@ -397,6 +397,28 @@ describe('ProjectSupportService.update', () => {
     expect(result.record).toBeDefined(); // returns existing
     expect(mockPrisma.projectSupport.update).not.toHaveBeenCalled();
   });
+
+  it('owner cannot update a TRAINING_ATTENDANCE record', async () => {
+    const attendanceRecord = {
+      ...ownedRecord,
+      serviceItem: { ...sampleServiceItem, category: 'TRAINING_ATTENDANCE' },
+    };
+    mockPrisma.projectSupport.findUnique.mockResolvedValue(attendanceRecord);
+    const result = await ProjectSupportService.update('PS-PG-0001-001', { description: '新描述测试' }, userOperator);
+    expect(result.forbidden).toBeDefined();
+    expect(mockPrisma.projectSupport.update).not.toHaveBeenCalled();
+  });
+
+  it('admin can update a TRAINING_ATTENDANCE record', async () => {
+    const attendanceRecord = {
+      ...ownedRecord,
+      serviceItem: { ...sampleServiceItem, category: 'TRAINING_ATTENDANCE' },
+    };
+    mockPrisma.projectSupport.findUnique.mockResolvedValue(attendanceRecord);
+    mockPrisma.projectSupport.update.mockResolvedValue({ ...attendanceRecord, description: '新描述测试' });
+    const result = await ProjectSupportService.update('PS-PG-0001-001', { description: '新描述测试' }, adminOperator);
+    expect(result.record).toBeDefined();
+  });
 });
 
 // ─── remove() ────────────────────────────────────────────────────────────────
@@ -405,6 +427,7 @@ describe('ProjectSupportService.remove', () => {
   const ownedRecord = {
     ...fakeRecord(),
     volunteer: sampleVolunteer,
+    serviceItem: sampleServiceItem,
   };
 
   it('owner can soft-delete (status → DELETED)', async () => {
@@ -427,6 +450,28 @@ describe('ProjectSupportService.remove', () => {
   it('admin can remove any', async () => {
     mockPrisma.projectSupport.findUnique.mockResolvedValue(ownedRecord);
     mockPrisma.projectSupport.update.mockResolvedValue({ ...ownedRecord, status: 'DELETED' });
+    const result = await ProjectSupportService.remove('PS-PG-0001-001', adminOperator);
+    expect(result.record).toBeDefined();
+  });
+
+  it('owner cannot delete a TRAINING_ATTENDANCE record', async () => {
+    const attendanceRecord = {
+      ...ownedRecord,
+      serviceItem: { ...sampleServiceItem, category: 'TRAINING_ATTENDANCE' },
+    };
+    mockPrisma.projectSupport.findUnique.mockResolvedValue(attendanceRecord);
+    const result = await ProjectSupportService.remove('PS-PG-0001-001', userOperator);
+    expect(result.forbidden).toBeDefined();
+    expect(mockPrisma.projectSupport.update).not.toHaveBeenCalled();
+  });
+
+  it('admin can delete a TRAINING_ATTENDANCE record', async () => {
+    const attendanceRecord = {
+      ...ownedRecord,
+      serviceItem: { ...sampleServiceItem, category: 'TRAINING_ATTENDANCE' },
+    };
+    mockPrisma.projectSupport.findUnique.mockResolvedValue(attendanceRecord);
+    mockPrisma.projectSupport.update.mockResolvedValue({ ...attendanceRecord, status: 'DELETED' });
     const result = await ProjectSupportService.remove('PS-PG-0001-001', adminOperator);
     expect(result.record).toBeDefined();
   });

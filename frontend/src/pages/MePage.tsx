@@ -217,7 +217,9 @@ function MePage({ onBackHome }: MePageProps) {
   // v3.4.1: when admin_a/b clicks "为他人提交" CTA, dialog opens in proxy-console mode
   const [proxyConsoleOpen, setProxyConsoleOpen] = useState(false);
   const { refresh: refreshFollowed } = useFollowed();
-  const recordsDialog = useRecordsDialog();
+  // Self records get inline edit / delete in the drill-down dialog; watched
+  // others' records stay read-only (ownership checked per-record).
+  const recordsDialog = useRecordsDialog({ currentVolunteerId: account?.volunteerId });
   const isListOwner = account?.role === 'a_admin' || account?.role === 'b_admin';
 
   // My own service distribution (used in "已生效" view in place of the old

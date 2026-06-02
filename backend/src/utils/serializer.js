@@ -200,6 +200,7 @@ export function serializeProjectSupport(p) {
       ? {
           id: p.serviceItem.id,
           name: p.serviceItem.name,
+          category: p.serviceItem.category,
           departmentId: p.serviceItem.departmentId,
           departmentName: p.serviceItem.department?.name ?? null,
         }

@@ -27,7 +27,7 @@ const SUPPORT_INCLUDE = {
   submittedBy: { select: { id: true, volunteerCode: true, chineseName: true } },
   serviceItem: {
     select: {
-      id: true, name: true, departmentId: true,
+      id: true, name: true, category: true, departmentId: true,
       department: { select: { id: true, name: true } },
     },
   },
@@ -58,6 +58,18 @@ const checkLock = async (serviceDate, operator) => {
   if (isAdmin(operator)) return null;
   const locked = await SystemSettingsService.isDateLocked(serviceDate);
   if (locked) return { locked: '该日期所在的统计周期已封档，无法变更' };
+  return null;
+};
+
+// TRAINING_ATTENDANCE records are organizer-owned: they enter the system via
+// project-level batch attendance, never personal submission (see create()).
+// So even the nominal owner must not edit/delete them — only admins can correct
+// attendance. Mirrors the create()-time block on the personal-submit path.
+const requireEditableCategory = (record, operator) => {
+  if (isAdmin(operator)) return null;
+  if (record.serviceItem?.category === 'TRAINING_ATTENDANCE') {
+    return { forbidden: '受训考勤记录由组织方统一管理，不能本人修改或删除' };
+  }
   return null;
 };
 
@@ -344,6 +356,9 @@ class ProjectSupportService {
     const ownerCheck = requireOwnerOrAdmin(existing, operator);
     if (ownerCheck) return ownerCheck;
 
+    const categoryCheck = requireEditableCategory(existing, operator);
+    if (categoryCheck) return categoryCheck;
+
     // Lock check uses the OLD serviceDate (cannot edit a locked record at all)
     const lockErr = await checkLock(existing.serviceDate, operator);
     if (lockErr) return lockErr;
@@ -416,13 +431,16 @@ class ProjectSupportService {
   static async remove(supportId, operator) {
     const existing = await prisma.projectSupport.findUnique({
       where: { supportId },
-      include: { volunteer: true },
+      include: { volunteer: true, serviceItem: true },
     });
     if (!existing) return { notFound: true };
     if (existing.status === 'DELETED') return { record: serializeProjectSupport(existing) };
 
     const ownerCheck = requireOwnerOrAdmin(existing, operator);
     if (ownerCheck) return ownerCheck;
+
+    const categoryCheck = requireEditableCategory(existing, operator);
+    if (categoryCheck) return categoryCheck;
 
     const lockErr = await checkLock(existing.serviceDate, operator);
     if (lockErr) return lockErr;
