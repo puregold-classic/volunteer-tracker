@@ -41,11 +41,10 @@ export const FollowListPopover: React.FC<FollowListPopoverProps> = ({
   const [newName, setNewName] = useState('');
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Same gate as FollowHeart.
+  // Same gate as FollowHeart (v3.5: any volunteer, not just a/b admin).
   const visible =
     isAuthenticated &&
     !!account?.volunteerId &&
-    (account.role === 'a_admin' || account.role === 'b_admin') &&
     volunteerId !== (selfVolunteerId ?? account.volunteerId);
 
   useEffect(() => {

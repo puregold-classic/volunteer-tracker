@@ -36,10 +36,10 @@ export const FollowHeart: React.FC<FollowHeartProps> = ({
   const { isAuthenticated, account } = useAuth();
   const { followedSet, toggle } = useFollowed();
 
-  // v3.4: list 系统仅对 a_admin / b_admin 开放. user / 纯 admin 看不到心心.
+  // v3.5: watch lists open to any volunteer; only a volunteer binding is
+  // required (pure system admin has no volunteerId → no heart).
   if (!isAuthenticated) return null;
   if (!account?.volunteerId) return null;
-  if (account.role !== 'a_admin' && account.role !== 'b_admin') return null;
   const selfId = selfVolunteerId ?? account.volunteerId;
   if (volunteerId === selfId) return null;
 

@@ -297,7 +297,9 @@ export interface ListsSectionProps {
 
 export const ListsSection: React.FC<ListsSectionProps> = ({ onProxySubmit, recordsDialog }) => {
   const { account } = useAuth();
-  const isListOwner = account?.role === 'a_admin' || account?.role === 'b_admin';
+  // v3.5: any volunteer can keep watch lists (pure system admin has no
+  // volunteerId and stays out).
+  const isListOwner = !!account?.volunteerId;
   const { lists, setMemberOf, setMemberNote, createList, renameList, deleteList } =
     useVolunteerLists();
   const [activeListId, setActiveListId] = useState<string | null>(null);

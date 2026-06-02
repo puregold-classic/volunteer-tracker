@@ -58,17 +58,15 @@ const emptyState: VolunteerListsState = {
 
 const VolunteerListsContext = createContext<VolunteerListsState | null>(null);
 
-const isListOwnerRole = (role: string | undefined) =>
-  role === 'a_admin' || role === 'b_admin';
-
 export function FollowedProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, account } = useAuth();
   const [lists, setLists] = useState<VolunteerList[]>([]);
   const [loading, setLoading] = useState(false);
   const inflight = useRef(false);
 
-  const enabled =
-    isAuthenticated && !!account?.volunteerId && isListOwnerRole(account?.role);
+  // v3.5: watch lists are available to any volunteer (gated on volunteer
+  // binding, not role) — a pure system admin has no volunteerId so stays out.
+  const enabled = isAuthenticated && !!account?.volunteerId;
 
   const refresh = useCallback(async () => {
     if (!enabled) {
