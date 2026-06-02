@@ -27,6 +27,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { Heart } from 'lucide-react';
+import { deptColor } from '@/lib/ledger-colors';
 import { useAuth } from '@/context/AuthContext';
 import { useVolunteerLists } from '@/context/FollowedContext';
 import { RecentProxyList, type RecentProxyListHandle } from './recent-proxy-list';
@@ -531,45 +533,68 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
               excludeId={account?.volunteerId ?? undefined}
             />
             {showListPicker && !pickedVolunteer && (
-              <div className="space-y-1 rounded-md border border-border bg-background/40 p-2">
+              <div className="space-y-2 rounded-lg border border-border bg-background/60 p-2.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-muted-foreground">从我的关注选：</span>
+                  <Heart className="h-3.5 w-3.5 shrink-0 text-accent" />
+                  <span className="text-xs font-medium text-foreground">从关注列表快速选</span>
                   <select
                     value={listFilterId}
                     onChange={(e) => setListFilterId(e.target.value)}
-                    className="h-7 flex-1 rounded border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="ml-auto h-8 max-w-[55%] rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    <option value="">— 选一个关注列表 —</option>
+                    <option value="">选择列表…</option>
                     {lists.map((l) => (
                       <option key={l.id} value={l.id}>
-                        {l.name} ({l.members.length})
+                        {l.name}（{l.members.length}）
                       </option>
                     ))}
                   </select>
                 </div>
                 {listFilterId && (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {(lists.find((l) => l.id === listFilterId)?.members ?? []).length === 0 ? (
-                      <span className="text-[11px] text-muted-foreground">该列表还没有成员</span>
-                    ) : (
-                      lists
+                  (lists.find((l) => l.id === listFilterId)?.members ?? []).length === 0 ? (
+                    <p className="px-1 py-2 text-center text-[11px] text-muted-foreground">
+                      该列表还没有成员
+                    </p>
+                  ) : (
+                    <div className="max-h-44 space-y-0.5 overflow-auto">
+                      {lists
                         .find((l) => l.id === listFilterId)
                         ?.members.map((m) => (
                           <button
                             key={m.id}
                             type="button"
                             onClick={() => setPickedVolunteer(m.volunteer as Volunteer)}
-                            className="rounded border border-border bg-card px-2 py-0.5 text-[11px] hover:bg-accent"
-                            title={`${m.volunteer.chineseName} · ${m.volunteer.department?.name ?? ''}`}
+                            className="flex w-full items-center gap-2.5 rounded-md p-1.5 text-left transition-colors hover:bg-accent"
                           >
-                            <span className="font-medium">{m.volunteer.chineseName}</span>
-                            <span className="ml-1 font-mono text-muted-foreground">
-                              {m.volunteer.volunteerCode}
-                            </span>
+                            <div
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-white"
+                              style={{ backgroundColor: deptColor(m.volunteer.departmentId) }}
+                            >
+                              {m.volunteer.chineseName.charAt(0)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-baseline gap-2">
+                                <span className="truncate text-sm font-medium text-foreground">
+                                  {m.volunteer.chineseName}
+                                </span>
+                                <span className="font-mono text-[10px] text-muted-foreground">
+                                  {m.volunteer.volunteerCode}
+                                </span>
+                              </div>
+                              <p className="truncate text-[11px] text-muted-foreground">
+                                {m.volunteer.department?.name}
+                                {m.volunteer.region ? ` · ${m.volunteer.region}` : ''}
+                              </p>
+                            </div>
+                            {m.note && (
+                              <span className="shrink-0 truncate text-[11px] italic text-muted-foreground max-w-[35%]">
+                                “{m.note}”
+                              </span>
+                            )}
                           </button>
-                        ))
-                    )}
-                  </div>
+                        ))}
+                    </div>
+                  )
                 )}
               </div>
             )}
