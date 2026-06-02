@@ -20,10 +20,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import volunteerService from '@services/volunteerService';
 import projectSupportService from '@services/projectSupportService';
 import tagService from '@services/tagService';
-import type { ProjectSupport, ServiceCategory, ServiceItemsByDepartment, TagGroup } from '@services/types';
+import type { ProjectSupport, ServiceCategory, ServiceItemsByDepartment, TagGroup, Volunteer } from '@services/types';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
@@ -31,23 +30,22 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { useVolunteerLists } from '@/context/FollowedContext';
 import { RecentProxyList, type RecentProxyListHandle } from './recent-proxy-list';
+import { VolunteerSearchSelect } from './volunteer-search-select';
 
-const submitSchema = z
-  .object({
-    serviceItemId: z.string().min(1, '请选择服务项'),
-    serviceDate: z.string().min(1, '请选择服务日期'),
-    duration: z.string().min(1, '请填时长').refine((s) => {
-      const n = parseFloat(s);
-      return !Number.isNaN(n) && n > 0 && (n * 2) % 1 === 0;
-    }, '时长必须是大于 0 的 0.5 倍数'),
-    description: z.string().trim().min(5, '描述至少 5 个字').max(1000, '描述不超过 1000 字'),
-    forAnother: z.boolean().optional(),
-    targetVolunteerCode: z.string().optional(),
-  })
-  .refine(
-    (d) => !d.forAnother || (d.targetVolunteerCode && d.targetVolunteerCode.trim().length > 0),
-    { message: '代提交需要填写对方 volunteer code', path: ['targetVolunteerCode'] },
-  );
+// Proxy target is no longer a free-text code in the form — it's picked via the
+// VolunteerSearchSelect typeahead and validated in onSubmit. The form fields
+// below stay (forAnother/targetVolunteerCode) only to keep reset() calls simple.
+const submitSchema = z.object({
+  serviceItemId: z.string().min(1, '请选择服务项'),
+  serviceDate: z.string().min(1, '请选择服务日期'),
+  duration: z.string().min(1, '请填时长').refine((s) => {
+    const n = parseFloat(s);
+    return !Number.isNaN(n) && n > 0 && (n * 2) % 1 === 0;
+  }, '时长必须是大于 0 的 0.5 倍数'),
+  description: z.string().trim().min(5, '描述至少 5 个字').max(1000, '描述不超过 1000 字'),
+  forAnother: z.boolean().optional(),
+  targetVolunteerCode: z.string().optional(),
+});
 
 type SubmitFormData = z.infer<typeof submitSchema>;
 
@@ -119,10 +117,16 @@ export interface SubmitFormDialogProps {
   targetVolunteer?: { id: string; chineseName: string };
   /**
    * v3.4.1: open in "代提交工作台" mode — wider dialog with a sidebar of
-   * the admin's recent proxy submissions.  Forces forAnother=true,
-   * supports inline edit of an existing record.
+   * the admin's recent proxy submissions. Pick the target via typeahead,
+   * supports inline edit of an existing record. (admin_a/b CTA)
    */
   proxyConsole?: boolean;
+  /**
+   * v3.5: lightweight proxy mode — same typeahead target picker as the console
+   * but without the recent-submissions sidebar. Used by the regular-user
+   * "为他人提交" CTA so users get a clean picker, not the full workbench.
+   */
+  proxyPick?: boolean;
 }
 
 export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
@@ -132,16 +136,20 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
   onSubmitted,
   targetVolunteer,
   proxyConsole,
+  proxyPick,
 }) => {
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
   const isLockedProxy = !!targetVolunteer;
   const categoryGroups = useMemo(() => buildCategoryGroups(groupedItems), [groupedItems]);
   const { account } = useAuth();
   const { lists } = useVolunteerLists();
-  const showListPicker =
-    !isLockedProxy &&
-    (account?.role === 'a_admin' || account?.role === 'b_admin') &&
-    lists.length > 0;
+  // Proxy submission via typeahead: either the admin console or the lightweight
+  // user pick. Locked-target mode (from list/detail) supplies the volunteer
+  // directly and skips the picker.
+  const isProxySubmit = !isLockedProxy && (!!proxyConsole || !!proxyPick);
+  const [pickedVolunteer, setPickedVolunteer] = useState<Volunteer | null>(null);
+  // Quick-pick from one of my watch lists (available to any volunteer in v3.5).
+  const showListPicker = isProxySubmit && lists.length > 0;
   const [listFilterId, setListFilterId] = useState<string>('');
 
   // v3.4.1 — edit mode for an existing proxy record.  Only relevant when
@@ -174,7 +182,6 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
     },
   });
 
-  const forAnother = watch('forAnother');
   const selectedItemId = watch('serviceItemId');
   const selectedInfo = useMemo(
     () => (selectedItemId ? findItemCategory(categoryGroups, selectedItemId) : null),
@@ -195,8 +202,7 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
         serviceDate: today,
         duration: '1',
         description: '',
-        // proxyConsole forces forAnother=true; otherwise default false.
-        forAnother: !!proxyConsole,
+        forAnother: false,
         targetVolunteerCode: '',
       });
       setActiveCategory(firstNonEmptyCategory);
@@ -204,8 +210,9 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
       setSelectedTagIds({});
       setEditingSupport(null);
       setListFilterId('');
+      setPickedVolunteer(null);
     }
-  }, [open, reset, today, firstNonEmptyCategory, proxyConsole]);
+  }, [open, reset, today, firstNonEmptyCategory]);
 
   // When an existing record is selected for edit (via right-column ✎),
   // pre-fill the form with its values.  Volunteer + service item are locked.
@@ -316,13 +323,12 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
 
     if (isLockedProxy) {
       targetVolunteerId = targetVolunteer.id;
-    } else if (data.forAnother && data.targetVolunteerCode) {
-      const lookup = await volunteerService.getVolunteerById(data.targetVolunteerCode.trim());
-      if (!lookup?.success || !lookup.data) {
-        setError('targetVolunteerCode', { message: `未找到 volunteer: ${data.targetVolunteerCode}` });
+    } else if (isProxySubmit) {
+      if (!pickedVolunteer) {
+        setError('root', { message: '请先搜索并选择要代提交的志愿者' });
         return;
       }
-      targetVolunteerId = lookup.data.id;
+      targetVolunteerId = pickedVolunteer.id;
     }
 
     const result = await projectSupportService.create({
@@ -354,7 +360,7 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
 
       const isProxy = result.data.isProxy;
       const pending = result.data.status === 'PENDING_CONFIRMATION';
-      const targetName = targetVolunteer?.chineseName || data.targetVolunteerCode;
+      const targetName = targetVolunteer?.chineseName || pickedVolunteer?.chineseName;
       toast({
         title: '提交成功',
         description: isProxy && pending
@@ -394,7 +400,9 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
       ? `为 ${targetVolunteer.chineseName} 提交项目服务`
       : proxyConsole
         ? '为他人提交 · 工作台'
-        : '提交项目服务';
+        : proxyPick
+          ? '为他人提交'
+          : '提交项目服务';
   const description = editingSupport
     ? '只能改时长 / 日期 / 描述，要换服务项请撤回重提'
     : '选择类别 → 服务项，填写时长与描述即可录入';
@@ -635,85 +643,62 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
           )}
         </div>
 
-        {/* Proxy section — hidden in locked-proxy mode and in edit mode (volunteer locked) */}
-        {!isLockedProxy && !editingSupport && (
+        {/* Proxy target picker — only in proxy submit modes (console / pick).
+            Locked-target and edit modes supply / freeze the volunteer. */}
+        {isProxySubmit && !editingSupport && (
           <div className="space-y-2 rounded-lg border border-dashed border-border bg-muted/40 p-3">
-            {proxyConsole ? (
-              <p className="text-sm font-medium text-foreground">代他人提交</p>
-            ) : (
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <input
-                  type="checkbox"
-                  {...register('forAnother')}
-                  className="h-4 w-4 rounded border-border text-primary"
-                />
-                为他人提交
-              </label>
-            )}
-            {forAnother && (
-              <div className="space-y-1.5">
-                <input
-                  type="text"
-                  placeholder="对方的 volunteer code，如 PG-0003"
-                  {...register('targetVolunteerCode')}
-                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                {errors.targetVolunteerCode && (
-                  <p className="text-xs text-destructive">{errors.targetVolunteerCode.message}</p>
-                )}
-                {showListPicker && (
-                  <div className="space-y-1 rounded-md border border-border bg-background/40 p-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-muted-foreground">从我的 list 选：</span>
-                      <select
-                        value={listFilterId}
-                        onChange={(e) => setListFilterId(e.target.value)}
-                        className="h-7 flex-1 rounded border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                      >
-                        <option value="">— 全部志愿者（手填 code） —</option>
-                        {lists.map((l) => (
-                          <option key={l.id} value={l.id}>
-                            {l.name} ({l.members.length})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {listFilterId && (
-                      <div className="flex flex-wrap gap-1 pt-1">
-                        {(lists.find((l) => l.id === listFilterId)?.members ?? []).length === 0 ? (
-                          <span className="text-[11px] text-muted-foreground">该 list 还没有成员</span>
-                        ) : (
-                          lists
-                            .find((l) => l.id === listFilterId)
-                            ?.members.map((m) => (
-                              <button
-                                key={m.id}
-                                type="button"
-                                onClick={() =>
-                                  setValue('targetVolunteerCode', m.volunteer.volunteerCode, {
-                                    shouldValidate: true,
-                                    shouldDirty: true,
-                                  })
-                                }
-                                className="rounded border border-border bg-card px-2 py-0.5 text-[11px] hover:bg-accent"
-                                title={`${m.volunteer.chineseName} · ${m.volunteer.department?.name ?? ''}`}
-                              >
-                                <span className="font-medium">{m.volunteer.chineseName}</span>
-                                <span className="ml-1 font-mono text-muted-foreground">
-                                  {m.volunteer.volunteerCode}
-                                </span>
-                              </button>
-                            ))
-                        )}
-                      </div>
+            <p className="text-sm font-medium text-foreground">为谁提交</p>
+            <VolunteerSearchSelect
+              selected={pickedVolunteer}
+              onSelect={setPickedVolunteer}
+              excludeId={account?.volunteerId ?? undefined}
+            />
+            {showListPicker && !pickedVolunteer && (
+              <div className="space-y-1 rounded-md border border-border bg-background/40 p-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground">从我的关注选：</span>
+                  <select
+                    value={listFilterId}
+                    onChange={(e) => setListFilterId(e.target.value)}
+                    className="h-7 flex-1 rounded border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">— 选一个关注列表 —</option>
+                    {lists.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name} ({l.members.length})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {listFilterId && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {(lists.find((l) => l.id === listFilterId)?.members ?? []).length === 0 ? (
+                      <span className="text-[11px] text-muted-foreground">该列表还没有成员</span>
+                    ) : (
+                      lists
+                        .find((l) => l.id === listFilterId)
+                        ?.members.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setPickedVolunteer(m.volunteer as Volunteer)}
+                            className="rounded border border-border bg-card px-2 py-0.5 text-[11px] hover:bg-accent"
+                            title={`${m.volunteer.chineseName} · ${m.volunteer.department?.name ?? ''}`}
+                          >
+                            <span className="font-medium">{m.volunteer.chineseName}</span>
+                            <span className="ml-1 font-mono text-muted-foreground">
+                              {m.volunteer.volunteerCode}
+                            </span>
+                          </button>
+                        ))
                     )}
                   </div>
                 )}
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  普通志愿者代提交需要对方 confirm；管理员（a_admin / b_admin）代提交直接生效。
-                </p>
               </div>
             )}
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              普通志愿者代提交需要对方 confirm；管理员（a_admin / b_admin）代提交直接生效。
+            </p>
           </div>
         )}
 

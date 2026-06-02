@@ -216,11 +216,17 @@ function MePage({ onBackHome }: MePageProps) {
   const [proxyTarget, setProxyTarget] = useState<{ id: string; chineseName: string } | null>(null);
   // v3.4.1: when admin_a/b clicks "为他人提交" CTA, dialog opens in proxy-console mode
   const [proxyConsoleOpen, setProxyConsoleOpen] = useState(false);
+  // v3.5: lightweight "为他人提交" for regular users (no console sidebar)
+  const [proxyPickOpen, setProxyPickOpen] = useState(false);
   const { refresh: refreshFollowed } = useFollowed();
   // Self records get inline edit / delete in the drill-down dialog; watched
   // others' records stay read-only (ownership checked per-record).
   const recordsDialog = useRecordsDialog({ currentVolunteerId: account?.volunteerId });
-  const isListOwner = account?.role === 'a_admin' || account?.role === 'b_admin';
+  // v3.5: every volunteer gets both CTAs (submit self / for others) and watch
+  // lists. admin_a/b get the full proxy console; regular users get the
+  // lightweight pick dialog.
+  const hasVolunteer = !!account?.volunteerId;
+  const isAdminListOwner = account?.role === 'a_admin' || account?.role === 'b_admin';
 
   // My own service distribution (used in "已生效" view in place of the old
   // grouped-by-month list). Fetched on refresh along with everything else.
@@ -563,27 +569,27 @@ function MePage({ onBackHome }: MePageProps) {
         </section>
       )}
 
-      {/* ─── Submit CTAs (admin_a/b sees both; user sees only the first) ─── */}
-      <div className={cn('flex gap-3', isListOwner ? 'flex-col sm:flex-row' : '')}>
+      {/* ─── Submit CTAs — every volunteer sees both (left: self, right: proxy) ─ */}
+      <div className={cn('flex gap-3', hasVolunteer ? 'flex-col sm:flex-row' : '')}>
         <Button
           type="button"
           size="lg"
           className={cn(
             'font-serif text-base h-14 rounded-2xl shadow-md',
-            isListOwner ? 'flex-1' : 'w-full',
+            hasVolunteer ? 'flex-1' : 'w-full',
           )}
           onClick={() => setSubmitOpen(true)}
         >
           <PlusCircle className="h-5 w-5" />
           提交项目服务
         </Button>
-        {isListOwner && (
+        {hasVolunteer && (
           <Button
             type="button"
             size="lg"
             variant="outline"
             className="flex-1 font-serif text-base h-14 rounded-2xl"
-            onClick={() => setProxyConsoleOpen(true)}
+            onClick={() => (isAdminListOwner ? setProxyConsoleOpen(true) : setProxyPickOpen(true))}
           >
             <Send className="h-5 w-5" />
             为他人提交
@@ -808,6 +814,15 @@ function MePage({ onBackHome }: MePageProps) {
         onOpenChange={setProxyConsoleOpen}
         groupedItems={serviceItemsGrouped}
         proxyConsole
+        onSubmitted={() => { void refresh(); void refreshFollowed(); }}
+      />
+
+      {/* ─── Lightweight proxy pick (regular-user "为他人提交" CTA) ───────── */}
+      <SubmitFormDialog
+        open={proxyPickOpen}
+        onOpenChange={setProxyPickOpen}
+        groupedItems={serviceItemsGrouped}
+        proxyPick
         onSubmitted={() => { void refresh(); void refreshFollowed(); }}
       />
 
