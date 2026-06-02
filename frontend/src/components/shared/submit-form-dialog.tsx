@@ -436,6 +436,66 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
               </div>
             </div>
           )}
+
+        {/* Proxy target picker — first thing in proxy modes: pick WHO before
+            WHAT. Locked-target and edit modes supply / freeze the volunteer. */}
+        {isProxySubmit && !editingSupport && (
+          <div className="space-y-2 rounded-lg border border-dashed border-border bg-muted/40 p-3">
+            <p className="text-sm font-medium text-foreground">为谁提交</p>
+            <VolunteerSearchSelect
+              selected={pickedVolunteer}
+              onSelect={setPickedVolunteer}
+              excludeId={account?.volunteerId ?? undefined}
+            />
+            {showListPicker && !pickedVolunteer && (
+              <div className="space-y-1 rounded-md border border-border bg-background/40 p-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground">从我的关注选：</span>
+                  <select
+                    value={listFilterId}
+                    onChange={(e) => setListFilterId(e.target.value)}
+                    className="h-7 flex-1 rounded border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">— 选一个关注列表 —</option>
+                    {lists.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name} ({l.members.length})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {listFilterId && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {(lists.find((l) => l.id === listFilterId)?.members ?? []).length === 0 ? (
+                      <span className="text-[11px] text-muted-foreground">该列表还没有成员</span>
+                    ) : (
+                      lists
+                        .find((l) => l.id === listFilterId)
+                        ?.members.map((m) => (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => setPickedVolunteer(m.volunteer as Volunteer)}
+                            className="rounded border border-border bg-card px-2 py-0.5 text-[11px] hover:bg-accent"
+                            title={`${m.volunteer.chineseName} · ${m.volunteer.department?.name ?? ''}`}
+                          >
+                            <span className="font-medium">{m.volunteer.chineseName}</span>
+                            <span className="ml-1 font-mono text-muted-foreground">
+                              {m.volunteer.volunteerCode}
+                            </span>
+                          </button>
+                        ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              普通志愿者代提交需要对方 confirm；管理员（a_admin / b_admin）代提交直接生效。
+            </p>
+          </div>
+        )}
+
         {/* ─── Service item picker (hidden when editing — service item locked) ─── */}
         {!editingSupport && (
         <div className="space-y-2.5">
@@ -642,65 +702,6 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
             <p className="text-xs text-destructive">{errors.description.message}</p>
           )}
         </div>
-
-        {/* Proxy target picker — only in proxy submit modes (console / pick).
-            Locked-target and edit modes supply / freeze the volunteer. */}
-        {isProxySubmit && !editingSupport && (
-          <div className="space-y-2 rounded-lg border border-dashed border-border bg-muted/40 p-3">
-            <p className="text-sm font-medium text-foreground">为谁提交</p>
-            <VolunteerSearchSelect
-              selected={pickedVolunteer}
-              onSelect={setPickedVolunteer}
-              excludeId={account?.volunteerId ?? undefined}
-            />
-            {showListPicker && !pickedVolunteer && (
-              <div className="space-y-1 rounded-md border border-border bg-background/40 p-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-muted-foreground">从我的关注选：</span>
-                  <select
-                    value={listFilterId}
-                    onChange={(e) => setListFilterId(e.target.value)}
-                    className="h-7 flex-1 rounded border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                  >
-                    <option value="">— 选一个关注列表 —</option>
-                    {lists.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.name} ({l.members.length})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {listFilterId && (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {(lists.find((l) => l.id === listFilterId)?.members ?? []).length === 0 ? (
-                      <span className="text-[11px] text-muted-foreground">该列表还没有成员</span>
-                    ) : (
-                      lists
-                        .find((l) => l.id === listFilterId)
-                        ?.members.map((m) => (
-                          <button
-                            key={m.id}
-                            type="button"
-                            onClick={() => setPickedVolunteer(m.volunteer as Volunteer)}
-                            className="rounded border border-border bg-card px-2 py-0.5 text-[11px] hover:bg-accent"
-                            title={`${m.volunteer.chineseName} · ${m.volunteer.department?.name ?? ''}`}
-                          >
-                            <span className="font-medium">{m.volunteer.chineseName}</span>
-                            <span className="ml-1 font-mono text-muted-foreground">
-                              {m.volunteer.volunteerCode}
-                            </span>
-                          </button>
-                        ))
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              普通志愿者代提交需要对方 confirm；管理员（a_admin / b_admin）代提交直接生效。
-            </p>
-          </div>
-        )}
 
         {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}
 
