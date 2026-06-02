@@ -104,6 +104,31 @@ function findItemCategory(
   return null;
 }
 
+// ─── Self-submit draft autosave (localStorage) ──────────────────────────────
+const DRAFT_KEY = 'vt:self-submit-draft:v1';
+type SubmitDraft = { serviceItemId: string; serviceDate: string; duration: string; description: string };
+
+const readDraft = (): SubmitDraft | null => {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || typeof d !== 'object') return null;
+    return d as SubmitDraft;
+  } catch {
+    return null;
+  }
+};
+const writeDraft = (d: SubmitDraft) => {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* quota / private mode */ }
+};
+const clearDraft = () => {
+  try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+};
+// A draft is worth keeping/restoring only if it carries real content.
+const draftHasContent = (d: SubmitDraft | null): d is SubmitDraft =>
+  !!d && (!!d.serviceItemId || (d.description?.trim().length ?? 0) > 0);
+
 export interface SubmitFormDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -152,6 +177,12 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
   const showListPicker = isProxySubmit && lists.length > 0;
   const [listFilterId, setListFilterId] = useState<string>('');
 
+  // Draft autosave — only for the plain self-submit flow (the long-description
+  // case people most fear losing). Proxy/console/locked/edit are excluded.
+  const isSelfSubmit = !isLockedProxy && !proxyConsole && !proxyPick;
+  const [draftRestored, setDraftRestored] = useState(false);
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // v3.4.1 — edit mode for an existing proxy record.  Only relevant when
   // proxyConsole=true (right-column item clicked).  When set, form fields
   // pre-fill and the form switches to PATCH instead of POST.
@@ -197,22 +228,50 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
 
   useEffect(() => {
     if (open) {
+      // Self-submit restores the last unsaved draft (if any); other modes start clean.
+      const draft = isSelfSubmit ? readDraft() : null;
+      const restore = draftHasContent(draft);
       reset({
-        serviceItemId: '',
-        serviceDate: today,
-        duration: '1',
-        description: '',
+        serviceItemId: restore ? draft.serviceItemId : '',
+        serviceDate: restore ? draft.serviceDate : today,
+        duration: restore ? draft.duration : '1',
+        description: restore ? draft.description : '',
         forAnother: false,
         targetVolunteerCode: '',
       });
-      setActiveCategory(firstNonEmptyCategory);
+      const restoredCat = restore ? findItemCategory(categoryGroups, draft.serviceItemId)?.category : null;
+      setActiveCategory(restoredCat ?? firstNonEmptyCategory);
       setBoundGroups([]);
       setSelectedTagIds({});
       setEditingSupport(null);
       setListFilterId('');
       setPickedVolunteer(null);
+      setDraftRestored(restore);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, reset, today, firstNonEmptyCategory]);
+
+  // Persist the self-submit form to localStorage as the user types (debounced).
+  useEffect(() => {
+    if (!open || !isSelfSubmit) return;
+    const sub = watch((values) => {
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+      draftTimer.current = setTimeout(() => {
+        const d: SubmitDraft = {
+          serviceItemId: values.serviceItemId ?? '',
+          serviceDate: values.serviceDate ?? today,
+          duration: values.duration ?? '',
+          description: values.description ?? '',
+        };
+        if (draftHasContent(d)) writeDraft(d);
+        else clearDraft();
+      }, 400);
+    });
+    return () => {
+      sub.unsubscribe();
+      if (draftTimer.current) clearTimeout(draftTimer.current);
+    };
+  }, [open, isSelfSubmit, watch, today]);
 
   // When an existing record is selected for edit (via right-column ✎),
   // pre-fill the form with its values.  Volunteer + service item are locked.
@@ -370,6 +429,8 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
             : '记录已生效',
       });
       onSubmitted();
+      // Submission landed — the self-submit draft is no longer needed.
+      if (isSelfSubmit) { clearDraft(); setDraftRestored(false); }
       // Proxy console: keep dialog open, reset form, refresh recent list so
       // admin can keep batching submissions.  Other modes close as before.
       if (proxyConsole) {
@@ -416,6 +477,7 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
       title={title}
       description={description}
       className={cn(proxyConsole && 'max-w-3xl')}
+      closeOnOutsideClick={false}
     >
       <div className={cn(proxyConsole && 'md:flex md:gap-5')}>
         <form onSubmit={handleSubmit(onSubmit)} className={cn('space-y-4', proxyConsole && 'md:flex-1 md:min-w-0')}>
@@ -434,6 +496,27 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
                   ← 取消编辑，回到提交模式
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Restored-draft banner (self-submit only) */}
+          {draftRestored && !editingSupport && (
+            <div className="flex items-center justify-between gap-2 rounded-md border border-dashed border-amber-400/60 bg-amber-50/60 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/20">
+              <span>已恢复上次未提交的草稿</span>
+              <button
+                type="button"
+                onClick={() => {
+                  reset({ serviceItemId: '', serviceDate: today, duration: '1', description: '', forAnother: false, targetVolunteerCode: '' });
+                  setActiveCategory(firstNonEmptyCategory);
+                  setBoundGroups([]);
+                  setSelectedTagIds({});
+                  clearDraft();
+                  setDraftRestored(false);
+                }}
+                className="shrink-0 rounded px-2 py-0.5 font-medium underline-offset-2 hover:underline"
+              >
+                清空
+              </button>
             </div>
           )}
 

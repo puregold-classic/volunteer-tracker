@@ -84,6 +84,7 @@ export const EditRecordDialog: React.FC<EditRecordDialogProps> = ({
       title="编辑项目服务记录"
       description="只能改 时长 / 日期 / 描述，要换服务项请删除后重新提交"
       className="sm:max-w-md"
+      closeOnOutsideClick={false}
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

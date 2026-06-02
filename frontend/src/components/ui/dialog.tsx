@@ -15,9 +15,15 @@ interface DialogProps {
   children: React.ReactNode
   footer?: React.ReactNode
   className?: string
+  /**
+   * Whether clicking the backdrop closes the dialog. Default true. Set false
+   * for form dialogs where a stray outside click would discard typed content
+   * (use the X / cancel button / Escape to close instead).
+   */
+  closeOnOutsideClick?: boolean
 }
 
-export function Dialog({ open, onOpenChange, title, description, children, footer, className }: DialogProps) {
+export function Dialog({ open, onOpenChange, title, description, children, footer, className, closeOnOutsideClick = true }: DialogProps) {
   React.useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
@@ -39,7 +45,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 p-0 backdrop-blur-sm sm:items-center sm:p-4"
-      onClick={() => onOpenChange(false)}
+      onClick={() => { if (closeOnOutsideClick) onOpenChange(false) }}
     >
       <div
         className={cn(
