@@ -45,7 +45,7 @@ export type ServiceCategory =
 
 export interface Department {
   id: string;          // human code, e.g. "BY_PROJECT"
-  name: string;        // "笔译项目部"
+  name: string;        // "笔译项目管理"
   displayOrder: number;
   createdAt?: string;
 }

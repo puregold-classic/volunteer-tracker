@@ -1,10 +1,10 @@
-// prisma/seed.js — v3 (12 departments + ServiceCategory)
+// prisma/seed.js — v3.5 (15 departments, 三大组 reorg + ServiceCategory)
 //
 // Idempotent reference data + a few sample accounts for the dev sandbox.
 // Run: `npx prisma db seed` (configured in package.json prisma.seed)
 //
 // What this does:
-// 1. Upsert 12 fixed Departments (by id code).
+// 1. Upsert 15 fixed Departments (by id code).
 // 2. Upsert ~60 ServiceItems (name + category) scoped under each department.
 // 3. Soft-disable any orphan items — items in the DB that are no longer in
 //    the canonical list (e.g. v2 TECH."培训" consolidated into 技术培训).
@@ -23,20 +23,30 @@ const prisma = new PrismaClient();
 
 // ─── Reference data (organizational truth) ────────────────────────────────────
 
+// v3.5 reorg — departments grouped into 三大组 that line up with the three main
+// ServiceCategory buckets (翻译项目→PROJECT_MGMT / 组织培训→PROJECT_TRAINING /
+// 项目支援→PROJECT_SUPPORT; 受训/TRAINING_ATTENDANCE is the cross-cutting 4th).
+// id codes are kept stable across renames so historical FKs / records don't break;
+// only the display name changes. displayOrder renumbered to make groups contiguous.
 const DEPARTMENTS = [
-  { id: 'BY_PROJECT',   name: '笔译项目部',   displayOrder: 1 },
-  { id: 'KY_PROJECT',   name: '口译项目部',   displayOrder: 2 },
-  { id: 'XZT',          name: 'XZT',           displayOrder: 3 },
-  { id: 'BY_TRAINING',  name: '笔译培训部',   displayOrder: 4 },
-  { id: 'KY_TRAINING',  name: '口译培训部',   displayOrder: 5 },
-  { id: 'DOCS',         name: '文档部',       displayOrder: 6 },
-  { id: 'PROMO',        name: '推广部',       displayOrder: 7 },
-  { id: 'TECH',         name: '技术部',       displayOrder: 8 },
-  { id: 'CARE',         name: '人文部',       displayOrder: 9 },
-  { id: 'MGMT',         name: '管理部',       displayOrder: 10 },
-  { id: 'READING_CLUB', name: '共读会',       displayOrder: 11 },
-  { id: 'VIDEO',        name: '视频部',       displayOrder: 12 },
-  { id: 'NET_TECH',     name: '网络技术部',   displayOrder: 13 },  // v3.2 新增
+  // ── 翻译项目（核心）— PROJECT_MGMT family ──
+  { id: 'KY_PROJECT',      name: '口译项目管理',   displayOrder: 1 },
+  { id: 'BY_PROJECT',      name: '笔译项目管理',   displayOrder: 2 },
+  { id: 'SPECIAL_PROJECT', name: '特殊项目管理部', displayOrder: 3 },  // v3.5 新增
+  { id: 'XZT',             name: 'XZT项目管理部',  displayOrder: 4 },
+  // ── 组织培训 — PROJECT_TRAINING family ──
+  { id: 'KY_TRAINING',     name: '口译培训',       displayOrder: 5 },
+  { id: 'BY_TRAINING',     name: '笔译培训',       displayOrder: 6 },
+  { id: 'BY_EXAM',         name: '笔译考核',       displayOrder: 7 },  // v3.5 新增
+  { id: 'READING_CLUB',    name: '共读会',         displayOrder: 8 },
+  // ── 项目支援 — PROJECT_SUPPORT family ──
+  { id: 'MGMT',            name: '支援管理部',     displayOrder: 9 },  // v3.5: 管理部 → 支援管理部
+  { id: 'TECH',            name: '技术部',         displayOrder: 10 },
+  { id: 'PROMO',           name: '推广部',         displayOrder: 11 },
+  { id: 'CARE',            name: '人文关怀部',     displayOrder: 12 },  // v3.5: 人文部 → 人文关怀部
+  { id: 'VIDEO',           name: '视频部',         displayOrder: 13 },
+  { id: 'DOCS',            name: '文档管理部',     displayOrder: 14 },  // v3.5: 文档部 → 文档管理部
+  { id: 'NET_TECH',        name: '网络技术部',     displayOrder: 15 },
 ];
 
 // ServiceItem shape: { name, category }
@@ -56,6 +66,13 @@ const SERVICE_ITEMS = {
     { name: '沟通反馈', category: 'PROJECT_MGMT' },
     { name: '管理策划', category: 'PROJECT_MGMT' },
     { name: '口译执行', category: 'PROJECT_MGMT' },  // v3.2: 触发 口译岗位 + 项目方 tag popup
+  ],
+  // v3.5 新增。仿照 笔译/口译 项目部，执行项命名为「特殊项目执行」。
+  SPECIAL_PROJECT: [
+    { name: '服务统计',     category: 'PROJECT_MGMT' },
+    { name: '沟通反馈',     category: 'PROJECT_MGMT' },
+    { name: '管理策划',     category: 'PROJECT_MGMT' },
+    { name: '特殊项目执行', category: 'PROJECT_MGMT' },
   ],
   XZT: [
     { name: '录制',     category: 'PROJECT_MGMT' },
@@ -81,8 +98,15 @@ const SERVICE_ITEMS = {
     { name: '服务统计',   category: 'PROJECT_TRAINING' },
     { name: '受训',       category: 'TRAINING_ATTENDANCE' },
   ],
+  // v3.5 新增独立部门「笔译考核」。归 组织培训 组（PROJECT_TRAINING）。
+  BY_EXAM: [
+    { name: '考题设计', category: 'PROJECT_TRAINING' },
+    { name: '组织考试', category: 'PROJECT_TRAINING' },
+    { name: '改卷点评', category: 'PROJECT_TRAINING' },
+  ],
   DOCS: [
-    { name: '国宝录入',     category: 'PROJECT_SUPPORT' },
+    // v3.5: 国宝录入 → 国宝表格录入（rename；旧项会被 orphan sweep 软停留作审计）
+    { name: '国宝表格录入', category: 'PROJECT_SUPPORT' },
     { name: '文件改名',     category: 'PROJECT_SUPPORT' },
     { name: '文件整理归档', category: 'PROJECT_SUPPORT' },
     { name: '服务统计',     category: 'PROJECT_SUPPORT' },
@@ -114,6 +138,7 @@ const SERVICE_ITEMS = {
     { name: '信息更新', category: 'PROJECT_SUPPORT' },
     { name: '人文关怀', category: 'PROJECT_SUPPORT' },
     { name: '沟通管理', category: 'PROJECT_SUPPORT' },
+    { name: '片区管理', category: 'PROJECT_SUPPORT' },  // v3.5 新增（五大区域群）
     { name: '服务统计', category: 'PROJECT_SUPPORT' },
     { name: '人文培训', category: 'PROJECT_TRAINING' },
     { name: '受训',     category: 'TRAINING_ATTENDANCE' },
@@ -193,8 +218,10 @@ const TAG_GROUPS = [
     tags: ['A岗', 'B岗'],
   },
   {
-    name: '培训',
-    description: '受训考勤批量录入池。每个 tag 代表一次具体培训事件（如"2026-04 新译员培训 第 3 期"），a_admin 粘贴名单批量建 PS + 自动打 tag。未来非培训的批量场景可以让 admin 另建 managed 组。',
+    // v3.5: 原「培训」组改名「受训」—— 这是受训考勤维度，跟下面的「培训项目」
+    // （组织培训维度）正交。改名的迁移在 seedTagGroups 里处理（见 renameTagGroup）。
+    name: '受训',
+    description: '受训考勤批量录入池。每个 tag 代表一次具体受训事件（如"2026-04 新译员培训 第 3 期"），a_admin 粘贴名单批量建 PS + 自动打 tag。未来非培训的批量场景可以让 admin 另建 managed 组。',
     // 绑 TRAINING_ATTENDANCE 类所有 service item — 批量建 PS 时从这个清单里选具体哪门课
     boundCategory: 'TRAINING_ATTENDANCE',
     boundServiceItems: [],
@@ -203,6 +230,21 @@ const TAG_GROUPS = [
     openness: 'open',
     required: false,
     tags: [],  // 留空由 a_admin 运行时创建
+  },
+  {
+    // v3.5: 「组织培训」维度的标签 —— 一次笔译培训具体属于哪个培训项目。
+    // 跟「受训」组无关（这是组织方视角，不是考勤）。绑在 笔译培训.项目执行 上，
+    // 选该服务项时弹出。openness=open 允许日后新培训项目运行时加。
+    name: '培训项目',
+    description: '组织培训时具体是哪一类培训项目（初翻 / 校对 / 雪山流等）。选 笔译培训 的「项目执行」时弹出。属"组织培训"维度，与"受训考勤"无关。',
+    boundServiceItems: [
+      { departmentId: 'BY_TRAINING', name: '项目执行' },
+    ],
+    selectionMode: 'single',
+    opMode: 'tag_only',
+    openness: 'open',
+    required: false,
+    tags: ['初翻培训', '校对培训', '雪山流项目培训'],
   },
 ];
 
@@ -268,6 +310,18 @@ async function nextVolunteerCode() {
 
 async function seedDepartments() {
   console.log('→ seeding departments…');
+  // displayOrder is @unique. The v3.5 reorg renumbers existing departments, so a
+  // naive sequential upsert can transiently collide (e.g. setting KY_PROJECT→1
+  // while BY_PROJECT still holds 1). Park every existing department at a high,
+  // collision-free displayOrder first, then upsert with the final values into a
+  // now-empty 1..N space.
+  const existing = await prisma.department.findMany({ select: { id: true } });
+  for (let i = 0; i < existing.length; i += 1) {
+    await prisma.department.update({
+      where: { id: existing[i].id },
+      data: { displayOrder: 1000 + i },
+    });
+  }
   for (const dept of DEPARTMENTS) {
     await prisma.department.upsert({
       where: { id: dept.id },
@@ -344,6 +398,16 @@ async function ensureSystemSettings() {
 
 async function seedTagGroups() {
   console.log('→ seeding tag groups + tags…');
+  // v3.5 one-time rename: the old '培训' batch-pool group is now '受训'. Seeds key
+  // groups by name, so without this the rename would orphan the old group and
+  // create a duplicate. Idempotent: only fires while '培训' exists and '受训' doesn't.
+  const oldTrainingGroup = await prisma.tagGroup.findUnique({ where: { name: '培训' } });
+  const newReceivedGroup = await prisma.tagGroup.findUnique({ where: { name: '受训' } });
+  if (oldTrainingGroup && !newReceivedGroup) {
+    await prisma.tagGroup.update({ where: { id: oldTrainingGroup.id }, data: { name: '受训' } });
+    console.log('  ✓ renamed tag group 培训 → 受训');
+  }
+
   // Tag groups require an owner volunteer. We pick the first a_admin sample
   // (sample-ky-reviewer → 李口译) if present, else any volunteer, else skip.
   const adminVol = await prisma.volunteer.findFirst({

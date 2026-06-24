@@ -6,8 +6,8 @@
 //
 // Design:
 // - 4 category base colors (ring the "三大板块 + 受训" concept)
-// - 12 department colors, grouped by hue family to match a dept's dominant
-//   category. Departments that span categories (TECH, CARE) get their own
+// - 15 department colors, grouped by hue family to match a dept's group.
+//   Departments that span categories (TECH, CARE, NET_TECH) get their own
 //   distinct hue so they don't collide with either family.
 //
 // For category-level charts (Phase C trend stacked bar, Phase D board
@@ -48,24 +48,30 @@ export const CATEGORY_ORDER: ServiceCategory[] = [
   'TRAINING_ATTENDANCE',
 ];
 
-// 12 departments. Hue families:
-// - indigo shades  → 项目管理 family (BY_PROJECT / KY_PROJECT / XZT)
-// - emerald shades → 项目培训 family (BY_TRAINING / KY_TRAINING / READING_CLUB)
-// - amber/orange   → 项目支持 family (DOCS / PROMO / MGMT / VIDEO)
-// - sky / rose     → mixed-category depts (TECH / CARE, span training+support)
+// 15 departments (v3.5 三大组 reorg). Hue families track each dept's group:
+// - indigo shades → 翻译项目 family (KY_PROJECT / BY_PROJECT / SPECIAL_PROJECT / XZT)
+// - emerald shades → 组织培训 family (KY_TRAINING / BY_TRAINING / BY_EXAM / READING_CLUB)
+// - amber/orange/sky/rose → 项目支援 family (MGMT / TECH / PROMO / CARE / VIDEO / DOCS / NET_TECH)
+//   (TECH / CARE / NET_TECH still carry training/support-spanning items but live in 支援组)
 export const DEPT_COLOR: Record<string, string> = {
-  BY_PROJECT: '#6366f1',    // indigo-500
-  KY_PROJECT: '#4f46e5',    // indigo-600
-  XZT: '#818cf8',           // indigo-400
-  BY_TRAINING: '#10b981',   // emerald-500
-  KY_TRAINING: '#059669',   // emerald-600
-  READING_CLUB: '#34d399',  // emerald-400
-  DOCS: '#f59e0b',          // amber-500
-  PROMO: '#d97706',         // amber-600
-  MGMT: '#fbbf24',          // amber-400
-  VIDEO: '#f97316',         // orange-500
-  TECH: '#0ea5e9',          // sky-500
-  CARE: '#f43f5e',          // rose-500
+  // 翻译项目 — indigo
+  KY_PROJECT: '#4f46e5',       // indigo-600
+  BY_PROJECT: '#6366f1',       // indigo-500
+  SPECIAL_PROJECT: '#4338ca',  // indigo-700
+  XZT: '#818cf8',              // indigo-400
+  // 组织培训 — emerald
+  KY_TRAINING: '#059669',      // emerald-600
+  BY_TRAINING: '#10b981',      // emerald-500
+  BY_EXAM: '#047857',          // emerald-700
+  READING_CLUB: '#34d399',     // emerald-400
+  // 项目支援 — amber/orange/sky/rose
+  MGMT: '#fbbf24',             // amber-400
+  TECH: '#0ea5e9',             // sky-500
+  PROMO: '#d97706',            // amber-600
+  CARE: '#f43f5e',             // rose-500
+  VIDEO: '#f97316',            // orange-500
+  DOCS: '#f59e0b',             // amber-500
+  NET_TECH: '#0284c7',         // sky-600
 };
 
 /** Fallback to slate for unknown dept ids — shouldn't happen but safer than undefined. */

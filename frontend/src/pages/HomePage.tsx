@@ -88,20 +88,26 @@ const STATUS_OPTIONS: { value: HomeStatus; label: string }[] = [
   { value: '不在职', label: '不在职' },
 ];
 
-// 部门 — 跟 backend seed 保持一致，按 displayOrder 排。v3 增 READING_CLUB / VIDEO
+// 部门 — 跟 backend seed 保持一致，按 displayOrder 排。v3.5 三大组 reorg（15 部门）
 const DEPARTMENTS: { id: string; name: string }[] = [
-  { id: 'BY_PROJECT', name: '笔译项目部' },
-  { id: 'KY_PROJECT', name: '口译项目部' },
-  { id: 'XZT', name: 'XZT' },
-  { id: 'BY_TRAINING', name: '笔译培训部' },
-  { id: 'KY_TRAINING', name: '口译培训部' },
-  { id: 'DOCS', name: '文档部' },
-  { id: 'PROMO', name: '推广部' },
-  { id: 'TECH', name: '技术部' },
-  { id: 'CARE', name: '人文部' },
-  { id: 'MGMT', name: '管理部' },
+  // 翻译项目（核心）
+  { id: 'KY_PROJECT', name: '口译项目管理' },
+  { id: 'BY_PROJECT', name: '笔译项目管理' },
+  { id: 'SPECIAL_PROJECT', name: '特殊项目管理部' },
+  { id: 'XZT', name: 'XZT项目管理部' },
+  // 组织培训
+  { id: 'KY_TRAINING', name: '口译培训' },
+  { id: 'BY_TRAINING', name: '笔译培训' },
+  { id: 'BY_EXAM', name: '笔译考核' },
   { id: 'READING_CLUB', name: '共读会' },
+  // 项目支援
+  { id: 'MGMT', name: '支援管理部' },
+  { id: 'TECH', name: '技术部' },
+  { id: 'PROMO', name: '推广部' },
+  { id: 'CARE', name: '人文关怀部' },
   { id: 'VIDEO', name: '视频部' },
+  { id: 'DOCS', name: '文档管理部' },
+  { id: 'NET_TECH', name: '网络技术部' },
 ];
 
 // ─── Atoms ──────────────────────────────────────────────────────────────────
