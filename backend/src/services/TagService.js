@@ -250,10 +250,16 @@ class TagService {
 
   // ─── Tag member listing ───────────────────────────────────────────────
 
-  /** ProjectSupport rows currently attached to this tag, with related data. */
+  /**
+   * ProjectSupport rows currently attached to this tag, with related data.
+   * Only ACTIVE supports are returned: a soft-delete (status=DELETED, e.g. via
+   * batchDelete) leaves the TagAttachment row intact, so without this filter
+   * the member would keep showing here even after being deleted. Filtering on
+   * status keeps the attachment recoverable (restoring the PS re-surfaces it).
+   */
   static async listSupports(tagId, { limit = 100 } = {}) {
     const attachments = await prisma.tagAttachment.findMany({
-      where: { tagId },
+      where: { tagId, support: { status: 'ACTIVE' } },
       take: Math.min(limit, 500),
       orderBy: { attachedAt: 'desc' },
       include: {
@@ -553,7 +559,9 @@ class TagService {
 
   /**
    * Bulk-soft-delete supports attached to this tag. Goes to status=DELETED,
-   * same as individual soft-delete. Tag attachments cascade removal.
+   * same as individual soft-delete. The TagAttachment rows are intentionally
+   * kept (so a restore re-links them); listSupports filters by status=ACTIVE
+   * so deleted members drop out of the tag view.
    */
   static async batchDelete(tagId, payload, operator) {
     const tag = await prisma.tag.findUnique({ where: { id: tagId }, include: { group: true } });
