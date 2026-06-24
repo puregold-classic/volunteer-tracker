@@ -106,7 +106,7 @@ src/
 完整定义在 `backend/prisma/schema.prisma`。下面只是关键关系：
 
 ```
-Department (12 个固定部门, id 是人类可读 code 如 BY_PROJECT; v3 新增 READING_CLUB / VIDEO)
+Department (15 个固定部门, id 是人类可读 code 如 BY_PROJECT; v3.5 三大组 reorg, 见 v3-changelog)
    │
    │ 1:N
    ▼

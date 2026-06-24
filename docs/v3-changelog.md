@@ -163,6 +163,56 @@ v3.2 保留 Project 是为了向前兼容，但 session 中发现：
 
 ---
 
+## v3.5 — 部门三大组 reorg + tag 软删修复（2026-06-24 落地）
+
+### 目的
+
+把部门按**三大组**重新组织，组边界对齐已有的三个主 `ServiceCategory`
+（翻译项目→`PROJECT_MGMT` / 组织培训→`PROJECT_TRAINING` / 项目支援→`PROJECT_SUPPORT`，
+受训/`TRAINING_ATTENDANCE` 为横跨第 4 类）。不引入新 schema 概念，纯参考数据（seed）调整。
+
+### 部门变化（12 → 15）
+
+id code 全部保持稳定（历史 FK / 记录不破），只改显示名 + 重排 displayOrder：
+
+| 组 | 部门（id） | 变化 |
+|---|---|---|
+| 翻译项目 | 口译项目管理(KY_PROJECT) / 笔译项目管理(BY_PROJECT) / **特殊项目管理部(SPECIAL_PROJECT, 新)** / XZT项目管理部(XZT) | 改名 + 1 新 |
+| 组织培训 | 口译培训(KY_TRAINING) / 笔译培训(BY_TRAINING) / **笔译考核(BY_EXAM, 新)** / 共读会(READING_CLUB) | 改名 + 1 新 |
+| 项目支援 | 支援管理部(MGMT←管理部) / 技术部(TECH) / 推广部(PROMO) / 人文关怀部(CARE←人文部) / 视频部(VIDEO) / 文档管理部(DOCS←文档部) / 网络技术部(NET_TECH) | 改名；NET_TECH 纳入统管 |
+
+### service / tag 变化
+
+- `特殊项目管理部`：服务统计 / 沟通反馈 / 管理策划 / **特殊项目执行**（仿笔译口译，PROJECT_MGMT）
+- `笔译考核`：考题设计 / 组织考试 / 改卷点评（PROJECT_TRAINING）
+- `人文关怀部` 加 **片区管理**（五大区域群，PROJECT_SUPPORT）
+- `文档管理部`：国宝录入 → **国宝表格录入**（rename；旧项 orphan sweep 软停留作审计）
+- tag 组「培训」→ **「受训」**（受训考勤维度，带一次性 rename 迁移）
+- 新 tag 组 **「培训项目」**：初翻培训 / 校对培训 / 雪山流项目培训（组织培训维度，绑 笔译培训.项目执行；与受训正交）
+
+### bug 修复
+
+- **tag 软删后成员名不消失**：`全部软删`(batchDelete) 只把 PS 置 `status=DELETED`，保留
+  TagAttachment 行；而 `TagService.listSupports` 按 tagId 查 attachment **没过 status**，
+  所以软删成员仍显示。修：listSupports 加 `support: { status: 'ACTIVE' }` 过滤（attachment
+  保留，PS 恢复后重新出现，软删仍可恢复）。补 `TagService.test.js` 回归。
+
+### 落地清单
+
+- **seed**（`backend/prisma/seed.js`）：DEPARTMENTS 15 个 + SERVICE_ITEMS + TAG_GROUPS 调整；
+  `seedDepartments` 加 displayOrder park-then-set（避免 `@unique` 重排瞬时冲突）；
+  seedTagGroups 加 `培训→受训` 一次性 rename。**无 schema migration**——纯 seed 数据，重跑 `make seed` 生效。
+- **前端**：`HomePage.tsx` 部门 filter 列表、`ledger-colors.ts` `DEPT_COLOR`（补到 15 + 分色系）、`types.ts` 注释
+- **后端**：`TagService.listSupports` 过滤 + 新 `TagService.test.js`
+
+### 待办（本版未做）
+
+- **志愿者 ID 改生日制**：`volunteerCode` 从自增 `PG-NNNN` 改成「生日 5 位、末位 a/b/c/d 去重」
+  （如 `0305a`）。涉及 IDGenerator + supportId 格式（`PS-{code}-NNN`）+ 校验正则 + admin 建档表单手动录入 + CSV import，
+  与"人员录入"耦合，单独一版做。
+
+---
+
 ## 当前部署状态（2026-04-18）
 
 | 环境 | Branch | HEAD | 备注 |

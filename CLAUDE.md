@@ -2,11 +2,15 @@
 
 全球志愿者可视化管理系统。地图展示分布、按部门组织、自管 + 代提交项目支援记录。
 
-**当前 schema 版本**：**v2.1 + v3 增量**（v2.1 于 2026-04-08 落地；v3 `service_category` 迁移于 2026-04-17）。详见 `backend/prisma/schema.prisma`。
+**当前 schema 版本**：**v2.1 + v3 增量**（v2.1 于 2026-04-08 落地；v3 `service_category` 迁移于 2026-04-17）。部门/服务的最新状态是 **v3.5 三大组 reorg**（2026-06-24，纯 seed 数据，无 schema migration）。详见 `backend/prisma/schema.prisma` + `backend/prisma/seed.js` + `docs/v3-changelog.md`。
 
 ## 核心模型（最重要）
 
-- **Department**：12 个固定部门（笔译项目部 / 口译项目部 / XZT / 笔译培训部 / 口译培训部 / 文档部 / 推广部 / 技术部 / 人文部 / 管理部 / 共读会 / 视频部）。id 是人类可读 code（"BY_PROJECT" 等），不是 cuid。v3 新增 `READING_CLUB` / `VIDEO`
+- **Department**：**15 个**固定部门（v3.5 起），按**三大组**组织，组边界对齐主 `ServiceCategory`：
+  - 翻译项目（PROJECT_MGMT）：口译项目管理(KY_PROJECT) / 笔译项目管理(BY_PROJECT) / 特殊项目管理部(SPECIAL_PROJECT) / XZT项目管理部(XZT)
+  - 组织培训（PROJECT_TRAINING）：口译培训(KY_TRAINING) / 笔译培训(BY_TRAINING) / 笔译考核(BY_EXAM) / 共读会(READING_CLUB)
+  - 项目支援（PROJECT_SUPPORT）：支援管理部(MGMT) / 技术部(TECH) / 推广部(PROMO) / 人文关怀部(CARE) / 视频部(VIDEO) / 文档管理部(DOCS) / 网络技术部(NET_TECH)
+  - id 是人类可读 code（"BY_PROJECT" 等），不是 cuid，**改名不改 id**（历史 FK/记录稳定）。部门列表硬编码在 3 处需同步：`seed.js` / `frontend/src/pages/HomePage.tsx` / `frontend/src/lib/ledger-colors.ts`
 - **ServiceItem**：~60 个服务项，FK 到 Department，replace 了 v1 的 `ServiceType` enum。v3 加了 `category: ServiceCategory`：
   - `PROJECT_MGMT` / `PROJECT_TRAINING` / `PROJECT_SUPPORT` / `TRAINING_ATTENDANCE` 四大类
   - Category 放 ServiceItem 级（不是 Department 级），因为 TECH / CARE 内部横跨 培训 + 支持
