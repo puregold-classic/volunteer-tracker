@@ -213,13 +213,17 @@ id code 全部保持稳定（历史 FK / 记录不破），只改显示名 + 重
 
 ---
 
-## 当前部署状态（2026-04-18）
+## 当前部署状态（2026-06-24）
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | 2a5c37a | 全功能跑通 |
-| Mac mini sandbox | develop | 2a5c37a | https://dev.puregoldclassictranslation.com |
+| 本地 dev（WSL + Docker） | develop | 0a400be | Docker Desktop WSL integration 关时跑不了，靠单测 + tsc 验证 |
+| Mac mini sandbox | develop | 0a400be | https://dev.puregoldclassictranslation.com · v3.5 已 deploy + reseed |
 | 生产 | — | — | 未上 |
+
+> v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy
+> -f docker-compose.deploy.yml up -d --build` → 同栈 `exec -T backend npx prisma db seed`
+> （部门/服务是 seed 数据，rebuild 不会自动应用，必须 reseed）。
 
 ### 登录凭证（sandbox）
 
@@ -228,7 +232,7 @@ id code 全部保持稳定（历史 FK / 记录不破），只改显示名 + 重
 
 ### 测试覆盖
 
-- 后端：`make test` — 120 tests（v3.2 后 +14 = v3.3；identifierUtils 7 + AuthService 新路径 4 + 其他 3）
+- 后端：`make test` — 148 tests（v3.5 加 `TagService.test.js` 2 个 listSupports 回归）
 - 前端：`npx tsc --noEmit`
 - Playwright MCP dev-browser：v3.3 全流程人工走过（admin 建 tag → managed 批量 create/update → tag_only attach 流 → submit form tag picker → /me 账号设置）
 
