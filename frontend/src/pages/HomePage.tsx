@@ -26,8 +26,8 @@
 // - List card 内部 max-height + scroll（保证整个 page 不外滚）
 // - 整体 fit viewport ~900px 不需要 page-level scroll
 
-import { lazy, Suspense, useState } from 'react';
-import { Filter, Map, Search, Users, X } from 'lucide-react';
+import { lazy, Suspense, useMemo, useState } from 'react';
+import { ChevronDown, Filter, Map, Search, Users, X } from 'lucide-react';
 import type { Volunteer, VolunteersParams } from '@services/types';
 import type { ProvinceCount } from '@components/HomeMap/HomeMap';
 import { HOT_LOCATIONS } from '@/hooks/useHomeState';
@@ -41,8 +41,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { CATEGORY_COLOR, deptColor } from '@/lib/ledger-colors';
 
 type HomeStatus = 'all' | '在职' | '不在职';
 
@@ -110,6 +110,16 @@ const DEPARTMENTS: { id: string; name: string }[] = [
   { id: 'NET_TECH', name: '网络技术部' },
 ];
 
+// 三大组（v3.5）— 对齐主 ServiceCategory。首页部门筛选先按组展示，hover 展开具体部门。
+// 后端 departmentId 支持逗号分隔多值（parseMulti → IN [...]），所以选一组 = 传该组所有 id。
+const DEPARTMENT_GROUPS: { key: string; label: string; deptIds: string[] }[] = [
+  { key: 'PROJECT_MGMT', label: '翻译项目', deptIds: ['KY_PROJECT', 'BY_PROJECT', 'SPECIAL_PROJECT', 'XZT'] },
+  { key: 'PROJECT_TRAINING', label: '组织培训', deptIds: ['KY_TRAINING', 'BY_TRAINING', 'BY_EXAM', 'READING_CLUB'] },
+  { key: 'PROJECT_SUPPORT', label: '项目支援', deptIds: ['MGMT', 'TECH', 'PROMO', 'CARE', 'VIDEO', 'DOCS', 'NET_TECH'] },
+];
+// Record (not Map) — `Map` is the lucide icon import in this file.
+const DEPT_NAME: Record<string, string> = Object.fromEntries(DEPARTMENTS.map((d) => [d.id, d.name]));
+
 // ─── Atoms ──────────────────────────────────────────────────────────────────
 
 function Chip({
@@ -167,6 +177,100 @@ function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => 
         <X className="h-2.5 w-2.5" />
       </button>
     </span>
+  );
+}
+
+// ─── Department filter — 三大组 + hover 展开具体部门 ──────────────────────────
+//
+// value 是 homeDepartmentId：'' = 全部；单个 id = 单部门；逗号分隔多 id = 整组。
+// 交互：组 chip 主体点击 = 选整组（hold 该分类所有部门）；hover 或点 ▾ = 弹出该组
+// 部门列，点其中一个 = 选单部门。后端 departmentId 接受多值，无需改后端。
+function DepartmentFilter({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const selected = useMemo(() => new Set(value ? value.split(',') : []), [value]);
+
+  const isGroupFull = (g: { deptIds: string[] }) =>
+    g.deptIds.length === selected.size && g.deptIds.every((id) => selected.has(id));
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Chip active={!value} onClick={() => onChange('')}>
+        全部
+      </Chip>
+      {DEPARTMENT_GROUPS.map((g) => {
+        const color = CATEGORY_COLOR[g.key as keyof typeof CATEGORY_COLOR] ?? '#6366f1';
+        const full = isGroupFull(g);
+        const open = openKey === g.key;
+        return (
+          <div
+            key={g.key}
+            className="relative"
+            onMouseEnter={() => setOpenKey(g.key)}
+            onMouseLeave={() => setOpenKey(null)}
+          >
+            <div className="inline-flex h-8 overflow-hidden rounded-full border" style={{ borderColor: full ? color : `${color}66` }}>
+              <button
+                type="button"
+                onClick={() => onChange(g.deptIds.join(','))}
+                className={cn(
+                  'inline-flex items-center px-3 text-xs font-medium transition-colors',
+                  full ? 'text-white' : 'bg-background text-foreground hover:bg-primary/5',
+                )}
+                style={full ? { backgroundColor: color } : undefined}
+              >
+                {g.label}
+              </button>
+              <button
+                type="button"
+                aria-label={`展开 ${g.label} 部门`}
+                onClick={() => setOpenKey(open ? null : g.key)}
+                className={cn(
+                  'inline-flex items-center border-l px-1.5 transition-colors',
+                  full ? 'text-white' : 'bg-background text-muted-foreground hover:bg-primary/5',
+                )}
+                style={{ borderColor: full ? 'rgba(255,255,255,0.35)' : `${color}66`, ...(full ? { backgroundColor: color } : {}) }}
+              >
+                <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
+              </button>
+            </div>
+            {open && (
+              <div className="absolute left-0 top-full z-30 mt-1 min-w-[9rem] rounded-lg border border-border bg-background p-1 shadow-lg">
+                {g.deptIds.map((id) => {
+                  const active = selected.has(id) && !full;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => { onChange(id); setOpenKey(null); }}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
+                        active ? 'bg-primary/10 font-medium text-primary' : 'hover:bg-muted text-foreground',
+                      )}
+                    >
+                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: deptColor(id) }} />
+                      {DEPT_NAME[id] ?? id}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => { onChange(g.deptIds.join(',')); setOpenKey(null); }}
+                  className="mt-1 flex w-full items-center gap-2 rounded-md border-t border-border px-2.5 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  选择整组「{g.label}」（{g.deptIds.length}）
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -230,9 +334,15 @@ function HomePage(props: HomePageProps) {
   const [selectedVolunteer, setSelectedVolunteer] = useState<Volunteer | null>(null);
   const [activeChipsExpanded, setActiveChipsExpanded] = useState(false);
 
-  const departmentName = homeDepartmentId
-    ? DEPARTMENTS.find((d) => d.id === homeDepartmentId)?.name || homeDepartmentId
-    : '';
+  const departmentName = (() => {
+    if (!homeDepartmentId) return '';
+    const ids = homeDepartmentId.split(',');
+    if (ids.length === 1) return DEPT_NAME[ids[0]] || ids[0];
+    const grp = DEPARTMENT_GROUPS.find(
+      (g) => g.deptIds.length === ids.length && g.deptIds.every((x) => ids.includes(x)),
+    );
+    return grp ? grp.label : `${ids.length} 个部门`;
+  })();
 
   const activeChips: Array<{ key: string; label: string; onRemove: () => void }> = [
     ...(homeStatus !== 'all'
@@ -318,14 +428,7 @@ function HomePage(props: HomePageProps) {
 
         <div className="ml-6">
           <FilterRow label="部门">
-            <Select value={homeDepartmentId} onChange={(e) => onDepartmentChange(e.target.value)}>
-              <option value="">全部</option>
-              {DEPARTMENTS.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </Select>
+            <DepartmentFilter value={homeDepartmentId} onChange={onDepartmentChange} />
           </FilterRow>
         </div>
       </div>
