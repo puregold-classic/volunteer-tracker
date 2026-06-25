@@ -26,6 +26,23 @@ const ALLOWED_REGIONS = ['中国大陆', '中国台湾', '东南亚', '美国', 
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
+// Parse a birthday input (Date | "YYYY-MM-DD" | ""). Returns a Date or null.
+// Unparseable / empty → null, and the volunteer just gets a legacy PG-NNNN code.
+const parseBirthday = (raw) => {
+  if (!raw) return null;
+  const d = raw instanceof Date ? raw : new Date(String(raw).trim());
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// True iff a Prisma error is a unique-conflict specifically on volunteerCode
+// (so the caller retries with the next dedup letter, not bail as email/phone dup).
+const isVolunteerCodeConflict = (err) => {
+  if (err?.code !== 'P2002') return false;
+  const t = err.meta?.target;
+  const target = Array.isArray(t) ? t.join(',') : String(t ?? '');
+  return target.includes('volunteerCode') || target.includes('volunteer_code');
+};
+
 const validateVolunteerPayload = (p) => {
   if (!p.chineseName) return '中文姓名必填';
   if (!p.englishName) return '英文姓名必填';
@@ -58,6 +75,7 @@ export const createVolunteerAccount = async ({ volunteer = {}, account = {} } = 
     departmentId: String(volunteer.departmentId || '').trim(),
     email: String(volunteer.email || '').trim(),
     phone: normalizePhone(volunteer.phone),
+    birthday: parseBirthday(volunteer.birthday),
   };
   const vError = validateVolunteerPayload(vPayload);
   if (vError) return { validationError: vError };
@@ -89,40 +107,56 @@ export const createVolunteerAccount = async ({ volunteer = {}, account = {} } = 
     if (existingPhone) return { conflict: `手机号已被占用: ${vPayload.phone}` };
   }
 
-  // ─── Generate volunteerCode + transaction ────────────────────────────────
-  const volunteerCode = await IDGenerator.generateVolunteerCode();
+  // ─── Generate volunteerCode + create (atomic; retry on code collision) ────
+  // Hash once up front so retries (which only re-pick the dedup letter) don't
+  // re-hash. A birthday-based code can race another same-day create to the same
+  // letter; on that unique conflict we regenerate and retry.
   const passwordHash = await hashPassword(aPayload.password);
 
-  const result = await prisma.$transaction(async (tx) => {
-    const v = await tx.volunteer.create({
-      data: {
-        volunteerCode,
-        chineseName: vPayload.chineseName,
-        englishName: vPayload.englishName,
-        status: VOLUNTEER_STATUS_TO_PG[vPayload.status] || 'ACTIVE',
-        region: REGION_TO_PG[vPayload.region] || 'OTHER',
-        province: vPayload.province || null,
-        subRegion: vPayload.subRegion || null,
-        departmentId: vPayload.departmentId,
-        email: vPayload.email || null,
-        phone: vPayload.phone || null,
-      },
-      include: { department: true },
-    });
+  const MAX_CODE_RETRIES = 6;
+  let result;
+  for (let attempt = 0; ; attempt += 1) {
+    const volunteerCode = await IDGenerator.generateVolunteerCode(vPayload.birthday);
+    try {
+      result = await prisma.$transaction(async (tx) => {
+        const v = await tx.volunteer.create({
+          data: {
+            volunteerCode,
+            chineseName: vPayload.chineseName,
+            englishName: vPayload.englishName,
+            status: VOLUNTEER_STATUS_TO_PG[vPayload.status] || 'ACTIVE',
+            region: REGION_TO_PG[vPayload.region] || 'OTHER',
+            province: vPayload.province || null,
+            subRegion: vPayload.subRegion || null,
+            birthday: vPayload.birthday,
+            departmentId: vPayload.departmentId,
+            email: vPayload.email || null,
+            phone: vPayload.phone || null,
+          },
+          include: { department: true },
+        });
 
-    const a = await tx.account.create({
-      data: {
-        email: aPayload.email,
-        passwordHash,
-        name: aPayload.name,
-        role: aPayload.role,
-        volunteerId: v.id,
-      },
-      include: { volunteer: true },
-    });
+        const a = await tx.account.create({
+          data: {
+            email: aPayload.email,
+            passwordHash,
+            name: aPayload.name,
+            role: aPayload.role,
+            volunteerId: v.id,
+          },
+          include: { volunteer: true },
+        });
 
-    return { v, a };
-  });
+        return { v, a };
+      });
+      break;
+    } catch (err) {
+      if (isVolunteerCodeConflict(err) && attempt < MAX_CODE_RETRIES) continue;
+      // email / phone raced between the pre-check and the insert
+      if (err?.code === 'P2002') return { conflict: '邮箱或手机号已被占用' };
+      throw err;
+    }
+  }
 
   return {
     volunteer: serializeVolunteer(result.v),

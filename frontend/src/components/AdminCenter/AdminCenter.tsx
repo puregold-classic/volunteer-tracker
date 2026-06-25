@@ -88,6 +88,7 @@ const createVolunteerSchema = z.object({
   status: z.enum(['在职', '不在职']),
   region: z.enum(['中国大陆', '中国台湾', '东南亚', '美国', '欧洲', '其他']),
   province: z.string().optional(),
+  birthday: z.string().optional(),
   departmentId: z.string().min(1, '请选择部门'),
   email: z.string().trim().email('邮箱格式错误'),
   phone: z.string().optional(),
@@ -126,7 +127,7 @@ const CreateVolunteerDialog: React.FC<{
     resolver: zodResolver(createVolunteerSchema),
     defaultValues: {
       chineseName: '', englishName: '', status: '在职', region: '其他', province: '',
-      departmentId: '', email: '', phone: '', password: 'Volunteer@123', role: 'user',
+      birthday: '', departmentId: '', email: '', phone: '', password: 'Volunteer@123', role: 'user',
     },
   });
 
@@ -143,6 +144,7 @@ const CreateVolunteerDialog: React.FC<{
         status: data.status,
         region: data.region,
         province: data.province || undefined,
+        birthday: data.birthday || undefined,
         departmentId: data.departmentId,
         email: data.email,
         phone: data.phone || undefined,
@@ -218,6 +220,15 @@ const CreateVolunteerDialog: React.FC<{
             />
           </FormField>
         </div>
+
+        {/* Birthday — drives the human ID */}
+        <FormField
+          label="生日"
+          error={errors.birthday?.message}
+          hint="填了用生日制 ID（生日 MMDD + 去重字母，如 0305a）；留空用 PG-NNNN 流水号"
+        >
+          <FormInput type="date" {...register('birthday')} className="sm:max-w-xs" />
+        </FormField>
 
         {/* Email + Phone row */}
         <div className="grid grid-cols-2 gap-3">

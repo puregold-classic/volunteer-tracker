@@ -243,6 +243,11 @@ model Volunteer {
   region          Region
   province        String?
   subRegion       String?
+  // Optional birthday. When set at create time, volunteerCode is derived as
+  // MMDD + a dedup letter (e.g. 0305a); empty falls back to legacy PG-NNNN.
+  // The code only encodes month-day; this field keeps the full date for any
+  // future use (greetings, age). See IDGenerator.generateVolunteerCode.
+  birthday        DateTime?
   departmentId    String
   department      Department      @relation(fields: [departmentId], references: [id])
   activityLevel   ActivityLevel   @default(MEDIUM)

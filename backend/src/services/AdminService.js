@@ -95,7 +95,8 @@ export const resetToSystemAdmin = async ({ confirm }) => {
  *   chineseName / 中文姓名, englishName / 英文姓名,
  *   email / 邮箱, phone / 电话,
  *   region / 地区, province / 省份, subRegion / 子地区,
- *   departmentId / 部门, role / 角色, status / 状态
+ *   departmentId / 部门, role / 角色, status / 状态,
+ *   birthday / 生日 (YYYY-MM-DD; 给了就用生日制 code，否则 PG-NNNN)
  *
  * For each row, password defaults to defaultPassword. Errors are collected
  * and reported per-row; the import continues past failures.
@@ -129,6 +130,7 @@ export const importVolunteersCsv = async ({
       departmentId: pick(row, ['departmentId', '部门', '部门ID']),
       email: pick(row, ['email', '邮箱']),
       phone: pick(row, ['phone', '电话']),
+      birthday: pick(row, ['birthday', '生日', '出生日期']),
     };
     const account = {
       email: pick(row, ['email', '邮箱']),

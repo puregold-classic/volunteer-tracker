@@ -42,6 +42,7 @@ export interface AdminCreateVolunteerAccountPayload {
     departmentId: string;
     email?: string;
     phone?: string;
+    birthday?: string;   // YYYY-MM-DD; given → birthday-based code, else PG-NNNN
   };
   account: {
     email: string;

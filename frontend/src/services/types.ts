@@ -87,6 +87,7 @@ export interface Volunteer {
   departmentId: string;
   department: Pick<Department, 'id' | 'name'> | null;
   activityLevel: ActivityLevelDisplay;
+  birthday?: string | null;   // ISO date; drives birthday-based volunteerCode
   email?: string | null;
   phone?: string | null;
   joinDate?: string;

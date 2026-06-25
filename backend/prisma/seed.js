@@ -256,24 +256,26 @@ const TAG_GROUPS = [
 // All sample accounts use the same password for convenience. Change before
 // touching anything resembling production.
 
+// birthday 演示生日制 code：张笔译 与 王技术 同生日 (03-05) → 0305a / 0305b 展示去重；
+// 陈推广 不给生日 → 落回 PG-NNNN 流水号，展示 fallback。
 const SAMPLE_VOLUNTEERS = [
   {
     chineseName: '张笔译', englishName: 'Zhang Translator',
     email: 'sample-by-leader@vt.local', password: 'Sample@123',
     role: 'b_admin', region: '中国大陆', province: '北京市',
-    departmentId: 'BY_PROJECT',
+    departmentId: 'BY_PROJECT', birthday: '1990-03-05',
   },
   {
     chineseName: '李口译', englishName: 'Li Interpreter',
     email: 'sample-ky-reviewer@vt.local', password: 'Sample@123',
     role: 'a_admin', region: '中国大陆', province: '上海市',
-    departmentId: 'KY_PROJECT',
+    departmentId: 'KY_PROJECT', birthday: '1988-07-12',
   },
   {
     chineseName: '王技术', englishName: 'Wang Tech',
     email: 'sample-tech-user@vt.local', password: 'Sample@123',
     role: 'user', region: '中国大陆', province: '广东省',
-    departmentId: 'TECH',
+    departmentId: 'TECH', birthday: '1995-03-05',
   },
   {
     chineseName: '陈推广', englishName: 'Chen Promo',
@@ -294,7 +296,31 @@ const REGION_TO_PG = {
   '其他': 'OTHER',
 };
 
-async function nextVolunteerCode() {
+function birthdayToMMDD(birthday) {
+  if (!birthday) return null;
+  const d = birthday instanceof Date ? birthday : new Date(birthday);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+// Mirrors IDGenerator.generateVolunteerCode: birthday → "MMDD" + next free
+// letter, else legacy "PG-NNNN". (Seed is standalone so it can't import the app
+// util cleanly; kept in sync intentionally.)
+async function nextVolunteerCode(birthday = null) {
+  const mmdd = birthdayToMMDD(birthday);
+  if (mmdd) {
+    const rows = await prisma.volunteer.findMany({
+      where: { volunteerCode: { startsWith: mmdd } },
+      select: { volunteerCode: true },
+    });
+    const re = new RegExp(`^${mmdd}([a-z])$`);
+    const taken = new Set(rows.map((r) => (re.exec(r.volunteerCode) || [])[1]).filter(Boolean));
+    for (let i = 0; i < 26; i += 1) {
+      const letter = String.fromCharCode(97 + i);
+      if (!taken.has(letter)) return `${mmdd}${letter}`;
+    }
+    throw new Error(`生日 ${mmdd} 当天志愿者已超过 26 人`);
+  }
   const last = await prisma.volunteer.findFirst({
     where: { volunteerCode: { startsWith: 'PG-' } },
     orderBy: { volunteerCode: 'desc' },
@@ -517,7 +543,7 @@ async function seedSampleVolunteers() {
       continue;
     }
 
-    const volunteerCode = await nextVolunteerCode();
+    const volunteerCode = await nextVolunteerCode(sample.birthday);
     const passwordHash = await bcrypt.hash(sample.password, 10);
 
     await prisma.$transaction(async (tx) => {
@@ -529,6 +555,7 @@ async function seedSampleVolunteers() {
           status: 'ACTIVE',
           region: REGION_TO_PG[sample.region] || 'OTHER',
           province: sample.province || null,
+          birthday: sample.birthday ? new Date(sample.birthday) : null,
           departmentId: sample.departmentId,
           email: sample.email,
         },

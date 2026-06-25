@@ -102,6 +102,7 @@ export function serializeVolunteer(v) {
       ? { id: v.department.id, name: v.department.name }
       : null,
     activityLevel: ACTIVITY_LEVEL_DISPLAY[v.activityLevel] ?? v.activityLevel,
+    birthday: v.birthday,
     email: v.email,
     phone: v.phone,
     joinDate: v.joinDate,

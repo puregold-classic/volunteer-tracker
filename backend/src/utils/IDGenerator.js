@@ -1,7 +1,10 @@
 // src/utils/IDGenerator.js — v2.1
 //
 // Human-readable IDs:
-// - Volunteer.volunteerCode: "PG-0001" — sequential per system
+// - Volunteer.volunteerCode:
+//     · birthday-based "MMDDx" (e.g. "0305a") when a birthday is supplied —
+//       4-digit month-day + a dedup letter (a→z) for same-day volunteers
+//     · legacy "PG-0001" sequential fallback when no birthday is given
 // - ProjectSupport.supportId: "PS-{volunteerCode}-{seq3}" — sequential per owner
 // - AuditLog.auditId: "AUDIT-{8-char hex}" — non-sequential, race-free
 //
@@ -14,10 +17,52 @@ import prisma from './prismaClient.js';
 
 class IDGenerator {
   /**
-   * Generate the next "PG-NNNN" code for a new Volunteer.
-   * Scans existing volunteerCode values and increments.
+   * Generate a new volunteerCode.
+   *
+   * @param {Date|string|null} birthday - when provided & parseable, the code is
+   *   "MMDD" + the next free dedup letter (a→z). Otherwise falls back to the
+   *   legacy sequential "PG-NNNN".
+   *
+   * NOTE: concurrent creates with the same birthday can still race to the same
+   *   letter; the caller (AccountService) retries on the volunteerCode unique
+   *   conflict, which re-runs this and picks the next free letter.
    */
-  static async generateVolunteerCode() {
+  static async generateVolunteerCode(birthday = null) {
+    const mmdd = this.birthdayToMMDD(birthday);
+    return mmdd ? this.nextBirthdayCode(mmdd) : this.nextLegacyCode();
+  }
+
+  /** "MMDD" from a Date / parseable date string, or null if unusable. */
+  static birthdayToMMDD(birthday) {
+    if (!birthday) return null;
+    const d = birthday instanceof Date ? birthday : new Date(birthday);
+    if (Number.isNaN(d.getTime())) return null;
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    return `${mm}${dd}`;
+  }
+
+  /** Next free "MMDDx" code for a given month-day. Throws if a-z exhausted. */
+  static async nextBirthdayCode(mmdd) {
+    const rows = await prisma.volunteer.findMany({
+      where: { volunteerCode: { startsWith: mmdd } },
+      select: { volunteerCode: true },
+    });
+    const re = new RegExp(`^${mmdd}([a-z])$`);
+    const taken = new Set();
+    for (const r of rows) {
+      const m = re.exec(r.volunteerCode);
+      if (m) taken.add(m[1]);
+    }
+    for (let i = 0; i < 26; i += 1) {
+      const letter = String.fromCharCode(97 + i);
+      if (!taken.has(letter)) return `${mmdd}${letter}`;
+    }
+    throw new Error(`生日 ${mmdd} 当天志愿者已超过 26 人，无法分配新 code`);
+  }
+
+  /** Legacy sequential "PG-NNNN". */
+  static async nextLegacyCode() {
     const last = await prisma.volunteer.findFirst({
       where: { volunteerCode: { startsWith: 'PG-' } },
       orderBy: { volunteerCode: 'desc' },
@@ -68,13 +113,14 @@ class IDGenerator {
   }
 
   static isValidVolunteerCode(code) {
-    return /^PG-\d{4}$/.test(code);
+    return /^PG-\d{4}$/.test(code) || /^\d{4}[a-z]$/.test(code);
   }
 
   static validateIdFormat(id, expectedType = null) {
     const patterns = {
-      volunteer: /^PG-\d{4}$/,
-      support: /^PS-PG-\d{4}-\d{3}$/,
+      // birthday-based "MMDDx" or legacy "PG-NNNN"
+      volunteer: /^(PG-\d{4}|\d{4}[a-z])$/,
+      support: /^PS-(PG-\d{4}|\d{4}[a-z])-\d{3}$/,
       audit: /^AUDIT-[a-f0-9]{8}$/,
     };
     if (!expectedType) {
