@@ -180,11 +180,12 @@ function ActiveFilterChip({ label, onRemove }: { label: string; onRemove: () => 
   );
 }
 
-// ─── Department filter — 三大组 + hover 展开具体部门 ──────────────────────────
+// ─── Department filter — 三大组 + 内联二级展开 ────────────────────────────────
 //
 // value 是 homeDepartmentId：'' = 全部；单个 id = 单部门；逗号分隔多 id = 整组。
-// 交互：组 chip 主体点击 = 选整组（hold 该分类所有部门）；hover 或点 ▾ = 弹出该组
-// 部门列，点其中一个 = 选单部门。后端 departmentId 接受多值，无需改后端。
+// 一级：全部 + 三大组 chip。点组 = 选该组所有部门（后端 departmentId 收逗号分隔多值）。
+// 二级：当前选择所属的组，其部门作为子行内联展开在下面（不浮层、不遮列表）。点子行里的
+// 部门 = 收窄到单部门；再点组 chip = 回到选整组。
 function DepartmentFilter({
   value,
   onChange,
@@ -192,84 +193,70 @@ function DepartmentFilter({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const [openKey, setOpenKey] = useState<string | null>(null);
   const selected = useMemo(() => new Set(value ? value.split(',') : []), [value]);
-
+  // 当前选择落在哪个组 → 决定展开哪条子行
+  const activeGroup = DEPARTMENT_GROUPS.find((g) => g.deptIds.some((id) => selected.has(id))) ?? null;
   const isGroupFull = (g: { deptIds: string[] }) =>
     g.deptIds.length === selected.size && g.deptIds.every((id) => selected.has(id));
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <Chip active={!value} onClick={() => onChange('')}>
-        全部
-      </Chip>
-      {DEPARTMENT_GROUPS.map((g) => {
-        const color = CATEGORY_COLOR[g.key as keyof typeof CATEGORY_COLOR] ?? '#6366f1';
-        const full = isGroupFull(g);
-        const open = openKey === g.key;
-        return (
-          <div
-            key={g.key}
-            className="relative"
-            onMouseEnter={() => setOpenKey(g.key)}
-            onMouseLeave={() => setOpenKey(null)}
-          >
-            <div className="inline-flex h-8 overflow-hidden rounded-full border" style={{ borderColor: full ? color : `${color}66` }}>
+    <div className="space-y-1.5">
+      {/* 一级：全部 + 三大组 */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Chip active={!value} onClick={() => onChange('')}>
+          全部
+        </Chip>
+        {DEPARTMENT_GROUPS.map((g) => {
+          const color = CATEGORY_COLOR[g.key as keyof typeof CATEGORY_COLOR] ?? '#6366f1';
+          const full = isGroupFull(g);
+          const isContext = activeGroup?.key === g.key;
+          return (
+            <button
+              key={g.key}
+              type="button"
+              onClick={() => onChange(g.deptIds.join(','))}
+              className={cn(
+                'inline-flex h-8 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors',
+                full ? 'text-white' : 'text-foreground hover:bg-primary/5',
+              )}
+              style={
+                full
+                  ? { backgroundColor: color, borderColor: color }
+                  : { borderColor: isContext ? color : `${color}66`, backgroundColor: isContext ? `${color}14` : undefined }
+              }
+            >
+              {g.label}
+              <ChevronDown className={cn('h-3 w-3 opacity-60 transition-transform', isContext && 'rotate-180')} />
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 二级：当前组的部门子行，内联展开（不浮层） */}
+      {activeGroup && (
+        <div className="flex flex-wrap items-center gap-1 rounded-lg bg-muted/40 px-2 py-1.5">
+          <span className="mr-0.5 shrink-0 text-[11px] text-muted-foreground">{activeGroup.label}：</span>
+          {activeGroup.deptIds.map((id) => {
+            const active = selected.has(id);
+            const c = deptColor(id);
+            return (
               <button
+                key={id}
                 type="button"
-                onClick={() => onChange(g.deptIds.join(','))}
+                onClick={() => onChange(id)}
                 className={cn(
-                  'inline-flex items-center px-3 text-xs font-medium transition-colors',
-                  full ? 'text-white' : 'bg-background text-foreground hover:bg-primary/5',
+                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors',
+                  active ? 'font-medium' : 'border-transparent text-muted-foreground hover:bg-background hover:text-foreground',
                 )}
-                style={full ? { backgroundColor: color } : undefined}
+                style={active ? { borderColor: c, backgroundColor: `${c}1a`, color: c } : undefined}
               >
-                {g.label}
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: c }} />
+                {DEPT_NAME[id] ?? id}
               </button>
-              <button
-                type="button"
-                aria-label={`展开 ${g.label} 部门`}
-                onClick={() => setOpenKey(open ? null : g.key)}
-                className={cn(
-                  'inline-flex items-center border-l px-1.5 transition-colors',
-                  full ? 'text-white' : 'bg-background text-muted-foreground hover:bg-primary/5',
-                )}
-                style={{ borderColor: full ? 'rgba(255,255,255,0.35)' : `${color}66`, ...(full ? { backgroundColor: color } : {}) }}
-              >
-                <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} />
-              </button>
-            </div>
-            {open && (
-              <div className="absolute left-0 top-full z-30 mt-1 min-w-[9rem] rounded-lg border border-border bg-background p-1 shadow-lg">
-                {g.deptIds.map((id) => {
-                  const active = selected.has(id) && !full;
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => { onChange(id); setOpenKey(null); }}
-                      className={cn(
-                        'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs transition-colors',
-                        active ? 'bg-primary/10 font-medium text-primary' : 'hover:bg-muted text-foreground',
-                      )}
-                    >
-                      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: deptColor(id) }} />
-                      {DEPT_NAME[id] ?? id}
-                    </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => { onChange(g.deptIds.join(',')); setOpenKey(null); }}
-                  className="mt-1 flex w-full items-center gap-2 rounded-md border-t border-border px-2.5 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  选择整组「{g.label}」（{g.deptIds.length}）
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -416,21 +403,18 @@ function HomePage(props: HomePageProps) {
         </div>
       )}
 
-      {/* Left-right layout: 状态 chips + 部门 dropdown */}
-      <div className="flex items-center gap-4">
-        <FilterRow label="状态">
-          {STATUS_OPTIONS.map((o) => (
-            <Chip key={o.value} active={homeStatus === o.value} onClick={() => onStatusChange(o.value)}>
-              {o.label}
-            </Chip>
-          ))}
-        </FilterRow>
+      {/* 状态 chips（一行）+ 部门三大组筛选（独占一行，二级行内联展开） */}
+      <FilterRow label="状态">
+        {STATUS_OPTIONS.map((o) => (
+          <Chip key={o.value} active={homeStatus === o.value} onClick={() => onStatusChange(o.value)}>
+            {o.label}
+          </Chip>
+        ))}
+      </FilterRow>
 
-        <div className="ml-6">
-          <FilterRow label="部门">
-            <DepartmentFilter value={homeDepartmentId} onChange={onDepartmentChange} />
-          </FilterRow>
-        </div>
+      <div className="flex items-start gap-2">
+        <span className="shrink-0 pt-1.5 text-xs font-medium text-foreground/70">部门</span>
+        <DepartmentFilter value={homeDepartmentId} onChange={onDepartmentChange} />
       </div>
     </div>
   );
