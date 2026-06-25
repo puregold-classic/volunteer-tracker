@@ -245,8 +245,8 @@ id code 全部保持稳定（历史 FK / 记录不破），只改显示名 + 重
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | (本次) | birthday migration 已 apply + db-reset reseed 验证 |
-| Mac mini sandbox | develop | (本次) | 同栈 migrate deploy（自动）+ reseed |
+| 本地 dev（WSL + Docker） | develop | aa247d7 | birthday migration 已 apply + db-reset reseed 验证 |
+| Mac mini sandbox | develop | aa247d7 | 同栈 migrate deploy（自动应用 birthday migration）+ reseed，已验证 |
 
 测试：后端 160（+12 IDGenerator）、前端 54、tsc clean；首页 filter 用 Playwright 截图人工核过。
 
@@ -256,8 +256,8 @@ id code 全部保持稳定（历史 FK / 记录不破），只改显示名 + 重
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | 0a400be | Docker Desktop WSL integration 关时跑不了，靠单测 + tsc 验证 |
-| Mac mini sandbox | develop | 0a400be | https://dev.puregoldclassictranslation.com · v3.5 已 deploy + reseed |
+| 本地 dev（WSL + Docker） | develop | aa247d7 | v3.6 birthday + 首页分组筛选 |
+| Mac mini sandbox | develop | aa247d7 | https://dev.puregoldclassictranslation.com · v3.5+v3.6 已 deploy + reseed |
 | 生产 | — | — | 未上 |
 
 > v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy
