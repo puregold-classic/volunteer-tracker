@@ -2,7 +2,7 @@
 
 全球志愿者可视化管理系统。地图展示分布、按部门组织、自管 + 代提交项目支援记录。
 
-**当前 schema 版本**：**v2.1 + v3 增量**（v2.1 于 2026-04-08 落地；v3 `service_category` 迁移于 2026-04-17）。部门/服务的最新状态是 **v3.5 三大组 reorg**（2026-06-24，纯 seed 数据，无 schema migration）。详见 `backend/prisma/schema.prisma` + `backend/prisma/seed.js` + `docs/v3-changelog.md`。
+**当前 schema 版本**：**v2.1 + v3 增量**（v2.1 于 2026-04-08 落地；v3 `service_category` 迁移于 2026-04-17）。部门/服务的最新状态是 **v3.5 三大组 reorg**（2026-06-24，纯 seed 数据，无 schema migration）。**v3.6**（2026-06-24）加了生日制 `volunteerCode` + `Volunteer.birthday` migration + 首页部门分组 hover 筛选。详见 `backend/prisma/schema.prisma` + `backend/prisma/seed.js` + `docs/v3-changelog.md`。
 
 ## 核心模型（最重要）
 
@@ -15,7 +15,7 @@
   - `PROJECT_MGMT` / `PROJECT_TRAINING` / `PROJECT_SUPPORT` / `TRAINING_ATTENDANCE` 四大类
   - Category 放 ServiceItem 级（不是 Department 级），因为 TECH / CARE 内部横跨 培训 + 支持
   - `TRAINING_ATTENDANCE`（受训考勤）**个人提交被 service 层拦截**，只能走 wave 2 的项目级批量录入
-- **Volunteer**：1:1 绑 Department；`volunteerCode` 是人类 ID（"PG-0001"），`id` 是 cuid（PK）。注意 v1 的 `services[]` 数组、`role` 字段、`nonProjectHours/Count` 累加器都已删除
+- **Volunteer**：1:1 绑 Department；`id` 是 cuid（PK）。`volunteerCode` 是人类 ID，**v3.6 起生日制**：填了生日 → `MMDD`+去重字母（如 `0305a`，字母系统自动分配）；没填 → 旧 `PG-NNNN` 自增兜底。`birthday DateTime?` 单独存完整生日。`isValidVolunteerCode` / `supportId`（`PS-{code}-NNN`）两种格式都兼容。注意 v1 的 `services[]` 数组、`role` 字段、`nonProjectHours/Count` 累加器都已删除
 - **Account ↔ Volunteer**：FK 强约束 1:1。CHECK constraint `role = 'admin' OR volunteerId IS NOT NULL` —— 非 admin 必须绑 volunteer
 - **ProjectSupport**（v1 的 `NonProjectService` 改名）：状态机 `ACTIVE / PENDING_CONFIRMATION / REJECTED_BY_OWNER / DELETED`；自提交直接 ACTIVE，代提交（`submittedById ≠ volunteerId`）落到 PENDING_CONFIRMATION 等 owner confirm；partial unique index `(volunteerId, serviceDate, serviceItemId, duration, description) WHERE status='ACTIVE'` 防重
 - **SystemSettings**：单行表（id=1），存 `lockedBefore`（月结锁定日期，forward-only）

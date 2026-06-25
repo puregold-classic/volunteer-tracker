@@ -207,9 +207,48 @@ id code 全部保持稳定（历史 FK / 记录不破），只改显示名 + 重
 
 ### 待办（本版未做）
 
-- **志愿者 ID 改生日制**：`volunteerCode` 从自增 `PG-NNNN` 改成「生日 5 位、末位 a/b/c/d 去重」
-  （如 `0305a`）。涉及 IDGenerator + supportId 格式（`PS-{code}-NNN`）+ 校验正则 + admin 建档表单手动录入 + CSV import，
-  与"人员录入"耦合，单独一版做。
+- ~~志愿者 ID 改生日制~~ → **已在 v3.6 落地（见下）**
+
+---
+
+## v3.6 — 生日制 volunteerCode + 首页部门分组筛选（2026-06-24 落地）
+
+### 生日制 volunteerCode
+
+`volunteerCode` 从纯自增 `PG-NNNN` 升级为**生日制 + 流水兜底**：
+
+- **格式**：`MMDD` + 去重字母（a→z），如 `0305a`。前 4 位生日月-日，末位字母区分同生日的人。
+- **字母自动分配**：admin 只手填生日，系统挑该 MMDD 下一个没占的字母（user 拍板：不手敲字母）。
+- **兜底**：没填生日 → 仍走旧 `PG-NNNN` 自增（user 拍板：允许 fallback，不卡录入）。
+- **新增 `Volunteer.birthday DateTime?`**（migration `20260625..._add_volunteer_birthday`）——
+  完整生日单独存字段（user："可能会用"，如生日祝福/年龄），code 只编码月-日。
+- **兼容老格式**：`isValidVolunteerCode` / `validateIdFormat` 同时接受 `PG-\d{4}` 和 `\d{4}[a-z]`；
+  `supportId` 泛化为 `PS-{code}-NNN`（`PS-0305a-001`），老 `PS-PG-0001-003` 仍合法。
+- **并发安全**：同生日并发建档可能撞同字母，`AccountService.createVolunteerAccount` 在 volunteerCode
+  唯一冲突上重试（重新取下一个字母），密码 hash 移到重试循环外只算一次。
+
+落地：`schema.prisma` + `IDGenerator`（birthdayToMMDD / nextBirthdayCode / nextLegacyCode）+
+`AccountService` + `serializer`（加 birthday）+ `AdminService` CSV（加 `生日` 列）+ `seed.js`
+（sample 张/王同 03-05 → `0305a`/`0305b` 演示去重，陈无生日 → `PG-0001` 演示 fallback）+
+前端 AdminCenter 建档表单加生日 date input。新 `IDGenerator.test.js`（12 例）。
+
+### 首页部门筛选改成三大组 + hover 展开
+
+`HomePage` 部门 filter 从平铺 `<Select>`（15 项）改成**三大组 chip**（翻译项目/组织培训/项目支援）：
+
+- **hover 或点 ▾** → 弹出该组的具体部门列（带部门色点）+「选择整组」脚注
+- **点组 chip 主体** → 选中该分类所有部门（chip 填入该 category 主色）
+- 利用后端 `departmentId` 已支持的逗号分隔多值（`parseMulti` → `IN [...]`），**无需改后端**
+- active filter chip 能把多 id 值反解成组名显示；分段 chip（label + chevron）让触屏也能点开
+
+### 部署状态
+
+| 环境 | Branch | HEAD | 备注 |
+|---|---|---|---|
+| 本地 dev（WSL + Docker） | develop | (本次) | birthday migration 已 apply + db-reset reseed 验证 |
+| Mac mini sandbox | develop | (本次) | 同栈 migrate deploy（自动）+ reseed |
+
+测试：后端 160（+12 IDGenerator）、前端 54、tsc clean；首页 filter 用 Playwright 截图人工核过。
 
 ---
 
