@@ -152,16 +152,16 @@ describe('useHomeState — HOT_LOCATIONS', () => {
     const labels = HOT_LOCATIONS.map(h => h.label);
     expect(labels).toContain('北京');
     expect(labels).toContain('上海');
-    expect(labels).toContain('广州');
+    expect(labels).toContain('广东');
     expect(labels).toContain('香港');
     expect(labels).toContain('澳门');
     expect(labels).not.toContain('深圳');
   });
 
-  it('广州 maps to province 广东省 (no city-level polygon on the province map)', () => {
-    const gz = HOT_LOCATIONS.find(h => h.label === '广州');
-    expect(gz?.type).toBe('province');
-    expect(gz?.value).toBe('广东省');
+  it('广东 maps to province 广东省', () => {
+    const gd = HOT_LOCATIONS.find(h => h.label === '广东');
+    expect(gd?.type).toBe('province');
+    expect(gd?.value).toBe('广东省');
   });
 
   it('香港 / 澳门 map to their full SAR province names (match GeoJSON + volunteer.province)', () => {
