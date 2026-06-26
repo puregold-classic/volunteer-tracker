@@ -152,16 +152,25 @@ describe('useHomeState — HOT_LOCATIONS', () => {
     const labels = HOT_LOCATIONS.map(h => h.label);
     expect(labels).toContain('北京');
     expect(labels).toContain('上海');
-    expect(labels).toContain('广东');
-    expect(labels).toContain('浙江');
-    expect(labels).toContain('台湾省');
+    expect(labels).toContain('广州');
+    expect(labels).toContain('香港');
+    expect(labels).toContain('澳门');
     expect(labels).not.toContain('深圳');
   });
 
-  it('台湾省 is of type region pointing to 中国台湾', () => {
-    const taiwan = HOT_LOCATIONS.find(h => h.label === '台湾省');
-    expect(taiwan?.type).toBe('region');
-    expect(taiwan?.value).toBe('中国台湾');
+  it('广州 maps to province 广东省 (no city-level polygon on the province map)', () => {
+    const gz = HOT_LOCATIONS.find(h => h.label === '广州');
+    expect(gz?.type).toBe('province');
+    expect(gz?.value).toBe('广东省');
+  });
+
+  it('香港 / 澳门 map to their full SAR province names (match GeoJSON + volunteer.province)', () => {
+    const hk = HOT_LOCATIONS.find(h => h.label === '香港');
+    expect(hk?.type).toBe('province');
+    expect(hk?.value).toBe('香港特别行政区');
+    const mo = HOT_LOCATIONS.find(h => h.label === '澳门');
+    expect(mo?.type).toBe('province');
+    expect(mo?.value).toBe('澳门特别行政区');
   });
 });
 

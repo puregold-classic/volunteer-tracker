@@ -7,9 +7,10 @@ export type HomeSelection = { type: 'region' | 'province'; value: string };
 export const HOT_LOCATIONS = [
   { label: '北京', type: 'province' as const, value: '北京市' },
   { label: '上海', type: 'province' as const, value: '上海市' },
-  { label: '广东', type: 'province' as const, value: '广东省' },
-  { label: '浙江', type: 'province' as const, value: '浙江省' },
-  { label: '台湾省', type: 'region' as const, value: '中国台湾' },
+  // 地图是省级 GeoJSON，没有市级多边形：广州落到所属的 广东省（点击高亮整省 + 筛全省志愿者）
+  { label: '广州', type: 'province' as const, value: '广东省' },
+  { label: '香港', type: 'province' as const, value: '香港特别行政区' },
+  { label: '澳门', type: 'province' as const, value: '澳门特别行政区' },
 ] as const;
 
 export const QUICK_FOCUS_OPTIONS = ['中国大陆', '中国台湾', '东南亚', '美国', '欧洲'] as const;
