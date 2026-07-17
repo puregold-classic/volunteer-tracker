@@ -59,7 +59,9 @@ const HEADER_TOKENS = new Set([
   'region', '地区', 'province', '省份', 'departmentId', '部门', '部门ID', 'email', '邮箱',
   'phone', '电话', '手机号', '手机', 'role', '角色', 'birthday', '生日', '出生日期', 'password', '密码', 'name', '账号姓名',
 ]);
-const POSITIONAL_ORDER = ['chineseName', 'englishName', 'status', 'region', 'province', 'departmentId', 'email', 'role', 'phone', 'birthday', 'password'];
+// ⚠️ 必须和 Excel 模板（scripts/gen-volunteer-template.py 的 HEADERS）列序完全一致，
+// 否则用户只复制数据行（无表头）时会错位。模板列序：中文名·英文名·状态·地区·省份·部门·邮箱·手机号·生日·角色
+const POSITIONAL_ORDER = ['chineseName', 'englishName', 'status', 'region', 'province', 'departmentId', 'email', 'phone', 'birthday', 'role', 'password'];
 
 const splitLine = (line, delim) => (delim === '\t'
   ? line.split('\t').map((v) => v.trim())

@@ -96,4 +96,13 @@ describe('AdminService.validateVolunteersCsv', () => {
     expect(r.rows[0].ok).toBe(false);
     expect(r.rows[0].errors.join()).toMatch(/部门不存在/);
   });
+
+  // 回归：无表头定位顺序必须和模板列序一致（手机号·生日·角色 的位置）。
+  // 旧顺序会把手机号当角色、角色当生日 —— 用户截图里的报错。
+  it('parses a headerless row in template column order (手机号/生日/角色 positions)', async () => {
+    const r = await validateVolunteersCsv({
+      csvText: '张三\tZhang San\t在职\t中国大陆\t辽宁省\t网络技术部\tz@ex.com\t13800138000\t1990-05-20\tuser',
+    });
+    expect(r.rows[0].ok).toBe(true); // role=user、birthday=1990-05-20 都被正确定位
+  });
 });
