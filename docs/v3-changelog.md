@@ -307,14 +307,28 @@ admin 端到端验证建 group+tag（`createdById=null`）+ 删除级联；Mac �
 tag 组的 `batch/create`），所以给录入员"批量录入受训"＝给它整个 managed tag 批量权限。
 HTTP 实测：a_admin 建账号/锁定→403，b_admin 建/删 tag→201/200。后端 164 tests。
 
+### bugfix：生日制 code 无法登录（push `3d7dde2`）
+
+v3.6 加了生日制 code `0305a` 但只更新了 `isValidVolunteerCode`，漏了几处**判别 code 格式**的地方：
+- 登录 `detectIdentifierKind` 的 shape 要求带 `-`，`0305a` 被判 invalid → 报"邮箱或密码错误"；
+- `VolunteerService.findByIdOrCode`/`update` 用 `/^PG-\d{4}$/` 判别 → 生日码被当 cuid → 404。
+
+修：`identifierUtils` 加 `BIRTHDAY_CODE_SHAPE`（字母归一化小写、放 phone 判别前）；VolunteerService
+两处改用 `IDGenerator.isValidVolunteerCode`；`idUtils` supportId 正则兼容生日码（当前无调用者）。
+HTTP 实测：login `0305a`/`0305A`→成功，`GET /volunteers/0305a`→200，`PG-0001` 仍可用。后端 165 tests。
+
+> **volunteerCode 是不可变的人类 ID**：`supportId = PS-{code}-NNN` 内嵌了它，且它是登录标识。
+> 所以**后补生日不会自动改 code**（by design）——生日单独存 `Volunteer.birthday`，不丢。想要
+> 生日码就在建档时填生日；已有 PG 码的保持稳定。
+
 ---
 
 ## 当前部署状态（2026-07-17）
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | 2628c91 | v3.7 tag 可空 + 热门地点 + 权限三层重排 |
-| Mac mini sandbox | develop | 2628c91 | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
+| 本地 dev（WSL + Docker） | develop | 3d7dde2 | v3.7 tag 可空 + 热门地点 + 权限三层重排 + 生日码登录修复 |
+| Mac mini sandbox | develop | 3d7dde2 | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
 | 生产 | — | — | 未上 |
 
 > v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy
