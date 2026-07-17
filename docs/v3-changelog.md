@@ -322,14 +322,27 @@ HTTP 实测：login `0305a`/`0305A`→成功，`GET /volunteers/0305a`→200，`
 > 但**补生日不重算 code**（by design）——生日单独存 `Volunteer.birthday`。想把已有 PG 码转成生日码
 > 只能走**显式的重发动作**（未实现，需要时再加，带"改登录 ID + 历史 supportId 保留旧码"警告）。
 
+### UI 打磨 + CSV 导入逐行校验（push `18627bc`）
+
+- **密码框重复的小眼睛**：`ui/input.tsx` 自带 show/hide 眼睛，Edge 又给 `type=password` 加原生
+  `::-ms-reveal`，两个叠一起。全局 CSS 隐藏原生的（`tailwind.css`）。Chromium 不渲染原生 reveal，验证需在 Edge。
+- **管理中心右上角** 重复的「返回首页/退出」去掉（全局 Header 已有 Logo 回首页 + 退出登录）。
+- **CSV 导入加提交前逐行 dry-run 校验**：新 `POST /admin/import-volunteers/validate`
+  （`AdminService.validateVolunteersCsv`，不写库）。逐行检出：**部门存在/规范**、**省份规范全名**
+  （辽宁→需辽宁省；大陆/台湾必填；台湾须"台湾省"）、中/英文名/邮箱/部门必填、状态/地区/角色枚举、
+  邮箱格式/占用/批次内重复、生日可解析。前端 CSV dialog 加「校验」按钮 + 逐行结果面板。
+- **省份真值源**：新 `backend/src/utils/provinces.js`（34 个规范省名，对齐地图 GeoJSON）。
+  **规范＝全名**（辽宁省，非辽宁），因为热力图/按省筛选拿 `volunteer.province` 跟 GeoJSON 省名精确匹配。
+  （建档/编辑表单是否也改成省份下拉选择 = 待定，未做。）
+
 ---
 
 ## 当前部署状态（2026-07-17）
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | d268e86 | v3.7 tag可空+热门地点+权限重排+生日码登录修复+生日可后补 |
-| Mac mini sandbox | develop | d268e86 | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
+| 本地 dev（WSL + Docker） | develop | 18627bc | v3.7 …+生日可后补+UI打磨+CSV逐行校验 |
+| Mac mini sandbox | develop | 18627bc | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
 | 生产 | — | — | 未上 |
 
 > v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy
