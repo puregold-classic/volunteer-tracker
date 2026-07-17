@@ -331,9 +331,12 @@ HTTP 实测：login `0305a`/`0305A`→成功，`GET /volunteers/0305a`→200，`
   （`AdminService.validateVolunteersCsv`，不写库）。逐行检出：**部门存在/规范**、**省份规范全名**
   （辽宁→需辽宁省；大陆/台湾必填；台湾须"台湾省"）、中/英文名/邮箱/部门必填、状态/地区/角色枚举、
   邮箱格式/占用/批次内重复、生日可解析。前端 CSV dialog 加「校验」按钮 + 逐行结果面板。
-- **省份真值源**：新 `backend/src/utils/provinces.js`（34 个规范省名，对齐地图 GeoJSON）。
-  **规范＝全名**（辽宁省，非辽宁），因为热力图/按省筛选拿 `volunteer.province` 跟 GeoJSON 省名精确匹配。
-  （建档/编辑表单是否也改成省份下拉选择 = 待定，未做。）
+- **省份真值源**：新 `backend/src/utils/provinces.js` + 前端镜像 `frontend/src/lib/provinces.ts`
+  （34 个规范省名，对齐地图 GeoJSON）。**规范＝全名**（辽宁省，非辽宁），因为热力图/按省筛选拿
+  `volunteer.province` 跟 GeoJSON 省名精确匹配。
+- **省份防呆两层**（push `a84b53a`）：后端 `validateVolunteerPayload`（create）+ `VolunteerService.update`
+  （edit，throw→400）校验大陆/台湾省份必须规范全名 + 台湾须"台湾省"；前端建档/编辑表单省份改**下拉**
+  （大陆 33 个含港澳排台湾、台湾自动填台湾省、海外自由文本）。HTTP+Playwright 双验证。
 
 ---
 
@@ -341,8 +344,8 @@ HTTP 实测：login `0305a`/`0305A`→成功，`GET /volunteers/0305a`→200，`
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | 18627bc | v3.7 …+生日可后补+UI打磨+CSV逐行校验 |
-| Mac mini sandbox | develop | 18627bc | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
+| 本地 dev（WSL + Docker） | develop | a84b53a | v3.7 …+CSV逐行校验+省份防呆下拉 |
+| Mac mini sandbox | develop | a84b53a | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
 | 生产 | — | — | 未上 |
 
 > v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy
