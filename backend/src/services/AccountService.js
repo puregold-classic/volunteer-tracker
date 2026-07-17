@@ -218,6 +218,10 @@ export const updateAccount = async (accountId, patch, currentUserId) => {
 
   const { role, isActive, name, email } = patch;
   if (role && !ALLOWED_ROLES.includes(role)) return { invalidRole: true };
+  // v3.7: 不能把账号提升为系统 admin —— 系统 admin 仅由启动时 bootstrap 创建，不可后天授予
+  if (role === 'admin' && target.role !== 'admin') {
+    return { validationError: '不能将账号提升为系统 admin（系统 admin 仅由初始 bootstrap 创建）' };
+  }
 
   // Cannot demote the last active admin
   if (target.role === 'admin' && role && role !== 'admin') {

@@ -103,14 +103,6 @@ const createVolunteerSchema = z.object({
 
 type CreateVolunteerForm = z.infer<typeof createVolunteerSchema>;
 
-const createAdminSchema = z.object({
-  name: z.string().trim().min(1, '姓名必填'),
-  email: z.string().trim().email('邮箱格式错误'),
-  password: z.string().min(8, '密码至少 8 位'),
-});
-
-type CreateAdminForm = z.infer<typeof createAdminSchema>;
-
 // ─── Create volunteer dialog ────────────────────────────────────────────────
 
 const CreateVolunteerDialog: React.FC<{
@@ -280,66 +272,6 @@ const CreateVolunteerDialog: React.FC<{
   );
 };
 
-// ─── Create admin dialog ────────────────────────────────────────────────────
-
-const CreateAdminDialog: React.FC<{
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  onCreated: () => void;
-}> = ({ open, onOpenChange, onCreated }) => {
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<CreateAdminForm>({
-    resolver: zodResolver(createAdminSchema),
-    defaultValues: { name: '', email: '', password: '' },
-  });
-
-  useEffect(() => { if (open) reset(); }, [open, reset]);
-
-  const onSubmit = async (data: CreateAdminForm) => {
-    const result = await authService.adminCreateAdmin(data);
-    if (result?.success) {
-      toast({ title: 'admin 账号创建成功', description: data.email });
-      onCreated();
-      onOpenChange(false);
-    } else {
-      toast({ title: '创建失败', description: (result as any)?.error || '未知错误', variant: 'destructive' });
-    }
-  };
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="新增 admin 账号"
-      description="admin 角色不绑定 volunteer，仅用于系统管理"
-    >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <FormField label="姓名" required error={errors.name?.message}>
-          <FormInput {...register('name')} placeholder="如 系统管理员" />
-        </FormField>
-        <FormField label="邮箱" required error={errors.email?.message}>
-          <FormInput type="email" {...register('email')} placeholder="admin@example.com" />
-        </FormField>
-        <FormField label="密码" required error={errors.password?.message}>
-          <FormInput type="text" {...register('password')} placeholder="≥ 8 位" />
-        </FormField>
-
-        <div className="flex gap-3 pt-2">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
-            取消
-          </Button>
-          <Button type="submit" className="flex-1" disabled={isSubmitting} size="lg">
-            {isSubmitting ? '创建中…' : '新增 admin'}
-          </Button>
-        </div>
-      </form>
-    </Dialog>
-  );
-};
 
 // ─── CSV import dialog ──────────────────────────────────────────────────────
 
@@ -571,6 +503,8 @@ const editAccountSchema = z.object({
   // Account fields
   name: z.string().trim().min(1, '姓名必填'),
   email: z.string().trim().email('邮箱格式错误'),
+  // 'admin' 保留在 enum 里是为了已有 admin 账号能正常回填/校验；但下面的角色下拉**不提供** admin
+  // 选项，加上后端 updateAccount 拦截"提升为 admin"，所以无法把普通账号设成 admin。
   role: z.enum(['user', 'b_admin', 'a_admin', 'admin']),
   isActive: z.boolean(),
   // Volunteer fields (only meaningful when account has linked volunteer)
@@ -730,7 +664,6 @@ const EditAccountDialog: React.FC<{
                 <option value="user">user</option>
                 <option value="b_admin">b_admin</option>
                 <option value="a_admin">a_admin</option>
-                <option value="admin">admin</option>
               </FormSelect>
             </FormField>
             <FormField label="账号状态">
@@ -834,7 +767,6 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
 
   // Dialog open states
   const [createVolunteerOpen, setCreateVolunteerOpen] = useState(false);
-  const [createAdminOpen, setCreateAdminOpen] = useState(false);
   const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [systemResetOpen, setSystemResetOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<AdminAccountItem | null>(null);
@@ -932,10 +864,6 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
           <Button type="button" variant="outline" size="sm" onClick={() => setCsvImportOpen(true)}>
             <FileSpreadsheet className="h-4 w-4" />
             Excel 导入
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setCreateAdminOpen(true)}>
-            <Shield className="h-4 w-4" />
-            新增 admin
           </Button>
           <Button type="button" size="sm" onClick={() => setCreateVolunteerOpen(true)}>
             <UserPlus className="h-4 w-4" />
@@ -1229,11 +1157,6 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
         open={createVolunteerOpen}
         onOpenChange={setCreateVolunteerOpen}
         departments={departments}
-        onCreated={refresh}
-      />
-      <CreateAdminDialog
-        open={createAdminOpen}
-        onOpenChange={setCreateAdminOpen}
         onCreated={refresh}
       />
       <CsvImportDialog

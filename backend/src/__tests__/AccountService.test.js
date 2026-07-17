@@ -191,6 +191,14 @@ describe('AccountService.updateAccount', () => {
     expect(result.account).toBeDefined();
     expect(mockPrisma.account.update).toHaveBeenCalled();
   });
+
+  // v3.7: 不能把普通账号提升为系统 admin
+  it('rejects promoting a non-admin account to admin', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({ id: 'u1', role: 'user', volunteerId: 'v1' });
+    const result = await updateAccount('u1', { role: 'admin' }, 'admin-self');
+    expect(result.validationError).toMatch(/提升为系统 admin/);
+    expect(mockPrisma.account.update).not.toHaveBeenCalled();
+  });
 });
 
 // ─── deleteAccount() ─────────────────────────────────────────────────────────
