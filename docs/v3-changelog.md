@@ -327,7 +327,8 @@ HTTP 实测：login `0305a`/`0305A`→成功，`GET /volunteers/0305a`→200，`
 - **密码框重复的小眼睛**：`ui/input.tsx` 自带 show/hide 眼睛，Edge 又给 `type=password` 加原生
   `::-ms-reveal`，两个叠一起。全局 CSS 隐藏原生的（`tailwind.css`）。Chromium 不渲染原生 reveal，验证需在 Edge。
 - **管理中心右上角** 重复的「返回首页/退出」去掉（全局 Header 已有 Logo 回首页 + 退出登录）。
-- **CSV 导入加提交前逐行 dry-run 校验**：新 `POST /admin/import-volunteers/validate`
+- **导入改成 Excel 直接粘贴 + 提交前逐行 dry-run 校验**：支持 Tab 分隔（Excel 复制）/ 无表头定位 /
+  部门写中文名（网络技术部→NET_TECH）；新 `POST /admin/import-volunteers/validate`
   （`AdminService.validateVolunteersCsv`，不写库）。逐行检出：**部门存在/规范**、**省份规范全名**
   （辽宁→需辽宁省；大陆/台湾必填；台湾须"台湾省"）、中/英文名/邮箱/部门必填、状态/地区/角色枚举、
   邮箱格式/占用/批次内重复、生日可解析。前端 CSV dialog 加「校验」按钮 + 逐行结果面板。
@@ -344,8 +345,8 @@ HTTP 实测：login `0305a`/`0305A`→成功，`GET /volunteers/0305a`→200，`
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | a84b53a | v3.7 …+CSV逐行校验+省份防呆下拉 |
-| Mac mini sandbox | develop | a84b53a | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
+| 本地 dev（WSL + Docker） | develop | fe42dd0 | v3.7 …+省份防呆下拉+Excel粘贴导入 |
+| Mac mini sandbox | develop | fe42dd0 | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
 | 生产 | — | — | 未上 |
 
 > v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy
