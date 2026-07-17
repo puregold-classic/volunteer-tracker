@@ -63,6 +63,22 @@ export interface AdminImportVolunteerPayload {
   defaultPassword?: string;
 }
 
+export interface CsvValidationRow {
+  row: number;
+  chineseName: string;
+  email: string;
+  departmentId: string;
+  ok: boolean;
+  errors: string[];
+}
+
+export interface CsvValidation {
+  total: number;
+  validCount: number;
+  invalidCount: number;
+  rows: CsvValidationRow[];
+}
+
 export const authService = {
   // ─── Token management ───────────────────────────────────────────────────
   getToken: (): string | null => localStorage.getItem(AUTH_TOKEN_KEY),
@@ -167,6 +183,11 @@ export const authService = {
 
   adminImportVolunteers: async (payload: AdminImportVolunteerPayload): Promise<ApiResponse<unknown>> => {
     return api.post('/auth/admin/import-volunteers', payload);
+  },
+
+  // v3.7: 提交前逐行 dry-run 校验（不写库）
+  adminValidateVolunteers: async (payload: { csvText: string }): Promise<ApiResponse<CsvValidation>> => {
+    return api.post('/auth/admin/import-volunteers/validate', payload);
   },
 
   adminResetSystem: async (): Promise<ApiResponse<unknown>> => {

@@ -29,6 +29,7 @@ router.patch('/admin/accounts/:accountId', authenticate, authorizeRoles('admin')
 router.delete('/admin/accounts/:accountId', authenticate, authorizeRoles('admin'), AdminController.deleteAccount);
 router.post('/admin/volunteers', authenticate, authorizeRoles('admin'), AdminController.createVolunteerAccount);
 router.post('/admin/admins', authenticate, authorizeRoles('admin'), AdminController.createAdminAccount);
+router.post('/admin/import-volunteers/validate', authenticate, authorizeRoles('admin'), AdminController.validateVolunteersCsv);
 router.post('/admin/import-volunteers', authenticate, authorizeRoles('admin'), AdminController.importVolunteersCsv);
 router.post('/admin/reset-system', authenticate, authorizeRoles('admin'), AdminController.resetSystem);
 

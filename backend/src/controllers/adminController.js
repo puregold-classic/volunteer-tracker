@@ -82,6 +82,17 @@ class AdminController {
     }
   }
 
+  // v3.7: 提交前逐行 dry-run 校验（不写库）
+  static async validateVolunteersCsv(req, res) {
+    try {
+      const result = await AdminService.validateVolunteersCsv(req.body);
+      if (result.noData) return fail(res, 400, '未提供可校验数据');
+      return res.status(200).json({ success: true, data: result });
+    } catch (err) {
+      return fail(res, 500, err.message);
+    }
+  }
+
   static async resetSystem(req, res) {
     try {
       const result = await AdminService.resetToSystemAdmin(req.body);

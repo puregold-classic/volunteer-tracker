@@ -9,8 +9,29 @@
 // by construction (atomic creation).
 
 import prisma from '../utils/prismaClient.js';
-import { createVolunteerAccount, createAdminAccount } from './AccountService.js';
+import {
+  createVolunteerAccount, createAdminAccount,
+  ALLOWED_ROLES, ALLOWED_STATUSES, ALLOWED_REGIONS,
+} from './AccountService.js';
+import { isValidProvince } from '../utils/provinces.js';
 import { serializeAccount } from '../utils/serializer.js';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Map a CSV row → the same field object importVolunteersCsv builds (so validate
+// and import stay in lockstep). Kept module-level for reuse by both.
+const rowToVolunteerFields = (row) => ({
+  chineseName: pick(row, ['chineseName', '中文姓名', '姓名']),
+  englishName: pick(row, ['englishName', '英文姓名']),
+  status: pick(row, ['status', '状态']) || '在职',
+  region: pick(row, ['region', '地区']) || '其他',
+  province: pick(row, ['province', '省份']),
+  departmentId: pick(row, ['departmentId', '部门', '部门ID']),
+  email: pick(row, ['email', '邮箱']),
+  phone: pick(row, ['phone', '电话']),
+  role: pick(row, ['role', '角色']) || 'user',
+  birthday: pick(row, ['birthday', '生日', '出生日期']),
+});
 
 const parseCsvLine = (line) => {
   const cells = [];
@@ -85,6 +106,62 @@ export const resetToSystemAdmin = async ({ confirm }) => {
     systemAdmin: result.account,
     deleted: 'all data wiped',
   };
+};
+
+/**
+ * v3.7: 提交前的**逐行 dry-run 校验**。不写库，返回每行是否规范 + 具体错在哪。
+ * 覆盖：必填（中/英文名/邮箱/部门）、状态/地区/角色枚举合法、**部门存在**、
+ * **省份规范全名**（大陆/台湾必填且为规范省名，如 辽宁省 而非 辽宁）、
+ * 邮箱格式/已占用/本批次内重复、生日可解析。
+ */
+export const validateVolunteersCsv = async ({ rows = [], csvText = '' } = {}) => {
+  const parsedRows = Array.isArray(rows) && rows.length > 0 ? rows : toRowsFromCsv(csvText);
+  if (!Array.isArray(parsedRows) || parsedRows.length === 0) return { noData: true };
+
+  const [depts, accounts] = await Promise.all([
+    prisma.department.findMany({ select: { id: true } }),
+    prisma.account.findMany({ select: { email: true } }),
+  ]);
+  const deptIds = new Set(depts.map((d) => d.id));
+  const takenEmails = new Set(accounts.map((a) => a.email.toLowerCase()));
+  const seenEmails = new Set(); // 本批次内查重
+
+  const outRows = parsedRows.map((row, idx) => {
+    const f = rowToVolunteerFields(row);
+    const errors = [];
+
+    if (!f.chineseName) errors.push('中文姓名必填');
+    if (!f.englishName) errors.push('英文姓名必填');
+    if (!ALLOWED_STATUSES.includes(f.status)) errors.push(`状态不规范: "${f.status}"（应为 在职/不在职）`);
+    if (!ALLOWED_REGIONS.includes(f.region)) errors.push(`地区不规范: "${f.region}"`);
+
+    if (['中国大陆', '中国台湾'].includes(f.region)) {
+      if (!f.province) errors.push(`${f.region} 必须填省份`);
+      else if (f.region === '中国台湾' && f.province !== '台湾省') errors.push(`台湾省份应为 "台湾省"，收到 "${f.province}"`);
+      else if (f.region === '中国大陆' && !isValidProvince(f.province)) errors.push(`省份不规范: "${f.province}"（需规范全名，如 辽宁省 而非 辽宁）`);
+    }
+
+    if (!f.departmentId) errors.push('必须指定部门');
+    else if (!deptIds.has(f.departmentId)) errors.push(`部门不存在/不规范: "${f.departmentId}"`);
+
+    if (!ALLOWED_ROLES.includes(f.role)) errors.push(`角色不规范: "${f.role}"`);
+
+    if (!f.email) errors.push('邮箱必填');
+    else if (!EMAIL_RE.test(f.email)) errors.push(`邮箱格式错误: "${f.email}"`);
+    else {
+      const lower = f.email.toLowerCase();
+      if (takenEmails.has(lower)) errors.push(`邮箱已被占用: ${f.email}`);
+      if (seenEmails.has(lower)) errors.push(`邮箱在本次导入中重复: ${f.email}`);
+      seenEmails.add(lower);
+    }
+
+    if (f.birthday && Number.isNaN(new Date(f.birthday).getTime())) errors.push(`生日无法解析: "${f.birthday}"`);
+
+    return { row: idx + 1, chineseName: f.chineseName, email: f.email, departmentId: f.departmentId, ok: errors.length === 0, errors };
+  });
+
+  const validCount = outRows.filter((r) => r.ok).length;
+  return { total: outRows.length, validCount, invalidCount: outRows.length - validCount, rows: outRows };
 };
 
 /**

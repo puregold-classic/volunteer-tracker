@@ -20,9 +20,9 @@ import {
   REGION_TO_PG,
 } from '../utils/serializer.js';
 
-const ALLOWED_ROLES = ['user', 'b_admin', 'a_admin', 'admin'];
-const ALLOWED_STATUSES = ['在职', '不在职'];
-const ALLOWED_REGIONS = ['中国大陆', '中国台湾', '东南亚', '美国', '欧洲', '其他'];
+export const ALLOWED_ROLES = ['user', 'b_admin', 'a_admin', 'admin'];
+export const ALLOWED_STATUSES = ['在职', '不在职'];
+export const ALLOWED_REGIONS = ['中国大陆', '中国台湾', '东南亚', '美国', '欧洲', '其他'];
 
 const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 

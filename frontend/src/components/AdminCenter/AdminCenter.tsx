@@ -26,6 +26,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
   AlertTriangle,
+  Check,
   FileSpreadsheet,
   KeyRound,
   Pencil,
@@ -37,7 +38,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import authService, { AdminAccountItem } from '@services/authService';
+import authService, { AdminAccountItem, CsvValidation } from '@services/authService';
 import departmentService from '@services/departmentService';
 import volunteerService from '@services/volunteerService';
 import type { Department, Role } from '@services/types';
@@ -338,8 +339,35 @@ const CsvImportDialog: React.FC<{
   const [csvText, setCsvText] = useState('');
   const [defaultPassword, setDefaultPassword] = useState('Volunteer@123');
   const [submitting, setSubmitting] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validation, setValidation] = useState<CsvValidation | null>(null);
 
-  useEffect(() => { if (open) { setCsvText(''); setDefaultPassword('Volunteer@123'); } }, [open]);
+  useEffect(() => {
+    if (open) { setCsvText(''); setDefaultPassword('Volunteer@123'); setValidation(null); }
+  }, [open]);
+
+  // 改动 CSV 文本后，之前的校验结果作废（强制重新校验）
+  const onCsvChange = (v: string) => { setCsvText(v); if (validation) setValidation(null); };
+
+  const onValidate = async () => {
+    if (!csvText.trim()) { toast({ title: '请先粘贴 CSV 数据', variant: 'destructive' }); return; }
+    setValidating(true);
+    try {
+      const res = await authService.adminValidateVolunteers({ csvText: csvText.trim() });
+      if (res?.success && res.data) {
+        setValidation(res.data);
+        toast({
+          title: '校验完成',
+          description: `${res.data.validCount} 行通过 · ${res.data.invalidCount} 行有问题`,
+          variant: res.data.invalidCount > 0 ? 'destructive' : undefined,
+        });
+      } else {
+        toast({ title: '校验失败', description: (res as any)?.error || '未知错误', variant: 'destructive' });
+      }
+    } finally {
+      setValidating(false);
+    }
+  };
 
   const onSubmit = async () => {
     if (!csvText.trim()) {
@@ -381,20 +409,59 @@ const CsvImportDialog: React.FC<{
           <FormTextarea
             rows={8}
             value={csvText}
-            onChange={(e) => setCsvText(e.target.value)}
-            placeholder={'chineseName,englishName,status,region,province,departmentId,email,role\n张三,Zhang San,在职,中国大陆,上海市,TECH,zhangsan@vt.local,user'}
+            onChange={(e) => onCsvChange(e.target.value)}
+            placeholder={'chineseName,englishName,status,region,province,departmentId,email,role\n张三,Zhang San,在职,中国大陆,辽宁省,TECH,zhangsan@vt.local,user'}
             className="font-mono text-xs leading-relaxed"
           />
         </FormField>
         <FormField label="默认密码" hint="可被 CSV 中的 password 列覆盖">
           <FormInput value={defaultPassword} onChange={(e) => setDefaultPassword(e.target.value)} />
         </FormField>
+
+        {validation && (
+          <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs">
+            <div className="mb-2 flex items-center gap-2 font-medium">
+              <span className="text-emerald-600">{validation.validCount} 行通过</span>
+              {validation.invalidCount > 0 && (
+                <span className="inline-flex items-center gap-1 text-rose-600">
+                  <AlertTriangle className="h-3.5 w-3.5" />{validation.invalidCount} 行有问题
+                </span>
+              )}
+            </div>
+            <div className="max-h-56 space-y-1 overflow-y-auto">
+              {validation.rows.map((r) => (
+                <div key={r.row} className={cn('rounded-md px-2 py-1', r.ok ? 'text-muted-foreground' : 'bg-rose-50 dark:bg-rose-950/30')}>
+                  <div className="flex items-center gap-1.5">
+                    {r.ok
+                      ? <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                      : <X className="h-3.5 w-3.5 shrink-0 text-rose-600" />}
+                    <span className="font-medium">第 {r.row} 行</span>
+                    <span className="truncate text-muted-foreground">{r.chineseName || '（无姓名）'} · {r.email || '（无邮箱）'}</span>
+                  </div>
+                  {!r.ok && (
+                    <ul className="ml-5 mt-0.5 list-disc text-rose-700 dark:text-rose-400">
+                      {r.errors.map((e, i) => <li key={i}>{e}</li>)}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             取消
           </Button>
-          <Button type="button" className="flex-1" disabled={submitting} size="lg" onClick={onSubmit}>
-            {submitting ? '导入中…' : '开始导入'}
+          <Button type="button" variant="outline" className="flex-1" disabled={validating || submitting} onClick={onValidate}>
+            {validating ? '校验中…' : '校验'}
+          </Button>
+          <Button type="button" className="flex-1" disabled={submitting || validating} size="lg" onClick={onSubmit}>
+            {submitting
+              ? '导入中…'
+              : validation && validation.invalidCount > 0
+                ? `仍导入通过的 ${validation.validCount} 行`
+                : '开始导入'}
           </Button>
         </div>
       </div>
