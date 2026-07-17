@@ -30,10 +30,10 @@ export default router;
 export const tagRouter = express.Router();
 tagRouter.use(authenticate);
 
-// Tag CRUD
-tagRouter.post('/',                authorizeRoles('admin', 'a_admin'),     TC.createTag);
-tagRouter.patch('/:id',            authorizeRoles('admin', 'a_admin'),     TC.updateTag);
-tagRouter.delete('/:id',           authorizeRoles('admin', 'a_admin'),     TC.deleteTag);
+// Tag CRUD — 录入员+（v3.7 权限重排：admin/a_admin/b_admin 都可建/改 tag；tag 组仍 admin only）
+tagRouter.post('/',                authorizeRoles('admin', 'a_admin', 'b_admin'),  TC.createTag);
+tagRouter.patch('/:id',            authorizeRoles('admin', 'a_admin', 'b_admin'),  TC.updateTag);
+tagRouter.delete('/:id',           authorizeRoles('admin', 'a_admin', 'b_admin'),  TC.deleteTag);
 
 // Attach / detach (any authed; service layer enforces owner vs admin)
 tagRouter.post('/:tagId/attach',                                           TC.attachTag);
@@ -42,9 +42,9 @@ tagRouter.delete('/:tagId/attach/:supportId',                              TC.de
 // Tag → supports list
 tagRouter.get('/:tagId/supports',                                          TC.listTagSupports);
 
-// Batch ops (a_admin+)
-tagRouter.post('/:tagId/batch/create',  authorizeRoles('admin', 'a_admin'), TC.batchCreate);
-tagRouter.post('/:tagId/batch/update',  authorizeRoles('admin', 'a_admin'), TC.batchUpdate);
-tagRouter.post('/:tagId/batch/delete',  authorizeRoles('admin', 'a_admin'), TC.batchDelete);
-tagRouter.post('/:tagId/batch/attach',  authorizeRoles('admin', 'a_admin'), TC.batchAttach);
-tagRouter.post('/:tagId/batch/detach',  authorizeRoles('admin', 'a_admin'), TC.batchDetach);
+// Batch ops — 录入员+（含受训批量录入，见 TagService.batchCreate）
+tagRouter.post('/:tagId/batch/create',  authorizeRoles('admin', 'a_admin', 'b_admin'), TC.batchCreate);
+tagRouter.post('/:tagId/batch/update',  authorizeRoles('admin', 'a_admin', 'b_admin'), TC.batchUpdate);
+tagRouter.post('/:tagId/batch/delete',  authorizeRoles('admin', 'a_admin', 'b_admin'), TC.batchDelete);
+tagRouter.post('/:tagId/batch/attach',  authorizeRoles('admin', 'a_admin', 'b_admin'), TC.batchAttach);
+tagRouter.post('/:tagId/batch/detach',  authorizeRoles('admin', 'a_admin', 'b_admin'), TC.batchDetach);

@@ -246,6 +246,15 @@ describe('ProjectSupportService.create', () => {
     expect(result.locked).toBeUndefined();
   });
 
+  // v3.7: 月结封档是治理动作，仅 admin 可绕过；a_admin（录入员）不再豁免。
+  it('a_admin is now blocked by month-lock (only admin bypasses)', async () => {
+    mockSettings.isDateLocked.mockResolvedValue(true);
+    const aAdminOperator = { accountId: 'acc-a', volunteerId: 'vol-a', name: '录入员A', role: 'a_admin' };
+    const result = await ProjectSupportService.create(baseInput, aAdminOperator);
+    expect(result.locked).toBeDefined();
+    expect(mockPrisma.projectSupport.create).not.toHaveBeenCalled();
+  });
+
   it('rejects nonexistent target volunteer', async () => {
     mockPrisma.volunteer.findUnique.mockResolvedValue(null);
     const result = await ProjectSupportService.create(baseInput, userOperator);
@@ -304,9 +313,19 @@ describe('ProjectSupportService.confirm', () => {
     expect(updateArgs.data.confirmedAt).toBeInstanceOf(Date);
   });
 
-  it('rejects confirm by non-owner non-admin', async () => {
+  // v3.7: b_admin 是"录入员"(reviewer)，可代确认他人记录。
+  it('lets a b_admin (录入员) confirm on behalf of the owner', async () => {
     mockPrisma.projectSupport.findUnique.mockResolvedValue(pendingRecord);
+    mockPrisma.projectSupport.update.mockResolvedValue({ ...pendingRecord, status: 'ACTIVE', confirmedAt: new Date() });
     const result = await ProjectSupportService.confirm('PS-PG-0001-001', otherUserOperator);
+    expect(result.forbidden).toBeUndefined();
+    expect(result.record?.status).toBe('ACTIVE');
+  });
+
+  it('rejects confirm by an unrelated regular user', async () => {
+    mockPrisma.projectSupport.findUnique.mockResolvedValue(pendingRecord);
+    const stranger = { ...userOperator, volunteerId: 'vol-stranger' };
+    const result = await ProjectSupportService.confirm('PS-PG-0001-001', stranger);
     expect(result.forbidden).toBeDefined();
     expect(mockPrisma.projectSupport.update).not.toHaveBeenCalled();
   });

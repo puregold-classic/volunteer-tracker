@@ -42,20 +42,25 @@ const SUPPORT_INCLUDE = {
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
-const isAdmin = (operator) => operator?.role === 'admin' || operator?.role === 'a_admin';
+// v3.7 权限重排：a_admin ≡ b_admin（"录入员"层）。跨人管理台账记录（改/删/确认/代确认、
+// 改受训考勤）= 录入员+（admin/a_admin/b_admin），走 isReviewer。而月结封档是治理动作，
+// 仅系统管理员可绕过锁编辑封档期记录，走 isSystemAdmin —— 否则封档对录入员形同虚设。
+const isReviewer = (operator) =>
+  operator?.role === 'admin' || operator?.role === 'a_admin' || operator?.role === 'b_admin';
+const isSystemAdmin = (operator) => operator?.role === 'admin';
 
 // v3.4.1: submitter can edit/remove their own proxy submissions (e.g. b_admin
 // fixing a typo in a record they filed for someone else).  Audit log captures
-// the diff, month-lock still applies.
+// the diff, month-lock still applies.  v3.7: 录入员（a_admin/b_admin）可跨人操作。
 const requireOwnerOrAdmin = (record, operator) => {
-  if (isAdmin(operator)) return null;
+  if (isReviewer(operator)) return null;
   if (record.volunteerId === operator?.volunteerId) return null;
   if (record.submittedById && record.submittedById === operator?.volunteerId) return null;
   return { forbidden: '只有本人、提交者或管理员可以操作此记录' };
 };
 
 const checkLock = async (serviceDate, operator) => {
-  if (isAdmin(operator)) return null;
+  if (isSystemAdmin(operator)) return null; // v3.7: 仅 admin 可绕过月结封档
   const locked = await SystemSettingsService.isDateLocked(serviceDate);
   if (locked) return { locked: '该日期所在的统计周期已封档，无法变更' };
   return null;
@@ -63,10 +68,10 @@ const checkLock = async (serviceDate, operator) => {
 
 // TRAINING_ATTENDANCE records are organizer-owned: they enter the system via
 // project-level batch attendance, never personal submission (see create()).
-// So even the nominal owner must not edit/delete them — only admins can correct
+// So even the nominal owner must not edit/delete them — only 录入员+ can correct
 // attendance. Mirrors the create()-time block on the personal-submit path.
 const requireEditableCategory = (record, operator) => {
-  if (isAdmin(operator)) return null;
+  if (isReviewer(operator)) return null;
   if (record.serviceItem?.category === 'TRAINING_ATTENDANCE') {
     return { forbidden: '受训考勤记录由组织方统一管理，不能本人修改或删除' };
   }
@@ -268,7 +273,7 @@ class ProjectSupportService {
 
     // Operator must be a real volunteer (admin can also use this endpoint; admin
     // submitting for someone else is treated as proxy).
-    if (!operator?.volunteerId && !isAdmin(operator)) {
+    if (!operator?.volunteerId && !isSystemAdmin(operator)) {
       return { forbidden: '只有志愿者或管理员可以提交项目服务记录' };
     }
 
@@ -301,7 +306,7 @@ class ProjectSupportService {
       operator.role === 'a_admin' ||
       operator.role === 'b_admin'
     );
-    const forcedByAdmin = !isSelfSubmit && isAdmin(operator) && input.forceActive;
+    const forcedByAdmin = !isSelfSubmit && isSystemAdmin(operator) && input.forceActive;
     const status = (isSelfSubmit || isPrivilegedProxy || forcedByAdmin)
       ? 'ACTIVE'
       : 'PENDING_CONFIRMATION';
@@ -472,7 +477,7 @@ class ProjectSupportService {
     }
 
     const isOwner = existing.volunteerId === operator?.volunteerId;
-    if (!isOwner && !isAdmin(operator)) {
+    if (!isOwner && !isReviewer(operator)) {
       return { forbidden: '只有本人可以确认此记录（管理员可代为确认）' };
     }
 
@@ -514,7 +519,7 @@ class ProjectSupportService {
     }
 
     const isOwner = existing.volunteerId === operator?.volunteerId;
-    if (!isOwner && !isAdmin(operator)) {
+    if (!isOwner && !isReviewer(operator)) {
       return { forbidden: '只有本人可以拒绝此记录（管理员可代为拒绝）' };
     }
 

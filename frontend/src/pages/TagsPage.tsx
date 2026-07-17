@@ -744,7 +744,8 @@ function ManualAttachDialog({
 export default function TagsPage() {
   const { account } = useAuth();
   const canAdmin = account && account.role === 'admin';
-  const canWriteTags = account && ['admin', 'a_admin'].includes(account.role);
+  // v3.7: 录入员+（含 b_admin）可写 tag / 批量录入受训；tag 组管理仍限 admin（canAdmin）
+  const canWriteTags = account && ['admin', 'a_admin', 'b_admin'].includes(account.role);
 
   const [groups, setGroups] = useState<TagGroup[]>([]);
   const [loading, setLoading] = useState(true);

@@ -5,15 +5,18 @@
 // also live here as they're fundamentally "tag-scoped bulk actions".
 //
 // Permission enforcement in this layer:
-//   - Tag CRUD = a_admin+ (or creator of group when openness=open for attach)
+//   - Tag CRUD = 录入员（b_admin+） (or creator of group when openness=open for attach)
 //   - Attach on open group by any authenticated user (subject to own-PS rule)
-//   - Batch ops on managed groups = a_admin+
-//   - Detach: caller must be owner of PS OR a_admin+
+//   - Batch ops on managed groups = 录入员（b_admin+）
+//   - Detach: caller must be owner of PS OR 录入员（b_admin+）
 
 import prisma from '../utils/prismaClient.js';
 import IDGenerator from '../utils/IDGenerator.js';
 import { serializeProjectSupport } from '../utils/serializer.js';
 
+// v3.7 权限重排：a_admin ≡ b_admin（都属"录入员"层）。tag 写操作 + 批量 = 录入员+
+// （admin/a_admin/b_admin），统一走 isBAdminOrAbove。isPrivileged（admin/a_admin）保留
+// 不删，作为将来 a_admin / b_admin 再分化时的现成接缝。
 const isPrivileged = (op) => op?.role === 'admin' || op?.role === 'a_admin';
 const isBAdminOrAbove = (op) => isPrivileged(op) || op?.role === 'b_admin';
 
@@ -70,9 +73,9 @@ class TagService {
     const group = await prisma.tagGroup.findUnique({ where: { id: groupId } });
     if (!group) return { validationError: `标签组不存在: ${groupId}` };
 
-    // closed group: only a_admin+ can add tags. open group: any authed volunteer.
-    if (group.openness === 'closed' && !isPrivileged(operator)) {
-      return { forbidden: '该组为 closed，只有 a_admin+ 可以添加 tag' };
+    // closed group: only 录入员（b_admin+） can add tags. open group: any authed volunteer.
+    if (group.openness === 'closed' && !isBAdminOrAbove(operator)) {
+      return { forbidden: '该组为 closed，只有 录入员（b_admin+） 可以添加 tag' };
     }
     // v3.7: pure system admin (volunteerId=null) may create tags — createdById is
     // now optional audit provenance, so no volunteer identity is required.
@@ -102,7 +105,7 @@ class TagService {
   static async update(id, patch, operator) {
     const existing = await prisma.tag.findUnique({ where: { id } });
     if (!existing) return { notFound: true };
-    if (!isPrivileged(operator)) return { forbidden: '修改 tag 需要 a_admin+' };
+    if (!isBAdminOrAbove(operator)) return { forbidden: '修改 tag 需要 录入员（b_admin+）' };
 
     const data = {};
     const changes = [];
@@ -134,7 +137,7 @@ class TagService {
       include: { _count: { select: { attachments: true } } },
     });
     if (!existing) return { notFound: true };
-    if (!isPrivileged(operator)) return { forbidden: '删除 tag 需要 a_admin+' };
+    if (!isBAdminOrAbove(operator)) return { forbidden: '删除 tag 需要 录入员（b_admin+）' };
 
     await prisma.$transaction(async (tx) => {
       await tx.tag.delete({ where: { id } });
@@ -153,7 +156,7 @@ class TagService {
    *  - support exists + ACTIVE
    *  - if group.boundServiceItemIds is non-empty, support.serviceItemId must be in list
    *  - if group.selectionMode='single', detach any existing tag from same group first
-   *  - caller permission: owner of PS or a_admin+/b_admin (録入員)
+   *  - caller permission: owner of PS or 录入员（b_admin+）/b_admin (録入員)
    */
   static async attach(tagId, supportId, operator) {
     const tag = await prisma.tag.findUnique({ where: { id: tagId }, include: { group: true } });
@@ -289,7 +292,7 @@ class TagService {
    * attach additionalTagIds. Reuses the name-matching / dedup pattern from
    * the old ProjectService.batchAttendance, generalized to any tag.
    *
-   * Requires tag.group.opMode === 'managed'. Only a_admin+ can invoke.
+   * Requires tag.group.opMode === 'managed'. Only 录入员（b_admin+） can invoke.
    *
    * payload: { names[], serviceItemId, serviceDate, duration, description?, additionalTagIds? }
    */
@@ -299,7 +302,7 @@ class TagService {
     if (tag.group.opMode !== 'managed') {
       return { forbidden: `标签组 "${tag.group.name}" 不是 managed 模式，不能批量创建` };
     }
-    if (!isPrivileged(operator)) return { forbidden: '批量创建需要 a_admin+' };
+    if (!isBAdminOrAbove(operator)) return { forbidden: '批量创建需要 录入员（b_admin+）' };
     if (!operator?.volunteerId) {
       return { forbidden: '操作员必须绑定 volunteer 档案' };
     }
@@ -481,7 +484,7 @@ class TagService {
     if (tag.group.opMode !== 'managed') {
       return { forbidden: `标签组 "${tag.group.name}" 不是 managed 模式` };
     }
-    if (!isPrivileged(operator)) return { forbidden: '批量修改需要 a_admin+' };
+    if (!isBAdminOrAbove(operator)) return { forbidden: '批量修改需要 录入员（b_admin+）' };
 
     const { patch = {}, scope = 'all', supportIds = [], dryRun = false } = payload;
 
@@ -568,7 +571,7 @@ class TagService {
     if (tag.group.opMode !== 'managed') {
       return { forbidden: `标签组 "${tag.group.name}" 不是 managed 模式` };
     }
-    if (!isPrivileged(operator)) return { forbidden: '批量删除需要 a_admin+' };
+    if (!isBAdminOrAbove(operator)) return { forbidden: '批量删除需要 录入员（b_admin+）' };
 
     const { scope = 'all', supportIds = [], dryRun = false } = payload;
 
@@ -630,7 +633,7 @@ class TagService {
   static async batchAttach(tagId, payload, operator) {
     const tag = await prisma.tag.findUnique({ where: { id: tagId }, include: { group: true } });
     if (!tag) return { notFound: true };
-    if (!isPrivileged(operator)) return { forbidden: '批量贴 tag 需要 a_admin+' };
+    if (!isBAdminOrAbove(operator)) return { forbidden: '批量贴 tag 需要 录入员（b_admin+）' };
 
     const { supportIds = [] } = payload;
     if (!Array.isArray(supportIds) || supportIds.length === 0) {
@@ -694,7 +697,7 @@ class TagService {
   static async batchDetach(tagId, payload, operator) {
     const tag = await prisma.tag.findUnique({ where: { id: tagId }, include: { group: true } });
     if (!tag) return { notFound: true };
-    if (!isPrivileged(operator)) return { forbidden: '批量解除关联需要 a_admin+' };
+    if (!isBAdminOrAbove(operator)) return { forbidden: '批量解除关联需要 录入员（b_admin+）' };
 
     const { supportIds = [] } = payload;
     if (!Array.isArray(supportIds) || supportIds.length === 0) {

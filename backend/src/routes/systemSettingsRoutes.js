@@ -6,6 +6,6 @@ import { authenticate, authorizeRoles } from '../middleware/authenticate.js';
 const router = express.Router();
 
 router.get('/', SystemSettingsController.get);
-router.post('/lock', authenticate, authorizeRoles('admin', 'a_admin'), SystemSettingsController.setLockedBefore);
+router.post('/lock', authenticate, authorizeRoles('admin'), SystemSettingsController.setLockedBefore);
 
 export default router;
