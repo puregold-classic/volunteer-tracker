@@ -85,6 +85,23 @@ describe('AccountService.createVolunteerAccount', () => {
     expect(result.validationError).toMatch(/省份/);
   });
 
+  // v3.7 防呆：省份必须规范全名
+  it('rejects a non-canonical province (辽宁 → needs 辽宁省)', async () => {
+    const result = await createVolunteerAccount({
+      volunteer: { ...validVolunteerInput, region: '中国大陆', province: '辽宁' },
+      account: validAccountInput,
+    });
+    expect(result.validationError).toMatch(/省份不规范/);
+  });
+
+  it('rejects 中国台湾 with a canonical-but-wrong province (must be 台湾省)', async () => {
+    const result = await createVolunteerAccount({
+      volunteer: { ...validVolunteerInput, region: '中国台湾', province: '北京市' },
+      account: validAccountInput,
+    });
+    expect(result.validationError).toMatch(/台湾省/);
+  });
+
   it('rejects nonexistent department', async () => {
     mockPrisma.department.findUnique.mockResolvedValue(null);
     const result = await createVolunteerAccount({ volunteer: validVolunteerInput, account: validAccountInput });

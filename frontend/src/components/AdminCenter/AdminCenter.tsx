@@ -54,6 +54,7 @@ import {
 } from '@/components/shared/form-fields';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { MAINLAND_PROVINCES, TAIWAN_PROVINCE } from '@/lib/provinces';
 
 interface AdminCenterProps {
   currentAccountId?: string;
@@ -123,6 +124,7 @@ const CreateVolunteerDialog: React.FC<{
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<CreateVolunteerForm>({
     resolver: zodResolver(createVolunteerSchema),
@@ -136,6 +138,8 @@ const CreateVolunteerDialog: React.FC<{
   const showProvince = region === '中国大陆' || region === '中国台湾';
 
   useEffect(() => { if (open) reset(); }, [open, reset]);
+  // 台湾只有「台湾省」，切到台湾时自动填上，省得用户手选
+  useEffect(() => { if (region === '中国台湾') setValue('province', TAIWAN_PROVINCE); }, [region, setValue]);
 
   const onSubmit = async (data: CreateVolunteerForm) => {
     const result = await authService.adminCreateVolunteerAccount({
@@ -215,10 +219,18 @@ const CreateVolunteerDialog: React.FC<{
             </FormSelect>
           </FormField>
           <FormField label={showProvince ? '省份 *' : '省份'} error={errors.province?.message}>
-            <FormInput
-              {...register('province')}
-              placeholder={showProvince ? '大陆 / 台湾必填' : '可选'}
-            />
+            {region === '中国大陆' ? (
+              <FormSelect {...register('province')}>
+                <option value="">— 选择省份 —</option>
+                {MAINLAND_PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </FormSelect>
+            ) : region === '中国台湾' ? (
+              <FormSelect {...register('province')}>
+                <option value={TAIWAN_PROVINCE}>{TAIWAN_PROVINCE}</option>
+              </FormSelect>
+            ) : (
+              <FormInput {...register('province')} placeholder="可选（海外地区）" />
+            )}
           </FormField>
         </div>
 
@@ -588,6 +600,7 @@ const EditAccountDialog: React.FC<{
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors, isSubmitting, dirtyFields },
   } = useForm<EditAccountForm>({
     resolver: zodResolver(editAccountSchema),
@@ -626,6 +639,10 @@ const EditAccountDialog: React.FC<{
       birthday: account.volunteer?.birthday ? account.volunteer.birthday.slice(0, 10) : '',
     });
   }, [account, reset]);
+  // 台湾只有「台湾省」；切到台湾自动填（标 dirty 以便随编辑保存）
+  useEffect(() => {
+    if (region === '中国台湾') setValue('province', TAIWAN_PROVINCE, { shouldDirty: true });
+  }, [region, setValue]);
 
   const onSubmit = async (data: EditAccountForm) => {
     if (!account) return;
@@ -764,7 +781,18 @@ const EditAccountDialog: React.FC<{
                 </FormSelect>
               </FormField>
               <FormField label={showProvince ? '省份 *' : '省份'} error={errors.province?.message}>
-                <FormInput {...register('province')} placeholder={showProvince ? '大陆 / 台湾必填' : '可选'} />
+                {region === '中国大陆' ? (
+                  <FormSelect {...register('province')}>
+                    <option value="">— 选择省份 —</option>
+                    {MAINLAND_PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </FormSelect>
+                ) : region === '中国台湾' ? (
+                  <FormSelect {...register('province')}>
+                    <option value={TAIWAN_PROVINCE}>{TAIWAN_PROVINCE}</option>
+                  </FormSelect>
+                ) : (
+                  <FormInput {...register('province')} placeholder="可选（海外地区）" />
+                )}
               </FormField>
               <FormField label="电话">
                 <FormInput {...register('phone')} placeholder="可选" />

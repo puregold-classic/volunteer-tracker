@@ -17,7 +17,9 @@ import {
   serializeVolunteer,
   VOLUNTEER_STATUS_TO_PG,
   REGION_TO_PG,
+  REGION_DISPLAY,
 } from '../utils/serializer.js';
+import { isValidProvince } from '../utils/provinces.js';
 
 const parseMulti = (value) => {
   const raw = Array.isArray(value) ? value.join(',') : value;
@@ -164,6 +166,19 @@ export const update = async (idOrCode, body) => {
     where: IDGenerator.isValidVolunteerCode(idOrCode) ? { volunteerCode: idOrCode } : { id: idOrCode },
   });
   if (!target) return null;
+
+  // v3.7 防呆：改省份时校验规范全名（region 为大陆/台湾时）。throw → controller 返回 400。
+  if (body.province) {
+    const effectiveRegion = body.region ?? REGION_DISPLAY[target.region] ?? target.region;
+    if (['中国大陆', '中国台湾'].includes(effectiveRegion)) {
+      if (!isValidProvince(body.province)) {
+        throw new Error(`省份不规范: "${body.province}"（需规范全名，如 辽宁省 而非 辽宁）`);
+      }
+      if (effectiveRegion === '中国台湾' && body.province !== '台湾省') {
+        throw new Error(`中国台湾 的省份应为「台湾省」，收到 "${body.province}"`);
+      }
+    }
+  }
 
   const data = {};
   if (body.chineseName !== undefined) data.chineseName = body.chineseName;

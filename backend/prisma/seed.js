@@ -280,7 +280,7 @@ const SAMPLE_VOLUNTEERS = [
   {
     chineseName: '陈推广', englishName: 'Chen Promo',
     email: 'sample-promo-user@vt.local', password: 'Sample@123',
-    role: 'user', region: '中国台湾', province: '台北市',
+    role: 'user', region: '中国台湾', province: '台湾省',
     departmentId: 'PROMO',
   },
 ];

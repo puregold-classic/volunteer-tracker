@@ -13,6 +13,7 @@ import prisma from '../utils/prismaClient.js';
 import { hashPassword } from '../utils/passwordUtils.js';
 import IDGenerator from '../utils/IDGenerator.js';
 import { normalizePhone } from '../utils/identifierUtils.js';
+import { isValidProvince } from '../utils/provinces.js';
 import {
   serializeAccount,
   serializeVolunteer,
@@ -48,8 +49,11 @@ const validateVolunteerPayload = (p) => {
   if (!p.englishName) return '英文姓名必填';
   if (!ALLOWED_STATUSES.includes(p.status)) return `状态非法: ${p.status}`;
   if (!ALLOWED_REGIONS.includes(p.region)) return `地区非法: ${p.region}`;
-  if (['中国大陆', '中国台湾'].includes(p.region) && !p.province) {
-    return `${p.region} 必须填写省份`;
+  if (['中国大陆', '中国台湾'].includes(p.region)) {
+    if (!p.province) return `${p.region} 必须填写省份`;
+    // v3.7 防呆：省份必须是规范全名（如 辽宁省，不能是 辽宁），否则热力图/按省筛选匹配不上
+    if (!isValidProvince(p.province)) return `省份不规范: "${p.province}"（需规范全名，如 辽宁省 而非 辽宁）`;
+    if (p.region === '中国台湾' && p.province !== '台湾省') return `中国台湾 的省份应为「台湾省」，收到 "${p.province}"`;
   }
   if (!p.departmentId) return '必须指定部门';
   return '';
