@@ -13,6 +13,7 @@ export { IDGenerator };
  */
 export function extractVolunteerCodeFromSupportId(supportId) {
   if (typeof supportId !== 'string') return null;
-  const match = supportId.match(/^PS-(PG-\d{4})-\d{3}$/);
+  // v3.6: owner code may be legacy "PG-0001" or 生日制 "0305a".
+  const match = supportId.match(/^PS-(PG-\d{4}|\d{4}[a-z])-\d{3}$/);
   return match ? match[1] : null;
 }

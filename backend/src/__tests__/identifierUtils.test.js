@@ -59,6 +59,17 @@ describe('detectIdentifierKind', () => {
     });
   });
 
+  // v3.6 生日制 code "0305a" — 4 digits + one letter, no dash. Regression for the
+  // login bug where these fell through to `invalid` (shape required a dash).
+  it('volunteerCode: 生日制 MMDDx shape, letter lower-cased', () => {
+    expect(detectIdentifierKind('0305a')).toEqual({
+      kind: 'volunteerCode', value: '0305a',
+    });
+    expect(detectIdentifierKind(' 0305A ')).toEqual({
+      kind: 'volunteerCode', value: '0305a',
+    });
+  });
+
   it('returns invalid for nonsense', () => {
     expect(detectIdentifierKind('').kind).toBe('invalid');
     expect(detectIdentifierKind('   ').kind).toBe('invalid');

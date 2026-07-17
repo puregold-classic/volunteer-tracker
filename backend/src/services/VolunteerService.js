@@ -11,6 +11,7 @@
 
 import prisma from '../utils/prismaClient.js';
 import QueryUtils from '../utils/queryUtils.js';
+import IDGenerator from '../utils/IDGenerator.js';
 import { normalizePhone } from '../utils/identifierUtils.js';
 import {
   serializeVolunteer,
@@ -107,12 +108,12 @@ export const findAll = async ({
 };
 
 /**
- * Lookup by either cuid (id) or volunteerCode (PG-XXXX).
- * Auto-detects by format.
+ * Lookup by either cuid (id) or volunteerCode (PG-0001 或生日制 0305a).
+ * Auto-detects by format via IDGenerator.isValidVolunteerCode (v3.6+).
  */
 export const findByIdOrCode = async (idOrCode) => {
   if (!idOrCode) return null;
-  const where = /^PG-\d{4}$/.test(idOrCode)
+  const where = IDGenerator.isValidVolunteerCode(idOrCode)
     ? { volunteerCode: idOrCode }
     : { id: idOrCode };
   const volunteer = await prisma.volunteer.findFirst({
@@ -160,7 +161,7 @@ export const getDerivedStats = async (volunteerId) => {
  */
 export const update = async (idOrCode, body) => {
   const target = await prisma.volunteer.findFirst({
-    where: /^PG-\d{4}$/.test(idOrCode) ? { volunteerCode: idOrCode } : { id: idOrCode },
+    where: IDGenerator.isValidVolunteerCode(idOrCode) ? { volunteerCode: idOrCode } : { id: idOrCode },
   });
   if (!target) return null;
 

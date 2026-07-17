@@ -78,7 +78,7 @@ function LoginPage() {
               type="text"
               value={identifier}
               onChange={(e) => { setIdentifier(e.target.value); setError(''); }}
-              placeholder="admin@example.com · 13812345678 · PG-0001"
+              placeholder="邮箱 · 手机号 · 志愿者ID（0305a 或 PG-0001）"
               disabled={submitting}
               autoComplete="username"
               error={!!error && !identifier}

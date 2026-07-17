@@ -43,7 +43,8 @@ export function normalizePhone(raw) {
  *
  * Anything else → `{ kind: 'invalid' }`.
  */
-const VOLUNTEER_CODE_SHAPE = /^[A-Za-z]{1,6}-[A-Za-z0-9]+$/;
+const LEGACY_CODE_SHAPE = /^[A-Za-z]{1,6}-[A-Za-z0-9]+$/; // "PG-0001"
+const BIRTHDAY_CODE_SHAPE = /^\d{4}[A-Za-z]$/;            // "0305a" (v3.6 生日制)
 
 export function detectIdentifierKind(raw) {
   if (typeof raw !== 'string') return { kind: 'invalid' };
@@ -54,14 +55,20 @@ export function detectIdentifierKind(raw) {
     return { kind: 'email', value: trimmed.toLowerCase() };
   }
 
-  // Try phone before code: "+86 138-0013-8001" should not be confused for a code.
+  // v3.6 生日制 code "0305a" — 4 digits + one letter, no dash. Checked before
+  // phone (normalizePhone strips to 4 digits < 10 → null anyway) and before the
+  // legacy dash shape. Stored form keeps the letter lowercase, so normalize it.
+  if (BIRTHDAY_CODE_SHAPE.test(trimmed)) {
+    return { kind: 'volunteerCode', value: trimmed.slice(0, 4) + trimmed.slice(4).toLowerCase() };
+  }
+
+  // Try phone before the dash code: "+86 138-0013-8001" should not be confused for a code.
   const phone = normalizePhone(trimmed);
   if (phone) return { kind: 'phone', value: phone };
 
-  // Remaining branch: volunteer code like "PG-0001". Must look code-shaped
-  // (letters + dash + alphanumerics) — random strings fail as invalid rather
-  // than hitting a useless DB lookup.
-  if (VOLUNTEER_CODE_SHAPE.test(trimmed)) {
+  // Legacy volunteer code like "PG-0001" (letters + dash + alphanumerics),
+  // stored uppercase. Random strings fail as invalid rather than a useless lookup.
+  if (LEGACY_CODE_SHAPE.test(trimmed)) {
     return { kind: 'volunteerCode', value: trimmed.toUpperCase() };
   }
   return { kind: 'invalid' };
