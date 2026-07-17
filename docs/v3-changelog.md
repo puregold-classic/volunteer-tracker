@@ -318,8 +318,9 @@ v3.6 加了生日制 code `0305a` 但只更新了 `isValidVolunteerCode`，漏�
 HTTP 实测：login `0305a`/`0305A`→成功，`GET /volunteers/0305a`→200，`PG-0001` 仍可用。后端 165 tests。
 
 > **volunteerCode 是不可变的人类 ID**：`supportId = PS-{code}-NNN` 内嵌了它，且它是登录标识。
-> 所以**后补生日不会自动改 code**（by design）——生日单独存 `Volunteer.birthday`，不丢。想要
-> 生日码就在建档时填生日；已有 PG 码的保持稳定。
+> **生日可后补/修改**（push `d268e86`：编辑表单加生日字段 + 后端 `update` 白名单加 birthday），
+> 但**补生日不重算 code**（by design）——生日单独存 `Volunteer.birthday`。想把已有 PG 码转成生日码
+> 只能走**显式的重发动作**（未实现，需要时再加，带"改登录 ID + 历史 supportId 保留旧码"警告）。
 
 ---
 
@@ -327,8 +328,8 @@ HTTP 实测：login `0305a`/`0305A`→成功，`GET /volunteers/0305a`→200，`
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | 3d7dde2 | v3.7 tag 可空 + 热门地点 + 权限三层重排 + 生日码登录修复 |
-| Mac mini sandbox | develop | 3d7dde2 | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
+| 本地 dev（WSL + Docker） | develop | d268e86 | v3.7 tag可空+热门地点+权限重排+生日码登录修复+生日可后补 |
+| Mac mini sandbox | develop | d268e86 | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
 | 生产 | — | — | 未上 |
 
 > v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy
