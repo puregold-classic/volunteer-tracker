@@ -326,3 +326,13 @@
     border-top-color: hsl(30 70% 42% / 0.9) !important;
   }
 }
+
+/*
+ * 密码框只保留我们自己的 show/hide 眼睛（见 components/ui/input.tsx）。
+ * Edge/IE 会给 type=password 额外加一个原生 reveal 按钮 (::-ms-reveal)，
+ * 和自定义眼睛叠成"两个眼睛"。这里把原生的隐藏掉。
+ */
+input[type='password']::-ms-reveal,
+input[type='password']::-ms-clear {
+  display: none;
+}
