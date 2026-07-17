@@ -412,17 +412,17 @@ const CsvImportDialog: React.FC<{
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
-      title="CSV 批量导入志愿者"
-      description="字段：chineseName, englishName, status, region, province, departmentId, email, phone, role, password"
+      title="Excel / CSV 粘贴导入志愿者"
+      description="从 Excel 直接复制粘贴即可（Tab 分隔，可不带表头）。无表头时按列顺序：中文名 · 英文名 · 状态 · 地区 · 省份 · 部门 · 邮箱 · 角色"
       className="sm:max-w-2xl"
     >
       <div className="space-y-4">
-        <FormField label="CSV 数据" required hint="字段顺序见 dialog 标题，第一行可省略表头">
+        <FormField label="粘贴数据" required hint="部门可写中文名（网络技术部）或 id（NET_TECH）；状态/地区/角色留空默认 在职 / 其他 / user">
           <FormTextarea
             rows={8}
             value={csvText}
             onChange={(e) => onCsvChange(e.target.value)}
-            placeholder={'chineseName,englishName,status,region,province,departmentId,email,role\n张三,Zhang San,在职,中国大陆,辽宁省,TECH,zhangsan@vt.local,user'}
+            placeholder={'从 Excel 选中整块直接粘贴，例如：\n张书语\twill\t在职\t中国大陆\t辽宁省\t网络技术部\t2441192638@qq.com\tuser'}
             className="font-mono text-xs leading-relaxed"
           />
         </FormField>
@@ -931,7 +931,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => setCsvImportOpen(true)}>
             <FileSpreadsheet className="h-4 w-4" />
-            CSV 导入
+            Excel 导入
           </Button>
           <Button type="button" variant="outline" size="sm" onClick={() => setCreateAdminOpen(true)}>
             <Shield className="h-4 w-4" />

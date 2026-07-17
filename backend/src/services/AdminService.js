@@ -51,16 +51,55 @@ const parseCsvLine = (line) => {
   return cells.map((v) => v.replace(/^"|"$/g, '').trim());
 };
 
-const toRowsFromCsv = (csvText) => {
-  const lines = String(csvText || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length < 2) return [];
-  const headers = parseCsvLine(lines[0]);
-  return lines.slice(1).map((line) => {
-    const values = parseCsvLine(line);
+// v3.7: 支持 Excel 直接粘贴（Tab 分隔）+ 无表头的定位模式 + 逗号 CSV。
+// - 分隔符：任一行含 Tab → Tab 模式（Excel 复制）；否则逗号。
+// - 表头：首行有已知字段名 → 按表头映射；否则按固定列序（POSITIONAL_ORDER）。
+const HEADER_TOKENS = new Set([
+  'chineseName', '中文姓名', '姓名', 'englishName', '英文姓名', 'status', '状态',
+  'region', '地区', 'province', '省份', 'departmentId', '部门', '部门ID', 'email', '邮箱',
+  'phone', '电话', 'role', '角色', 'birthday', '生日', '出生日期', 'password', '密码', 'name', '账号姓名',
+]);
+const POSITIONAL_ORDER = ['chineseName', 'englishName', 'status', 'region', 'province', 'departmentId', 'email', 'role', 'phone', 'birthday', 'password'];
+
+const splitLine = (line, delim) => (delim === '\t'
+  ? line.split('\t').map((v) => v.trim())
+  : parseCsvLine(line));
+
+const parseImportText = (text) => {
+  const lines = String(text || '').split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return [];
+  const delim = lines.some((l) => l.includes('\t')) ? '\t' : ',';
+  const firstCells = splitLine(lines[0], delim);
+  const hasHeader = firstCells.some((c) => HEADER_TOKENS.has(c));
+
+  if (hasHeader) {
+    return lines.slice(1).map((line) => {
+      const values = splitLine(line, delim);
+      const row = {};
+      firstCells.forEach((h, i) => { row[h] = values[i] ?? ''; });
+      return row;
+    });
+  }
+  // 无表头：按固定列序定位
+  return lines.map((line) => {
+    const values = splitLine(line, delim);
     const row = {};
-    headers.forEach((h, i) => { row[h] = values[i] ?? ''; });
+    POSITIONAL_ORDER.forEach((key, i) => { row[key] = values[i] ?? ''; });
     return row;
   });
+};
+
+// 部门可写 id（NET_TECH）或中文名（网络技术部）。解析成 id；解析不出返回 ''。
+const buildDeptResolver = async () => {
+  const depts = await prisma.department.findMany({ select: { id: true, name: true } });
+  const byId = new Set(depts.map((d) => d.id));
+  const byName = new Map(depts.map((d) => [d.name, d.id]));
+  return (raw) => {
+    const v = String(raw ?? '').trim();
+    if (!v) return '';
+    if (byId.has(v)) return v;
+    return byName.get(v) || '';
+  };
 };
 
 const pick = (obj, keys) => {
@@ -115,14 +154,13 @@ export const resetToSystemAdmin = async ({ confirm }) => {
  * 邮箱格式/已占用/本批次内重复、生日可解析。
  */
 export const validateVolunteersCsv = async ({ rows = [], csvText = '' } = {}) => {
-  const parsedRows = Array.isArray(rows) && rows.length > 0 ? rows : toRowsFromCsv(csvText);
+  const parsedRows = Array.isArray(rows) && rows.length > 0 ? rows : parseImportText(csvText);
   if (!Array.isArray(parsedRows) || parsedRows.length === 0) return { noData: true };
 
-  const [depts, accounts] = await Promise.all([
-    prisma.department.findMany({ select: { id: true } }),
+  const [resolveDept, accounts] = await Promise.all([
+    buildDeptResolver(),
     prisma.account.findMany({ select: { email: true } }),
   ]);
-  const deptIds = new Set(depts.map((d) => d.id));
   const takenEmails = new Set(accounts.map((a) => a.email.toLowerCase()));
   const seenEmails = new Set(); // 本批次内查重
 
@@ -141,8 +179,9 @@ export const validateVolunteersCsv = async ({ rows = [], csvText = '' } = {}) =>
       else if (f.region === '中国大陆' && !isValidProvince(f.province)) errors.push(`省份不规范: "${f.province}"（需规范全名，如 辽宁省 而非 辽宁）`);
     }
 
+    const resolvedDeptId = resolveDept(f.departmentId);
     if (!f.departmentId) errors.push('必须指定部门');
-    else if (!deptIds.has(f.departmentId)) errors.push(`部门不存在/不规范: "${f.departmentId}"`);
+    else if (!resolvedDeptId) errors.push(`部门不存在/不规范: "${f.departmentId}"（用部门名如 网络技术部 或 id 如 NET_TECH）`);
 
     if (!ALLOWED_ROLES.includes(f.role)) errors.push(`角色不规范: "${f.role}"`);
 
@@ -183,10 +222,12 @@ export const importVolunteersCsv = async ({
   csvText = '',
   defaultPassword = 'Volunteer@123',
 } = {}) => {
-  const parsedRows = Array.isArray(rows) && rows.length > 0 ? rows : toRowsFromCsv(csvText);
+  const parsedRows = Array.isArray(rows) && rows.length > 0 ? rows : parseImportText(csvText);
   if (!Array.isArray(parsedRows) || parsedRows.length === 0) {
     return { noData: true };
   }
+
+  const resolveDept = await buildDeptResolver();
 
   const result = {
     total: parsedRows.length,
@@ -197,23 +238,26 @@ export const importVolunteersCsv = async ({
 
   for (let idx = 0; idx < parsedRows.length; idx += 1) {
     const row = parsedRows[idx];
+    const f = rowToVolunteerFields(row);
+    // 部门可写 id 或中文名；解析成 id（解析不出保留原值让下游 createVolunteerAccount 报"部门不存在"）
+    const departmentId = resolveDept(f.departmentId) || f.departmentId;
     const volunteer = {
-      chineseName: pick(row, ['chineseName', '中文姓名', '姓名']),
-      englishName: pick(row, ['englishName', '英文姓名']),
-      status: pick(row, ['status', '状态']) || '在职',
-      region: pick(row, ['region', '地区']) || '其他',
-      province: pick(row, ['province', '省份']),
+      chineseName: f.chineseName,
+      englishName: f.englishName,
+      status: f.status,
+      region: f.region,
+      province: f.province,
       subRegion: pick(row, ['subRegion', '子地区']),
-      departmentId: pick(row, ['departmentId', '部门', '部门ID']),
-      email: pick(row, ['email', '邮箱']),
-      phone: pick(row, ['phone', '电话']),
-      birthday: pick(row, ['birthday', '生日', '出生日期']),
+      departmentId,
+      email: f.email,
+      phone: f.phone,
+      birthday: f.birthday,
     };
     const account = {
-      email: pick(row, ['email', '邮箱']),
+      email: f.email,
       password: pick(row, ['password', '密码']) || defaultPassword,
-      name: pick(row, ['name', '账号姓名']) || volunteer.chineseName,
-      role: pick(row, ['role', '角色']) || 'user',
+      name: pick(row, ['name', '账号姓名']) || f.chineseName,
+      role: f.role,
     };
 
     try {

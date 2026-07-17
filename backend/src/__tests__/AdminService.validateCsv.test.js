@@ -21,7 +21,11 @@ const HEADER = 'chineseName,englishName,status,region,province,departmentId,emai
 describe('AdminService.validateVolunteersCsv', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPrisma.department.findMany.mockResolvedValue([{ id: 'TECH' }, { id: 'BY_PROJECT' }]);
+    mockPrisma.department.findMany.mockResolvedValue([
+      { id: 'TECH', name: '技术部' },
+      { id: 'BY_PROJECT', name: '笔译项目管理' },
+      { id: 'NET_TECH', name: '网络技术部' },
+    ]);
     mockPrisma.account.findMany.mockResolvedValue([{ email: 'taken@vt.local' }]);
   });
 
@@ -68,5 +72,22 @@ describe('AdminService.validateVolunteersCsv', () => {
     const r = await run(['林一,Lin Yi,在职,中国台湾,台北市,TECH,tw@vt.local,user']);
     expect(r.rows[0].ok).toBe(false);
     expect(r.rows[0].errors.join()).toMatch(/台湾省/);
+  });
+
+  // v3.7: Excel 直接粘贴 = Tab 分隔 + 无表头 + 部门写中文名
+  it('accepts a headerless, TAB-separated Excel paste with department by name', async () => {
+    const r = await validateVolunteersCsv({
+      csvText: '张书语\twill\t在职\t中国大陆\t辽宁省\t网络技术部\t2441192638@qq.com\tuser',
+    });
+    expect(r.total).toBe(1);
+    expect(r.rows[0].ok).toBe(true);
+  });
+
+  it('flags an unknown department name in an Excel paste', async () => {
+    const r = await validateVolunteersCsv({
+      csvText: '李四\tLi Si\t在职\t中国大陆\t北京市\t不存在的部门\tx@vt.local\tuser',
+    });
+    expect(r.rows[0].ok).toBe(false);
+    expect(r.rows[0].errors.join()).toMatch(/部门不存在/);
   });
 });
