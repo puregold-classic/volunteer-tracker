@@ -179,6 +179,12 @@ export const update = async (idOrCode, body) => {
   }
   if (body.email !== undefined) data.email = body.email;
   if (body.phone !== undefined) data.phone = normalizePhone(body.phone);
+  // v3.7: birthday 可后补/修改。注意：这只更新 birthday 字段，**不重算 volunteerCode**
+  // ——code 是不可变的人类 ID（内嵌于 supportId + 登录标识）。想换生日码要走显式重发动作。
+  if (body.birthday !== undefined) {
+    const b = body.birthday ? new Date(String(body.birthday).trim()) : null;
+    data.birthday = b && !Number.isNaN(b.getTime()) ? b : null;
+  }
 
   const updated = await prisma.volunteer.update({
     where: { id: target.id },

@@ -502,6 +502,7 @@ const editAccountSchema = z.object({
   province: z.string().optional(),
   departmentId: z.string().optional(),
   phone: z.string().optional(),
+  birthday: z.string().optional(),
 });
 
 type EditAccountForm = z.infer<typeof editAccountSchema>;
@@ -555,6 +556,7 @@ const EditAccountDialog: React.FC<{
       province: account.volunteer?.province || '',
       departmentId: account.volunteer?.department?.id || '',
       phone: account.volunteer?.phone || '',
+      birthday: account.volunteer?.birthday ? account.volunteer.birthday.slice(0, 10) : '',
     });
   }, [account, reset]);
 
@@ -590,6 +592,8 @@ const EditAccountDialog: React.FC<{
       if (dirtyFields.province) volunteerPatch.province = data.province || null;
       if (dirtyFields.departmentId) volunteerPatch.departmentId = data.departmentId;
       if (dirtyFields.phone) volunteerPatch.phone = data.phone || null;
+      // v3.7: birthday 可后补/改；后端只更新字段，不重算 volunteerCode（ID 不可变）
+      if (dirtyFields.birthday) volunteerPatch.birthday = data.birthday || null;
 
       if (Object.keys(volunteerPatch).length > 0) {
         const res = await volunteerService.updateVolunteer(account.volunteerId, volunteerPatch as any);
@@ -697,6 +701,9 @@ const EditAccountDialog: React.FC<{
               </FormField>
               <FormField label="电话">
                 <FormInput {...register('phone')} placeholder="可选" />
+              </FormField>
+              <FormField label="生日" error={errors.birthday?.message} hint="补生日不改已有志愿者 ID（code 保持不变）">
+                <FormInput type="date" {...register('birthday')} />
               </FormField>
             </div>
           </div>

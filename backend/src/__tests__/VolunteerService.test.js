@@ -114,6 +114,14 @@ describe('findByIdOrCode', () => {
     expect(args.where).toEqual({ id: 'cmnqo0cv20031pe5f5jqzobve' });
   });
 
+  // v3.6 生日制 code: regression for the "0305a treated as cuid → 404" bug.
+  it('looks up by volunteerCode when input is a 生日制 code (0305a)', async () => {
+    mockPrisma.volunteer.findFirst.mockResolvedValue(null);
+    await findByIdOrCode('0305a');
+    const args = mockPrisma.volunteer.findFirst.mock.calls[0][0];
+    expect(args.where).toEqual({ volunteerCode: '0305a' });
+  });
+
   it('returns null for empty input', async () => {
     expect(await findByIdOrCode('')).toBeNull();
   });
@@ -139,6 +147,29 @@ describe('update', () => {
     expect(args.data.status).toBe('INACTIVE');
     expect(args.data.region).toBe('TAIWAN');
     expect(args.data.activityLevel).toBe('HIGH');
+  });
+
+  // v3.7: birthday 可后补，但 volunteerCode 不可变 —— update 只写 birthday，绝不碰 code。
+  it('sets birthday (as a Date) without ever touching volunteerCode', async () => {
+    mockPrisma.volunteer.findFirst.mockResolvedValue({ id: 'v1', volunteerCode: 'PG-0001' });
+    mockPrisma.volunteer.update.mockResolvedValue({
+      id: 'v1', volunteerCode: 'PG-0001', chineseName: '陈', status: 'ACTIVE',
+      region: 'MAINLAND', activityLevel: 'LOW', avatar: 'x', departmentId: 'PROMO',
+    });
+    const r = await update('PG-0001', { birthday: '1988-11-23' });
+    const args = mockPrisma.volunteer.update.mock.calls[0][0];
+    expect(args.data.birthday).toBeInstanceOf(Date);
+    expect(args.data.birthday.getUTCMonth() + 1).toBe(11);
+    expect(args.data).not.toHaveProperty('volunteerCode');
+    expect(r.volunteerCode).toBe('PG-0001'); // unchanged
+  });
+
+  it('clears birthday to null on empty string', async () => {
+    mockPrisma.volunteer.findFirst.mockResolvedValue({ id: 'v1', volunteerCode: 'PG-0001' });
+    mockPrisma.volunteer.update.mockResolvedValue({ id: 'v1', volunteerCode: 'PG-0001', status: 'ACTIVE', region: 'MAINLAND', activityLevel: 'LOW', avatar: 'x', departmentId: 'PROMO' });
+    await update('PG-0001', { birthday: '' });
+    const args = mockPrisma.volunteer.update.mock.calls[0][0];
+    expect(args.data.birthday).toBeNull();
   });
 });
 
