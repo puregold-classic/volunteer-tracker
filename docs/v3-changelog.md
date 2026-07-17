@@ -287,14 +287,34 @@ auditLog、重置月结锁定。**保留** 15 部门 / 77 服务项 / 5 tag 组 
 测试：后端 162（+2 `TagGroupService.test.js`：admin/null 可建 + a_admin 仍记 volunteerId）；本地以纯
 admin 端到端验证建 group+tag（`createdById=null`）+ 删除级联；Mac 验证 SetNull 后 tag 配置存活。
 
+### 权限三层重排（同批，push `2628c91`）
+
+按产品定位把 4 角色收敛成三层语义（**enum 不变，为将来分化留口子**），详见
+`docs/architecture.md#角色与权限模型`：
+
+- **user**：搜索 + 自己提交（不变）
+- **录入员（a_admin ≡ b_admin，暂时一致）**：代提交（直接 ACTIVE）/ 看台账·审计·导出 /
+  改志愿者信息 / 批量录入受训 + managed tag 批量 / 新建·改 tag / 跨人改·删·确认台账记录
+- **admin（治理层）**：独占 部门·服务项·tag 组配置 / 账号管理（含建志愿者账号）/ 月结锁定 /
+  封档期编辑豁免 / 重置系统
+
+净改动两处方向移动：**b_admin 补齐到 a_admin**（tag CRUD + 批量：`tagRoutes` 加 b_admin、
+`TagService` 写/批量 `isPrivileged`→`isBAdminOrAbove`、前端 `canWriteTags` 加 b_admin）；
+**a_admin 收敛**（建志愿者账号 → admin only；月结锁定 → admin only；`ProjectSupportService`
+`isAdmin` 拆成 `isReviewer`（录入员+ 跨人改删确认）+ `isSystemAdmin`（仅 admin 绕过月结封档））。
+
+坑：批量录入受训**不是独立 endpoint**，长在 Tag 系统里（`TagService.batchCreate`，走 managed
+tag 组的 `batch/create`），所以给录入员"批量录入受训"＝给它整个 managed tag 批量权限。
+HTTP 实测：a_admin 建账号/锁定→403，b_admin 建/删 tag→201/200。后端 164 tests。
+
 ---
 
 ## 当前部署状态（2026-07-17）
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | e521518 | v3.7 tag 可空 + 热门地点 |
-| Mac mini sandbox | develop | e521518 | https://dev.puregoldclassictranslation.com · v3.7 已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
+| 本地 dev（WSL + Docker） | develop | 2628c91 | v3.7 tag 可空 + 热门地点 + 权限三层重排 |
+| Mac mini sandbox | develop | 2628c91 | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
 | 生产 | — | — | 未上 |
 
 > v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy
@@ -308,7 +328,7 @@ admin 端到端验证建 group+tag（`createdById=null`）+ 删除级联；Mac �
 
 ### 测试覆盖
 
-- 后端：`make test` — 162 tests（v3.7 加 `TagGroupService.test.js` 2 个 nullable-owner 回归；v3.5 `TagService.test.js` 2 个 listSupports 回归）
+- 后端：`make test` — 164 tests（v3.7 加 `TagGroupService.test.js` 2 个 nullable-owner + 权限重排 3 个回归：b_admin 代确认 / a_admin 受月结锁 / unrelated-user 拒绝；v3.5 `TagService.test.js` 2 个 listSupports 回归）
 - 前端：`npx tsc --noEmit`
 - Playwright MCP dev-browser：v3.3 全流程人工走过（admin 建 tag → managed 批量 create/update → tag_only attach 流 → submit form tag picker → /me 账号设置）
 

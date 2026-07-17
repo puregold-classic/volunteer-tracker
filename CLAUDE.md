@@ -38,7 +38,7 @@
 - Node.js ESM + Express
 - Prisma ORM 6.19 + PostgreSQL 16（Mongo 已彻底退役）
 - JWT + bcrypt
-- 角色：`user / b_admin / a_admin / admin`（v2.1 起 admin 唯一允许 `volunteerId=null`）
+- 角色：`user / b_admin / a_admin / admin`（v2.1 起 admin 唯一允许 `volunteerId=null`）。**v3.7 三层重排**：语义收敛成 user / **录入员**（`a_admin`≡`b_admin`，暂时一致留分化口子）/ admin（治理层）。录入员＝代提交+台账+改志愿者+批量录入受训+建改 tag+跨人改删台账；admin 独占部门/服务项/tag组配置、账号管理、建志愿者账号、月结锁定。服务层双档：`isReviewer`（录入员+）vs `isSystemAdmin`（仅 admin，月结封档豁免）。详见 `docs/architecture.md#角色与权限模型`
 - 测试：vitest，5 个 service 测试文件，86 tests，~80% line coverage（详见 `backend/vitest.config.js`）
 - **架构约定**：controller 只做 HTTP 适配（解析请求 → 调用 service → 映射 HTTP 响应），业务逻辑全部放 `services/`
 - **创建账号统一入口**：`AccountService.createVolunteerAccount`（atomic transaction），所有创建路径（admin form / CSV import / register / seed）都走它。**禁止裸调用 `prisma.account.create` 或 `prisma.volunteer.create`**

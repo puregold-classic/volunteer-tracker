@@ -150,16 +150,19 @@ Prisma DSL 不能表达 partial unique index 和 CHECK constraint，所以 `2026
 
 ---
 
-## 角色与权限模型
+## 角色与权限模型（v3.7 三层重排）
+
+enum 保留 4 个角色，但**语义收敛成三层**：`user` / **录入员**（`a_admin` ≡ `b_admin`，暂时一致，为将来分化留口子）/ `admin`（治理层）。
 
 | 角色 | 创建方式 | volunteerId | 主要能力 |
 |---|---|---|---|
-| `user` | admin form / CSV import / register | 必须 | 提交自己的 ProjectSupport / 确认或拒绝代提交 / 查看自己的台账 |
-| `b_admin` | 同上 | 必须 | + 访问 `/review` 项目支援台账（只读） |
-| `a_admin` | 同上 | 必须 | + 月结锁定 / 创建志愿者账号 |
-| `admin` | bootstrap env vars / `/admin/admins` 接口 | NULL | + 创建/修改/删除任何账号 / 重置系统 |
+| `user` | 仅 admin 建（form / CSV / register） | 必须 | 搜索志愿者 / 提交自己的 ProjectSupport / 确认或拒绝代提交 / 看自己的台账 |
+| `b_admin` = `a_admin`（**录入员**）| 仅 admin 建 | 必须 | + 代提交（直接 ACTIVE）/ 看台账·审计·导出 / 改志愿者信息 / **批量录入受训** + managed tag 批量 / 新建·改 tag / 跨人改·删·确认台账记录 |
+| `admin`（治理层）| bootstrap env / `/admin/admins` | NULL | + 部门·服务项·**tag 组** 配置 / 账号管理（含**建志愿者账号**）/ **月结锁定** / 封档期编辑豁免 / 重置系统 |
 
-`admin` 是唯一可以 `volunteerId=null` 的角色，CHECK constraint 强制保证。`a_admin` 是 v2.1 引入的中间层（v1 没有），主要用来分担 admin 不能离场的依赖。
+- `admin` 是唯一 `volunteerId=null` 的角色（CHECK constraint 保证），v3.7 起彻底不需要志愿者替身（见 [tag createdById 可空](v3-changelog.md#v37)）。
+- **录入员分界**：`a_admin`/`b_admin` 现在权限完全一致。想让 a_admin 高于 b_admin 时，改 `ProjectSupportService.isReviewer` / `TagService.isBAdminOrAbove` / 各 `authorizeRoles` 列表即可（enum 已就位）。
+- 服务层双档判断：`isReviewer`（录入员+ = admin/a_admin/b_admin，跨人管理台账）vs `isSystemAdmin`（仅 admin，月结封档豁免）。tag 写/批量走 `isBAdminOrAbove`；tag 组配置走路由 `authorizeRoles('admin')`。
 
 ### 卡片点击的三态分流
 
