@@ -434,23 +434,8 @@ async function seedTagGroups() {
     console.log('  ✓ renamed tag group 培训 → 受训');
   }
 
-  // Tag groups require an owner volunteer. We pick the first a_admin sample
-  // (sample-ky-reviewer → 李口译) if present, else any volunteer, else skip.
-  const adminVol = await prisma.volunteer.findFirst({
-    where: {
-      account: { role: { in: ['a_admin', 'admin', 'b_admin'] } },
-    },
-    select: { id: true, chineseName: true, volunteerCode: true },
-    orderBy: { createdAt: 'asc' },
-  });
-  const ownerVol = adminVol ?? await prisma.volunteer.findFirst({
-    orderBy: { createdAt: 'asc' },
-    select: { id: true, chineseName: true, volunteerCode: true },
-  });
-  if (!ownerVol) {
-    console.log('  ⚠ no volunteer in DB — skipping tag group seed');
-    return;
-  }
+  // v3.7: tag groups are system/org config — seeded ones are system-owned
+  // (createdById = null). No longer需要库里先有 volunteer，也不再造占位号。
 
   let groupsCreated = 0;
   let groupsUpdated = 0;
@@ -502,7 +487,7 @@ async function seedTagGroups() {
         data: {
           name: g.name,
           ...groupData,
-          createdById: ownerVol.id,
+          createdById: null, // system-owned config
         },
       });
       groupsCreated += 1;
@@ -518,7 +503,7 @@ async function seedTagGroups() {
           data: {
             groupId: group.id,
             name: tagName,
-            createdById: ownerVol.id,
+            createdById: null, // system-owned config
           },
         });
         tagsCreated += 1;

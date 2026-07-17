@@ -93,9 +93,8 @@ class TagGroupService {
     if (!VALID_SELECTION.has(selectionMode)) return { validationError: `selectionMode 非法: ${selectionMode}` };
     if (!VALID_OP_MODE.has(opMode))           return { validationError: `opMode 非法: ${opMode}` };
     if (!VALID_OPENNESS.has(openness))        return { validationError: `openness 非法: ${openness}` };
-    if (!operator?.volunteerId) {
-      return { forbidden: '创建标签组需要 volunteer 身份（admin 请切到个人账号）' };
-    }
+    // v3.7: pure system admin (volunteerId=null) may create tag groups — createdById
+    // is now optional audit provenance, no volunteer identity required.
 
     // Validate bound service item ids all exist
     if (boundServiceItemIds.length > 0) {
@@ -118,7 +117,9 @@ class TagGroupService {
             opMode,
             openness,
             required,
-            createdById: operator.volunteerId,
+            // null when a pure system admin (volunteerId=null) creates it — tag
+            // groups are org-config, not owned. Provenance still lands in AuditLog.
+            createdById: operator.volunteerId ?? null,
           },
           include: GROUP_INCLUDE,
         });

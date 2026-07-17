@@ -383,8 +383,12 @@ model TagGroup {
   opMode               TagOpMode         @default(tag_only)
   openness             TagOpenness       @default(closed)
   required             Boolean           @default(false)
-  createdById          String
-  createdBy            Volunteer         @relation("CreatedTagGroups", fields: [createdById], references: [id])
+  // v3.7: nullable — tag groups are org-config (siblings of Department/ServiceItem),
+  // not user-owned content. createdBy is optional audit provenance (AuditLog is the
+  // real record); null = system-created. SetNull so a creator can be offboarded/
+  // hard-deleted without the tag config being held hostage by a Restrict FK.
+  createdById          String?
+  createdBy            Volunteer?        @relation("CreatedTagGroups", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
@@ -399,8 +403,9 @@ model Tag {
   groupId      String
   group        TagGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
   name         String
-  createdById  String
-  createdBy    Volunteer @relation("CreatedTags", fields: [createdById], references: [id])
+  // v3.7: nullable audit provenance (see TagGroup.createdById). null = system-created.
+  createdById  String?
+  createdBy    Volunteer? @relation("CreatedTags", fields: [createdById], references: [id], onDelete: SetNull)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

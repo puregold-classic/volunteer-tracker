@@ -74,9 +74,8 @@ class TagService {
     if (group.openness === 'closed' && !isPrivileged(operator)) {
       return { forbidden: '该组为 closed，只有 a_admin+ 可以添加 tag' };
     }
-    if (!operator?.volunteerId) {
-      return { forbidden: '需要 volunteer 身份才能创建 tag' };
-    }
+    // v3.7: pure system admin (volunteerId=null) may create tags — createdById is
+    // now optional audit provenance, so no volunteer identity is required.
 
     try {
       const created = await prisma.$transaction(async (tx) => {
@@ -84,7 +83,7 @@ class TagService {
           data: {
             groupId,
             name: String(name).trim(),
-            createdById: operator.volunteerId,
+            createdById: operator.volunteerId ?? null,
           },
           include: TAG_INCLUDE,
         });
