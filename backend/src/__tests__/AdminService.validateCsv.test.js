@@ -54,18 +54,24 @@ describe('AdminService.validateVolunteersCsv', () => {
     expect(r.rows[0].errors.join()).toMatch(/省份不规范/);
   });
 
-  it('flags missing englishName, bad role, and taken/duplicate email', async () => {
+  it('flags missing chineseName, bad role, and taken/duplicate email', async () => {
     const r = await run([
-      '赵六,,在职,中国大陆,北京市,TECH,c@vt.local,user',      // no englishName
+      ',No CN,在职,中国大陆,北京市,TECH,c@vt.local,user',        // no chineseName
       '钱七,Qian Qi,在职,中国大陆,北京市,TECH,taken@vt.local,user', // email taken
       '孙八,Sun Ba,在职,中国大陆,北京市,TECH,dup@vt.local,boss',   // bad role
       '周九,Zhou Jiu,在职,中国大陆,北京市,TECH,dup@vt.local,user', // dup within batch
     ]);
     expect(r.invalidCount).toBe(4);
-    expect(r.rows[0].errors.join()).toMatch(/英文姓名必填/);
+    expect(r.rows[0].errors.join()).toMatch(/中文姓名必填/);
     expect(r.rows[1].errors.join()).toMatch(/已被占用/);
     expect(r.rows[2].errors.join()).toMatch(/角色不规范/);
     expect(r.rows[3].errors.join()).toMatch(/重复/);
+  });
+
+  // v3.7: englishName 现为选填
+  it('accepts a row with no englishName', async () => {
+    const r = await run(['独名,,在职,中国大陆,北京市,TECH,solo@vt.local,user']);
+    expect(r.rows[0].ok).toBe(true);
   });
 
   it('requires province for 中国台湾 to be exactly 台湾省', async () => {

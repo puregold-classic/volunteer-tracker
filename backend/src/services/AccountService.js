@@ -46,7 +46,7 @@ const isVolunteerCodeConflict = (err) => {
 
 const validateVolunteerPayload = (p) => {
   if (!p.chineseName) return '中文姓名必填';
-  if (!p.englishName) return '英文姓名必填';
+  // v3.7: englishName 改选填（前端 zod 本就 optional，这里跟齐；收集时很多人没英文名）
   if (!ALLOWED_STATUSES.includes(p.status)) return `状态非法: ${p.status}`;
   if (!ALLOWED_REGIONS.includes(p.region)) return `地区非法: ${p.region}`;
   if (['中国大陆', '中国台湾'].includes(p.region)) {

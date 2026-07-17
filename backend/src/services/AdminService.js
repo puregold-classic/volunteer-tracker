@@ -28,7 +28,7 @@ const rowToVolunteerFields = (row) => ({
   province: pick(row, ['province', '省份']),
   departmentId: pick(row, ['departmentId', '部门', '部门ID']),
   email: pick(row, ['email', '邮箱']),
-  phone: pick(row, ['phone', '电话']),
+  phone: pick(row, ['phone', '电话', '手机号', '手机']),
   role: pick(row, ['role', '角色']) || 'user',
   birthday: pick(row, ['birthday', '生日', '出生日期']),
 });
@@ -57,7 +57,7 @@ const parseCsvLine = (line) => {
 const HEADER_TOKENS = new Set([
   'chineseName', '中文姓名', '姓名', 'englishName', '英文姓名', 'status', '状态',
   'region', '地区', 'province', '省份', 'departmentId', '部门', '部门ID', 'email', '邮箱',
-  'phone', '电话', 'role', '角色', 'birthday', '生日', '出生日期', 'password', '密码', 'name', '账号姓名',
+  'phone', '电话', '手机号', '手机', 'role', '角色', 'birthday', '生日', '出生日期', 'password', '密码', 'name', '账号姓名',
 ]);
 const POSITIONAL_ORDER = ['chineseName', 'englishName', 'status', 'region', 'province', 'departmentId', 'email', 'role', 'phone', 'birthday', 'password'];
 
@@ -169,7 +169,6 @@ export const validateVolunteersCsv = async ({ rows = [], csvText = '' } = {}) =>
     const errors = [];
 
     if (!f.chineseName) errors.push('中文姓名必填');
-    if (!f.englishName) errors.push('英文姓名必填');
     if (!ALLOWED_STATUSES.includes(f.status)) errors.push(`状态不规范: "${f.status}"（应为 在职/不在职）`);
     if (!ALLOWED_REGIONS.includes(f.region)) errors.push(`地区不规范: "${f.region}"`);
 
