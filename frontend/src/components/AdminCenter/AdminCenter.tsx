@@ -27,6 +27,7 @@ import { z } from 'zod';
 import {
   AlertTriangle,
   Check,
+  Download,
   FileSpreadsheet,
   KeyRound,
   Pencil,
@@ -349,6 +350,15 @@ const CsvImportDialog: React.FC<{
       className="sm:max-w-2xl"
     >
       <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2">
+          <span className="text-sm text-muted-foreground">先下载模板发给大家填，填好后把表格整块复制粘贴到下面</span>
+          <Button type="button" variant="outline" size="sm" asChild>
+            <a href="/volunteer-import-template.xlsx" download="志愿者导入模板.xlsx">
+              <Download className="h-4 w-4" />
+              下载模板
+            </a>
+          </Button>
+        </div>
         <FormField label="粘贴数据" required hint="部门可写中文名（网络技术部）或 id（NET_TECH）；状态/地区/角色留空默认 在职 / 其他 / user">
           <FormTextarea
             rows={8}
