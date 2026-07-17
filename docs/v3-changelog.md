@@ -252,12 +252,49 @@ id code 全部保持稳定（历史 FK / 记录不破），只改显示名 + 重
 
 ---
 
-## 当前部署状态（2026-06-24）
+## v3.7 — tag createdById 可空 + 首页热门地点（2026-07-17 落地）
+
+### 目的
+
+- **tag 不再需要 owner。** `TagGroup`/`Tag` 是**组织配置**（Department/ServiceItem 的兄弟），
+  不是用户拥有的内容。旧 schema 把 `createdById` 设成必填 FK，等于把审计信息当结构性必填，
+  造成三个问题：(1) 权限本是**按角色** gate（group 建仅 `admin`），但 `admin.volunteerId=null`
+  又被 service guard 拦 → **改动前 API 根本建不了 tag 组，只有 seed 能**；(2) 清空志愿者时
+  为保 tag 配置被迫留占位号 volunteer；(3) `onDelete: Restrict` 把 tag 配置的存活耦合到某个
+  志愿者的存活上（建过 tag 的人无法 offboard/硬删）。
+- 收益：**系统管理员成为纯粹的系统管理员**，不再需要志愿者替身身份。
+
+### 落地清单
+
+- **schema**（`20260717174244_tag_created_by_nullable`）
+  - `TagGroup.createdById` / `Tag.createdById` → `String?`，FK 改 `onDelete: SetNull`
+  - 审计溯源不丢——真值一直在 `AuditLog`（operator 快照）
+- **后端**
+  - 拆掉 `TagService.create` / `TagGroupService.create` 里「需要 volunteer 身份」的 guard
+    （与「group 创建仅 admin、admin.volunteerId=null」自相矛盾）。纯 admin 建 tag → `createdById=null`
+  - `seed.js`：tag 组/tag 以 `createdById=null` 建，去掉「必须先有 volunteer」前置 + 不再造占位号
+  - 前端无改动：`createdBy` 已是 `VolunteerSummary | null`，且 UI 从不渲染 tag 创建者
+- **首页热门地点**（`useHomeState.ts` `HOT_LOCATIONS`）：广东/浙江/台湾省 → **北京/上海/广东/香港/澳门**。
+  地图是省级 GeoJSON（含 `香港特别行政区`/`澳门特别行政区`），无市级多边形，故广州并入广东省。
+  另：热力图 🔥 图标是数据驱动（`heatmapAvailable = provinceCounts.length>0`），0 志愿者时自动隐藏，非 bug。
+
+### Mac sandbox 清库（2026-07-17，正式测试前）
+
+清成纯净基线：删占位号 volunteer（`SetNull` 令 5 tag 组 + 19 tag 归系统所有）、清空 82 条
+auditLog、重置月结锁定。**保留** 15 部门 / 77 服务项 / 5 tag 组 / 19 tag / admin 账号。
+台账"残留提交记录"实为浏览器缓存——DB 层 `projectSupport=0`（硬刷新即清）。
+
+测试：后端 162（+2 `TagGroupService.test.js`：admin/null 可建 + a_admin 仍记 volunteerId）；本地以纯
+admin 端到端验证建 group+tag（`createdById=null`）+ 删除级联；Mac 验证 SetNull 后 tag 配置存活。
+
+---
+
+## 当前部署状态（2026-07-17）
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | aa247d7 | v3.6 birthday + 首页分组筛选 |
-| Mac mini sandbox | develop | aa247d7 | https://dev.puregoldclassictranslation.com · v3.5+v3.6 已 deploy + reseed |
+| 本地 dev（WSL + Docker） | develop | e521518 | v3.7 tag 可空 + 热门地点 |
+| Mac mini sandbox | develop | e521518 | https://dev.puregoldclassictranslation.com · v3.7 已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
 | 生产 | — | — | 未上 |
 
 > v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy
@@ -267,11 +304,11 @@ id code 全部保持稳定（历史 FK / 记录不破），只改显示名 + 重
 ### 登录凭证（sandbox）
 
 - Admin：`admin@puregoldclassictranslation.com` / `q4m2GlqtriDp0cglzGqa`
-- 样例志愿者：`PG-0001` … `PG-0004` / `Sample@123`（也可用手机号登，但 seed 没给 phone，需 admin 手动补）
+- 样例志愿者：`PG-0001` … `PG-0004` / `Sample@123`（**仅本地 seed 有**；Mac 2026-07-17 已清库，只剩 admin，等正式测试录真数据）
 
 ### 测试覆盖
 
-- 后端：`make test` — 148 tests（v3.5 加 `TagService.test.js` 2 个 listSupports 回归）
+- 后端：`make test` — 162 tests（v3.7 加 `TagGroupService.test.js` 2 个 nullable-owner 回归；v3.5 `TagService.test.js` 2 个 listSupports 回归）
 - 前端：`npx tsc --noEmit`
 - Playwright MCP dev-browser：v3.3 全流程人工走过（admin 建 tag → managed 批量 create/update → tag_only attach 流 → submit form tag picker → /me 账号设置）
 

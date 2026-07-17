@@ -2,7 +2,7 @@
 
 全球志愿者可视化管理系统。地图展示分布、按部门组织、自管 + 代提交项目支援记录。
 
-**当前 schema 版本**：**v2.1 + v3 增量**（v2.1 于 2026-04-08 落地；v3 `service_category` 迁移于 2026-04-17）。部门/服务的最新状态是 **v3.5 三大组 reorg**（2026-06-24，纯 seed 数据，无 schema migration）。**v3.6**（2026-06-24）加了生日制 `volunteerCode` + `Volunteer.birthday` migration + 首页部门分组 hover 筛选。详见 `backend/prisma/schema.prisma` + `backend/prisma/seed.js` + `docs/v3-changelog.md`。
+**当前 schema 版本**：**v2.1 + v3 增量**（v2.1 于 2026-04-08 落地；v3 `service_category` 迁移于 2026-04-17）。部门/服务的最新状态是 **v3.5 三大组 reorg**（2026-06-24，纯 seed 数据，无 schema migration）。**v3.6**（2026-06-24）加了生日制 `volunteerCode` + `Volunteer.birthday` migration + 首页部门分组 hover 筛选。**v3.7**（2026-07-17）把 `TagGroup/Tag.createdById` 改可空 + FK `onDelete: SetNull`（migration `20260717174244_tag_created_by_nullable`）——tag 组是组织配置不是用户拥有物，纯 admin 可建 tag，系统管理员不再需要志愿者替身身份。详见 `backend/prisma/schema.prisma` + `backend/prisma/seed.js` + `docs/v3-changelog.md`。
 
 ## 核心模型（最重要）
 
