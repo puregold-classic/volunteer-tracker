@@ -322,21 +322,11 @@ function MePage({ onBackHome }: MePageProps) {
     );
   }
 
-  // Admin gets the AdminCenter inline. AdminCenter owns the page title;
-  // MePage wrapper just provides session controls (back home / logout)
-  // floating top-right.
+  // Admin gets the AdminCenter inline. AdminCenter owns the page title.
+  // 返回首页/退出 已由全局 Header 提供（Logo 回首页 + "退出登录"），这里不再重复。
   if (isSystemAdmin) {
     return (
       <div className="mx-auto max-w-5xl">
-        <div className="mb-3 flex items-center justify-end gap-2 px-1">
-          <Button type="button" variant="outline" size="sm" onClick={onBackHome}>
-            返回首页
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => void logout()}>
-            <LogOut className="h-4 w-4" />
-            退出
-          </Button>
-        </div>
         <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">加载管理中心…</p>}>
           <AdminCenter currentAccountId={account?.id} />
         </Suspense>
