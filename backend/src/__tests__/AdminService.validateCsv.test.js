@@ -97,6 +97,25 @@ describe('AdminService.validateVolunteersCsv', () => {
     expect(r.rows[0].errors.join()).toMatch(/部门不存在/);
   });
 
+  // v3.8: 部长导入作用域 —— 强制本部门 + 只允许 user/b_admin。
+  it('部长 scope: forces department (ignores CSV dept) and passes a user row', async () => {
+    const scope = { forceDepartmentId: 'TECH', allowedRoles: ['user', 'b_admin'] };
+    // 部门列写"瞎写部门"，本应报错；但部长 scope 强制成 TECH → 通过
+    const r = await validateVolunteersCsv({
+      csvText: '李四\tLi\t在职\t中国大陆\t广东省\t瞎写部门\tl@ex.com\t\t\tuser', scope,
+    });
+    expect(r.rows[0].ok).toBe(true);
+  });
+
+  it('部长 scope: rejects a row whose role is a_admin/admin (越权)', async () => {
+    const scope = { forceDepartmentId: 'TECH', allowedRoles: ['user', 'b_admin'] };
+    const r = await validateVolunteersCsv({
+      csvText: '张三\tZhang\t在职\t中国大陆\t辽宁省\t技术部\tz@ex.com\t\t\ta_admin', scope,
+    });
+    expect(r.rows[0].ok).toBe(false);
+    expect(r.rows[0].errors.join()).toMatch(/角色越权/);
+  });
+
   // 回归：无表头定位顺序必须和模板列序一致（手机号·生日·角色 的位置）。
   // 旧顺序会把手机号当角色、角色当生日 —— 用户截图里的报错。
   it('parses a headerless row in template column order (手机号/生日/角色 positions)', async () => {

@@ -87,7 +87,9 @@ class AdminController {
 
   static async importVolunteersCsv(req, res) {
     try {
-      const result = await AdminService.importVolunteersCsv(req.body);
+      const scope = AdminController._deptImportScope(req.user);
+      if (scope === 'no-dept') return fail(res, 403, '部长账号未绑定部门，无法导入');
+      const result = await AdminService.importVolunteersCsv({ ...req.body, scope });
       if (result.noData) return fail(res, 400, '未提供可导入数据');
       return res.status(200).json({ success: true, data: result });
     } catch (err) {
@@ -96,9 +98,18 @@ class AdminController {
   }
 
   // v3.7: 提交前逐行 dry-run 校验（不写库）
+  // v3.8: 部长导入的作用域（强制本部门 + 限 user/b_admin）；admin → null。未绑部门 → 'no-dept'。
+  static _deptImportScope(user) {
+    if (user.role !== 'a_admin') return null;
+    if (!user.departmentId) return 'no-dept';
+    return { forceDepartmentId: user.departmentId, allowedRoles: DEPT_HEAD_ASSIGNABLE_ROLES };
+  }
+
   static async validateVolunteersCsv(req, res) {
     try {
-      const result = await AdminService.validateVolunteersCsv(req.body);
+      const scope = AdminController._deptImportScope(req.user);
+      if (scope === 'no-dept') return fail(res, 403, '部长账号未绑定部门，无法导入');
+      const result = await AdminService.validateVolunteersCsv({ ...req.body, scope });
       if (result.noData) return fail(res, 400, '未提供可校验数据');
       return res.status(200).json({ success: true, data: result });
     } catch (err) {

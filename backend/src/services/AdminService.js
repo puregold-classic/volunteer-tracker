@@ -155,7 +155,8 @@ export const resetToSystemAdmin = async ({ confirm }) => {
  * **省份规范全名**（大陆/台湾必填且为规范省名，如 辽宁省 而非 辽宁）、
  * 邮箱格式/已占用/本批次内重复、生日可解析。
  */
-export const validateVolunteersCsv = async ({ rows = [], csvText = '' } = {}) => {
+// scope（v3.8 部长导入用）：{ forceDepartmentId, allowedRoles } —— 强制每行部门 + 限定可导入角色。
+export const validateVolunteersCsv = async ({ rows = [], csvText = '', scope = null } = {}) => {
   const parsedRows = Array.isArray(rows) && rows.length > 0 ? rows : parseImportText(csvText);
   if (!Array.isArray(parsedRows) || parsedRows.length === 0) return { noData: true };
 
@@ -168,9 +169,14 @@ export const validateVolunteersCsv = async ({ rows = [], csvText = '' } = {}) =>
 
   const outRows = parsedRows.map((row, idx) => {
     const f = rowToVolunteerFields(row);
+    // v3.8 部长导入：部门强制归本部门（忽略表格里的部门列）
+    if (scope?.forceDepartmentId) f.departmentId = scope.forceDepartmentId;
     const errors = [];
 
     if (!f.chineseName) errors.push('中文姓名必填');
+    if (scope?.allowedRoles && !scope.allowedRoles.includes(f.role)) {
+      errors.push(`角色越权: "${f.role}"（部长只能导入 志愿者(user) / 录入员(b_admin)）`);
+    }
     if (!ALLOWED_STATUSES.includes(f.status)) errors.push(`状态不规范: "${f.status}"（应为 在职/不在职）`);
     if (!ALLOWED_REGIONS.includes(f.region)) errors.push(`地区不规范: "${f.region}"`);
 
@@ -222,6 +228,7 @@ export const importVolunteersCsv = async ({
   rows = [],
   csvText = '',
   defaultPassword = 'Volunteer@123',
+  scope = null, // v3.8 部长导入：{ forceDepartmentId, allowedRoles }
 } = {}) => {
   const parsedRows = Array.isArray(rows) && rows.length > 0 ? rows : parseImportText(csvText);
   if (!Array.isArray(parsedRows) || parsedRows.length === 0) {
@@ -240,6 +247,13 @@ export const importVolunteersCsv = async ({
   for (let idx = 0; idx < parsedRows.length; idx += 1) {
     const row = parsedRows[idx];
     const f = rowToVolunteerFields(row);
+    // v3.8 部长导入：部门强制本部门；角色越权直接跳过
+    if (scope?.forceDepartmentId) f.departmentId = scope.forceDepartmentId;
+    if (scope?.allowedRoles && !scope.allowedRoles.includes(f.role)) {
+      result.skipped += 1;
+      result.errors.push({ row: idx + 1, error: `角色越权: "${f.role}"（部长只能导入 user/b_admin）` });
+      continue;
+    }
     // 部门可写 id 或中文名；解析成 id（解析不出保留原值让下游 createVolunteerAccount 报"部门不存在"）
     const departmentId = resolveDept(f.departmentId) || f.departmentId;
     const volunteer = {

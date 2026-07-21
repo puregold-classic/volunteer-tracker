@@ -31,8 +31,9 @@ router.delete('/admin/accounts/:accountId', authenticate, authorizeRoles('admin'
 router.post('/admin/volunteers', authenticate, authorizeRoles('admin', 'a_admin'), AdminController.createVolunteerAccount);
 // v3.7: 关闭"新增系统 admin"接口 —— 系统 admin 仅由启动 bootstrap 创建。
 // createAdminAccount service 仍保留（供 createInitialAdmin / resetToSystemAdmin 调用），只是不再暴露 HTTP 入口。
-router.post('/admin/import-volunteers/validate', authenticate, authorizeRoles('admin'), AdminController.validateVolunteersCsv);
-router.post('/admin/import-volunteers', authenticate, authorizeRoles('admin'), AdminController.importVolunteersCsv);
+// v3.8: 部长也可批量导入（service 层强制本部门 + 限 user/b_admin）
+router.post('/admin/import-volunteers/validate', authenticate, authorizeRoles('admin', 'a_admin'), AdminController.validateVolunteersCsv);
+router.post('/admin/import-volunteers', authenticate, authorizeRoles('admin', 'a_admin'), AdminController.importVolunteersCsv);
 router.post('/admin/reset-system', authenticate, authorizeRoles('admin'), AdminController.resetSystem);
 
 export default router;

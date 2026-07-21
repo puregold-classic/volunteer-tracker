@@ -289,7 +289,9 @@ const CsvImportDialog: React.FC<{
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onImported: () => void;
-}> = ({ open, onOpenChange, onImported }) => {
+  isDeptHead?: boolean;
+  deptName?: string | null;
+}> = ({ open, onOpenChange, onImported, isDeptHead = false, deptName = null }) => {
   const [csvText, setCsvText] = useState('');
   const [defaultPassword, setDefaultPassword] = useState('Volunteer@123');
   const [submitting, setSubmitting] = useState(false);
@@ -360,6 +362,11 @@ const CsvImportDialog: React.FC<{
       className="sm:max-w-2xl"
     >
       <div className="space-y-4">
+        {isDeptHead && (
+          <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
+            📌 导入的志愿者都会归到你的部门<b>{deptName ? `「${deptName}」` : ''}</b>（表格里的部门列会被忽略）；角色只能是 志愿者 / 录入员。
+          </div>
+        )}
         <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2">
           <span className="text-sm text-muted-foreground">先下载模板发给大家填，填好后把表格整块复制粘贴到下面</span>
           <Button type="button" variant="outline" size="sm" asChild>
@@ -889,12 +896,10 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
             <RefreshCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
             刷新
           </Button>
-          {!isDeptHead && (
-            <Button type="button" variant="outline" size="sm" onClick={() => setCsvImportOpen(true)}>
-              <FileSpreadsheet className="h-4 w-4" />
-              Excel 导入
-            </Button>
-          )}
+          <Button type="button" variant="outline" size="sm" onClick={() => setCsvImportOpen(true)}>
+            <FileSpreadsheet className="h-4 w-4" />
+            Excel 导入
+          </Button>
           <Button type="button" size="sm" onClick={() => setCreateVolunteerOpen(true)}>
             <UserPlus className="h-4 w-4" />
             新增志愿者
@@ -1197,6 +1202,8 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
         open={csvImportOpen}
         onOpenChange={setCsvImportOpen}
         onImported={refresh}
+        isDeptHead={isDeptHead}
+        deptName={currentUser?.departmentName ?? null}
       />
       <SystemResetDialog
         open={systemResetOpen}
