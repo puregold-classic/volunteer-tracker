@@ -165,21 +165,21 @@ describe('AccountService.createAdminAccount', () => {
 describe('AccountService.updateAccount', () => {
   it('rejects self-edit', async () => {
     mockPrisma.account.findUnique.mockResolvedValue({ id: 'me', role: 'admin' });
-    const result = await updateAccount('me', { name: 'New' }, 'me');
+    const result = await updateAccount('me', { name: 'New' }, { accountId: 'me', role: 'admin' });
     expect(result.selfEdit).toBe(true);
   });
 
   it('rejects demoting last admin', async () => {
     mockPrisma.account.findUnique.mockResolvedValue({ id: 'admin-1', role: 'admin', volunteerId: null });
     mockPrisma.account.count.mockResolvedValue(1);
-    const result = await updateAccount('admin-1', { role: 'user' }, 'someone-else');
+    const result = await updateAccount('admin-1', { role: 'user' }, { accountId: 'someone-else', role: 'admin' });
     expect(result.lastAdmin).toBe(true);
   });
 
   it('rejects promoting non-admin to user without volunteer', async () => {
     mockPrisma.account.findUnique.mockResolvedValue({ id: 'unbound-admin', role: 'admin', volunteerId: null });
     mockPrisma.account.count.mockResolvedValue(2); // not the last admin
-    const result = await updateAccount('unbound-admin', { role: 'user' }, 'someone-else');
+    const result = await updateAccount('unbound-admin', { role: 'user' }, { accountId: 'someone-else', role: 'admin' });
     expect(result.validationError).toMatch(/volunteer/);
   });
 
@@ -187,7 +187,7 @@ describe('AccountService.updateAccount', () => {
     mockPrisma.account.findUnique.mockResolvedValue({ id: 'u1', role: 'user', volunteerId: 'v1' });
     mockPrisma.account.findFirst.mockResolvedValue(null); // email not taken
     mockPrisma.account.update.mockResolvedValue({ id: 'u1', role: 'b_admin', isActive: true, volunteerId: 'v1', email: 'u1@vt.local', name: 'U1' });
-    const result = await updateAccount('u1', { role: 'b_admin', isActive: true }, 'admin-self');
+    const result = await updateAccount('u1', { role: 'b_admin', isActive: true }, { accountId: 'admin-self', role: 'admin' });
     expect(result.account).toBeDefined();
     expect(mockPrisma.account.update).toHaveBeenCalled();
   });
@@ -195,9 +195,38 @@ describe('AccountService.updateAccount', () => {
   // v3.7: 不能把普通账号提升为系统 admin
   it('rejects promoting a non-admin account to admin', async () => {
     mockPrisma.account.findUnique.mockResolvedValue({ id: 'u1', role: 'user', volunteerId: 'v1' });
-    const result = await updateAccount('u1', { role: 'admin' }, 'admin-self');
+    const result = await updateAccount('u1', { role: 'admin' }, { accountId: 'admin-self', role: 'admin' });
     expect(result.validationError).toMatch(/提升为系统 admin/);
     expect(mockPrisma.account.update).not.toHaveBeenCalled();
+  });
+
+  // ── v3.8 部长(a_admin) 作用域 ──
+  const deptHead = { accountId: 'dh', role: 'a_admin', departmentId: 'TECH' };
+
+  it('部长 can update a member in their own department', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({ id: 'u1', role: 'user', volunteerId: 'v1', volunteer: { departmentId: 'TECH' } });
+    mockPrisma.account.update.mockResolvedValue({ id: 'u1', role: 'user', isActive: false, volunteerId: 'v1', email: 'u1@vt.local', name: 'U1' });
+    const result = await updateAccount('u1', { isActive: false }, deptHead);
+    expect(result.account).toBeDefined();
+  });
+
+  it('部长 cannot update a member in another department', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({ id: 'u2', role: 'user', volunteerId: 'v2', volunteer: { departmentId: 'PROMO' } });
+    const result = await updateAccount('u2', { isActive: false }, deptHead);
+    expect(result.forbidden).toMatch(/本部门/);
+    expect(mockPrisma.account.update).not.toHaveBeenCalled();
+  });
+
+  it('部长 cannot set a member role to admin/部长', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({ id: 'u1', role: 'user', volunteerId: 'v1', volunteer: { departmentId: 'TECH' } });
+    const result = await updateAccount('u1', { role: 'a_admin' }, deptHead);
+    expect(result.forbidden).toMatch(/user \/ 录入员/);
+  });
+
+  it('部长 cannot touch an admin account', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({ id: 'a1', role: 'admin', volunteerId: null, volunteer: null });
+    const result = await updateAccount('a1', { isActive: false }, deptHead);
+    expect(result.forbidden).toMatch(/admin/);
   });
 });
 

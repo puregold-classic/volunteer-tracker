@@ -14,6 +14,7 @@ import { hashPassword } from '../utils/passwordUtils.js';
 import IDGenerator from '../utils/IDGenerator.js';
 import { normalizePhone } from '../utils/identifierUtils.js';
 import { isValidProvince } from '../utils/provinces.js';
+import { isDeptHead, assertDeptScope, DEPT_HEAD_ASSIGNABLE_ROLES } from '../utils/deptScope.js';
 import {
   serializeAccount,
   serializeVolunteer,
@@ -196,8 +197,10 @@ export const createAdminAccount = async ({ email, password, name }) => {
 /**
  * List all accounts with their bound volunteer + department. Admin only.
  */
-export const listAccounts = async () => {
+export const listAccounts = async ({ departmentId = null } = {}) => {
   const accounts = await prisma.account.findMany({
+    // v3.8: 部长传本部门 id → 只列本部门志愿者账号（admin 账号 volunteer=null，天然被排除）
+    where: departmentId ? { volunteer: { departmentId } } : undefined,
     orderBy: { createdAt: 'desc' },
     include: { volunteer: { include: { department: true } } },
   });
@@ -211,13 +214,27 @@ export const listAccounts = async () => {
  * Update an account. role/email/name/isActive on the account itself; volunteer
  * fields delegate to VolunteerService.update via the FK.
  */
-export const updateAccount = async (accountId, patch, currentUserId) => {
-  const target = await prisma.account.findUnique({ where: { id: accountId } });
+export const updateAccount = async (accountId, patch, operator) => {
+  const target = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { volunteer: { select: { departmentId: true } } },
+  });
   if (!target) return { notFound: true };
-  if (target.id === currentUserId) return { selfEdit: true };
+  if (target.id === operator?.accountId) return { selfEdit: true };
 
   const { role, isActive, name, email } = patch;
   if (role && !ALLOWED_ROLES.includes(role)) return { invalidRole: true };
+
+  // v3.8: 部长(a_admin) 只能改**本部门**的**非 admin/部长**账号，且只能把角色设成 user / 录入员
+  if (isDeptHead(operator)) {
+    if (target.role === 'admin') return { forbidden: '部长不能操作 admin 账号' };
+    const scopeErr = assertDeptScope(operator, target.volunteer?.departmentId);
+    if (scopeErr) return scopeErr;
+    if (role && !DEPT_HEAD_ASSIGNABLE_ROLES.includes(role)) {
+      return { forbidden: '部长只能把成员角色设为 user / 录入员(b_admin)' };
+    }
+  }
+
   // v3.7: 不能把账号提升为系统 admin —— 系统 admin 仅由启动时 bootstrap 创建，不可后天授予
   if (role === 'admin' && target.role !== 'admin') {
     return { validationError: '不能将账号提升为系统 admin（系统 admin 仅由初始 bootstrap 创建）' };

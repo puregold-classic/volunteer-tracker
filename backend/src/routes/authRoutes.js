@@ -21,13 +21,14 @@ router.get('/me', authenticate, AuthController.me);
 // v3.2: account self-service
 router.post('/change-password', authenticate, AuthController.changePassword);
 router.post('/me/avatar', authenticate, AuthController.updateAvatar);
-router.post('/admin/accounts/:accountId/reset-password', authenticate, authorizeRoles('admin'), AuthController.adminResetPassword);
+// v3.8: 重置密码 admin(全局) + 部长(本部门，service 层作用域校验)
+router.post('/admin/accounts/:accountId/reset-password', authenticate, authorizeRoles('admin', 'a_admin'), AuthController.adminResetPassword);
 
-// Admin-only account management
-router.get('/admin/accounts', authenticate, authorizeRoles('admin'), AdminController.listAccounts);
-router.patch('/admin/accounts/:accountId', authenticate, authorizeRoles('admin'), AdminController.updateAccount);
+// 账号管理：v3.8 admin(全局) + 部长(本部门)。删除仍仅 admin（部长只停用）。
+router.get('/admin/accounts', authenticate, authorizeRoles('admin', 'a_admin'), AdminController.listAccounts);
+router.patch('/admin/accounts/:accountId', authenticate, authorizeRoles('admin', 'a_admin'), AdminController.updateAccount);
 router.delete('/admin/accounts/:accountId', authenticate, authorizeRoles('admin'), AdminController.deleteAccount);
-router.post('/admin/volunteers', authenticate, authorizeRoles('admin'), AdminController.createVolunteerAccount);
+router.post('/admin/volunteers', authenticate, authorizeRoles('admin', 'a_admin'), AdminController.createVolunteerAccount);
 // v3.7: 关闭"新增系统 admin"接口 —— 系统 admin 仅由启动 bootstrap 创建。
 // createAdminAccount service 仍保留（供 createInitialAdmin / resetToSystemAdmin 调用），只是不再暴露 HTTP 入口。
 router.post('/admin/import-volunteers/validate', authenticate, authorizeRoles('admin'), AdminController.validateVolunteersCsv);

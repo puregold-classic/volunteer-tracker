@@ -37,6 +37,8 @@ export const authenticate = async (req, res, next) => {
 
     const account = await prisma.account.findUnique({
       where: { id: payload.sub },
+      // v3.8: 部长(a_admin) 的作用域 = 他志愿者档案所在部门，鉴权要用，随 token 带上。
+      include: { volunteer: { select: { departmentId: true } } },
     });
 
     if (!account || !account.isActive) {
@@ -65,6 +67,7 @@ export const authenticate = async (req, res, next) => {
       email: account.email,
       role: account.role,
       volunteerId: account.volunteerId,
+      departmentId: account.volunteer?.departmentId ?? null,
       name: account.name,
     };
 

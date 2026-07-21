@@ -73,6 +73,7 @@ class AuthController {
       if (result.missingFields) return res.status(400).json({ success: false, error: 'newPassword 为必填' });
       if (result.weakPassword) return res.status(400).json({ success: false, error: '新密码长度至少 8 位' });
       if (result.notFound) return res.status(404).json({ success: false, error: '目标账号不存在' });
+      if (result.forbidden) return res.status(403).json({ success: false, error: result.forbidden });
       return res.status(200).json({ success: true, message: '密码已重置，对方已登出' });
     } catch (err) {
       return res.status(500).json({ success: false, error: '重置密码失败', detail: process.env.NODE_ENV === 'development' ? err.message : undefined });

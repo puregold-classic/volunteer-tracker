@@ -4,6 +4,7 @@
 
 import * as AdminService from '../services/AdminService.js';
 import * as AccountService from '../services/AccountService.js';
+import { DEPT_HEAD_ASSIGNABLE_ROLES, personnelDeptFilter } from '../utils/deptScope.js';
 
 const fail = (res, code, error) => res.status(code).json({ success: false, error });
 
@@ -12,6 +13,16 @@ class AdminController {
 
   static async createVolunteerAccount(req, res) {
     try {
+      const op = req.user;
+      // v3.8: 部长只能给**本部门**建号，且只能设 user / 录入员(b_admin)
+      if (op.role === 'a_admin') {
+        if (!op.departmentId) return fail(res, 403, '部长账号未绑定部门，无法建号');
+        req.body.volunteer = { ...(req.body.volunteer || {}), departmentId: op.departmentId };
+        const role = req.body.account?.role || 'user';
+        if (!DEPT_HEAD_ASSIGNABLE_ROLES.includes(role)) {
+          return fail(res, 403, '部长只能创建 user / 录入员(b_admin) 账号');
+        }
+      }
       const result = await AccountService.createVolunteerAccount(req.body);
       if (result.validationError) return fail(res, 400, result.validationError);
       if (result.conflict) return fail(res, 409, result.conflict);
@@ -36,7 +47,8 @@ class AdminController {
 
   static async listAccounts(req, res) {
     try {
-      const accounts = await AccountService.listAccounts();
+      // v3.8: 部长只看本部门账号；admin 看全部
+      const accounts = await AccountService.listAccounts({ departmentId: personnelDeptFilter(req.user) });
       return res.status(200).json({ success: true, data: accounts });
     } catch (err) {
       return fail(res, 500, err.message);
@@ -45,9 +57,10 @@ class AdminController {
 
   static async updateAccount(req, res) {
     try {
-      const result = await AccountService.updateAccount(req.params.accountId, req.body, req.user.accountId);
+      const result = await AccountService.updateAccount(req.params.accountId, req.body, req.user);
       if (result.notFound) return fail(res, 404, '账号不存在');
       if (result.selfEdit) return fail(res, 400, '不能修改自身账号');
+      if (result.forbidden) return fail(res, 403, result.forbidden);
       if (result.invalidRole) return fail(res, 400, 'role 必须是: user / b_admin / a_admin / admin');
       if (result.lastAdmin) return fail(res, 400, '系统至少需要保留一个 admin 账号');
       if (result.emailTaken) return fail(res, 409, '邮箱已被其他账号占用');

@@ -12,6 +12,7 @@ import { hashPassword, verifyPassword } from '../utils/passwordUtils.js';
 import { serializeAccount } from '../utils/serializer.js';
 import IDGenerator from '../utils/IDGenerator.js';
 import { detectIdentifierKind } from '../utils/identifierUtils.js';
+import { isDeptHead, assertDeptScope } from '../utils/deptScope.js';
 
 const serializeOperator = (op) => ({
   id: op?.accountId ?? null,
@@ -203,8 +204,18 @@ export const adminResetPassword = async (targetAccountId, { newPassword }, opera
   if (!newPassword) return { missingFields: true };
   if (newPassword.length < 8) return { weakPassword: true };
 
-  const target = await prisma.account.findUnique({ where: { id: targetAccountId } });
+  const target = await prisma.account.findUnique({
+    where: { id: targetAccountId },
+    include: { volunteer: { select: { departmentId: true } } },
+  });
   if (!target) return { notFound: true };
+
+  // v3.8: 部长只能重置**本部门**成员的密码，且不能碰 admin 账号
+  if (isDeptHead(operator)) {
+    if (target.role === 'admin') return { forbidden: '部长不能重置 admin 账号密码' };
+    const scopeErr = assertDeptScope(operator, target.volunteer?.departmentId);
+    if (scopeErr) return scopeErr;
+  }
 
   const passwordHash = await hashPassword(newPassword);
   await prisma.$transaction(async (tx) => {

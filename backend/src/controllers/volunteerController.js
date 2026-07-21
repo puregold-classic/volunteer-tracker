@@ -44,7 +44,7 @@ export const getVolunteerById = async (req, res) => {
 
 export const updateVolunteer = async (req, res) => {
   try {
-    const v = await VolunteerService.update(req.params.id, req.body);
+    const v = await VolunteerService.update(req.params.id, req.body, req.user);
     if (!v) return fail(res, 404, `未找到志愿者 ${req.params.id}`);
     return ok(res, v);
   } catch (err) {

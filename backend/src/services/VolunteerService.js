@@ -20,6 +20,7 @@ import {
   REGION_DISPLAY,
 } from '../utils/serializer.js';
 import { isValidProvince } from '../utils/provinces.js';
+import { isDeptHead, assertDeptScope } from '../utils/deptScope.js';
 
 const parseMulti = (value) => {
   const raw = Array.isArray(value) ? value.join(',') : value;
@@ -161,11 +162,20 @@ export const getDerivedStats = async (volunteerId) => {
  * Update mutable volunteer fields. Does NOT touch role (lives on Account)
  * or services (replaced by department). Department change triggers an audit.
  */
-export const update = async (idOrCode, body) => {
+export const update = async (idOrCode, body, operator = null) => {
   const target = await prisma.volunteer.findFirst({
     where: IDGenerator.isValidVolunteerCode(idOrCode) ? { volunteerCode: idOrCode } : { id: idOrCode },
   });
   if (!target) return null;
+
+  // v3.8: 部长(a_admin) 只能改**本部门**志愿者，且不能把人调去别的部门。throw → controller 400。
+  if (isDeptHead(operator)) {
+    const scopeErr = assertDeptScope(operator, target.departmentId);
+    if (scopeErr) throw new Error(scopeErr.forbidden);
+    if (body.departmentId && body.departmentId !== target.departmentId) {
+      throw new Error('部长不能把志愿者调去别的部门');
+    }
+  }
 
   // v3.7 防呆：改省份时校验规范全名（region 为大陆/台湾时）。throw → controller 返回 400。
   if (body.province) {
