@@ -178,6 +178,7 @@ const CreateVolunteerDialog: React.FC<{
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
+      closeOnOutsideClick={false}
       title="新增志愿者 + 账号"
       description="一次创建志愿者档案和登录账号（v2.1 统一原子入口）"
       className="sm:max-w-2xl"
@@ -353,6 +354,7 @@ const CsvImportDialog: React.FC<{
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
+      closeOnOutsideClick={false}
       title="Excel / CSV 粘贴导入志愿者"
       description="从 Excel 直接复制粘贴即可（Tab 分隔，可不带表头）。无表头时按列顺序：中文名 · 英文名 · 状态 · 地区 · 省份 · 部门 · 邮箱 · 角色"
       className="sm:max-w-2xl"
@@ -654,6 +656,7 @@ const EditAccountDialog: React.FC<{
     <Dialog
       open={open}
       onOpenChange={(o) => !o && onClose()}
+      closeOnOutsideClick={false}
       title={account ? `编辑账号 · ${account.name}` : '编辑账号'}
       description={
         isSelf

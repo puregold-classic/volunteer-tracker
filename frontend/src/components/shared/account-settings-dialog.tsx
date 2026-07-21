@@ -141,7 +141,7 @@ export const AccountSettingsDialog: React.FC<Props> = ({
   const hasCustomAvatar = shownAvatar && !shownAvatar.includes('ui-avatars.com');
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="账号设置" description="修改密码或更换头像">
+    <Dialog open={open} onOpenChange={onOpenChange} closeOnOutsideClick={false} title="账号设置" description="修改密码或更换头像">
       <div className="flex flex-col gap-4 px-6 py-4">
         <div className="flex gap-2">
           <Button

@@ -122,6 +122,7 @@ export const LinkTagsDialog: React.FC<Props> = ({ open, support, onOpenChange, o
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
+      closeOnOutsideClick={false}
       title="修改标签"
       description={`${support.serviceItem?.departmentName ?? ''} / ${support.serviceItem?.name ?? ''} · ${support.duration}h`}
     >
