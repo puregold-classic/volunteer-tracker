@@ -13,6 +13,7 @@
 import prisma from '../utils/prismaClient.js';
 import IDGenerator from '../utils/IDGenerator.js';
 import { serializeProjectSupport } from '../utils/serializer.js';
+import { isDeptHead } from '../utils/deptScope.js';
 
 // v3.7 权限重排：a_admin ≡ b_admin（都属"录入员"层）。tag 写操作 + 批量 = 录入员+
 // （admin/a_admin/b_admin），统一走 isBAdminOrAbove。isPrivileged（admin/a_admin）保留
@@ -353,8 +354,12 @@ class TagService {
     if (normalizedInputs.length === 0) return { validationError: '去重/去空后名单为空' };
 
     // Name matching against ACTIVE volunteers (code > chineseName > englishName, case-insensitive)
+    // v3.8: 部长(a_admin) 只能给**本部门**志愿者批量录入 → 只在本部门范围内匹配名单
     const allActive = await prisma.volunteer.findMany({
-      where: { status: 'ACTIVE' },
+      where: {
+        status: 'ACTIVE',
+        ...(isDeptHead(operator) ? { departmentId: operator.departmentId } : {}),
+      },
       select: { id: true, volunteerCode: true, chineseName: true, englishName: true },
     });
     const byCode = new Map(), byCn = new Map(), byEn = new Map();
@@ -519,6 +524,8 @@ class TagService {
       scopeWhere.id = { in: supportIds };
     }
 
+    // v3.8: 部长只能批量改/删**本部门**的记录
+    if (isDeptHead(operator)) scopeWhere.volunteer = { departmentId: operator.departmentId };
     const targets = await prisma.projectSupport.findMany({
       where: scopeWhere,
       select: {
@@ -586,6 +593,8 @@ class TagService {
       scopeWhere.id = { in: supportIds };
     }
 
+    // v3.8: 部长只能批量改/删**本部门**的记录
+    if (isDeptHead(operator)) scopeWhere.volunteer = { departmentId: operator.departmentId };
     const targets = await prisma.projectSupport.findMany({
       where: scopeWhere,
       select: {

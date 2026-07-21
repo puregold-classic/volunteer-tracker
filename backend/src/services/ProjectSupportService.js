@@ -20,6 +20,7 @@ import prisma from '../utils/prismaClient.js';
 import IDGenerator from '../utils/IDGenerator.js';
 import QueryUtils from '../utils/queryUtils.js';
 import SystemSettingsService from './SystemSettingsService.js';
+import { isDeptHead } from '../utils/deptScope.js';
 import { serializeProjectSupport } from '../utils/serializer.js';
 
 const SUPPORT_INCLUDE = {
@@ -42,18 +43,24 @@ const SUPPORT_INCLUDE = {
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
-// v3.7 权限重排：a_admin ≡ b_admin（"录入员"层）。跨人管理台账记录（改/删/确认/代确认、
-// 改受训考勤）= 录入员+（admin/a_admin/b_admin），走 isReviewer。而月结封档是治理动作，
-// 仅系统管理员可绕过锁编辑封档期记录，走 isSystemAdmin —— 否则封档对录入员形同虚设。
-const isReviewer = (operator) =>
-  operator?.role === 'admin' || operator?.role === 'a_admin' || operator?.role === 'b_admin';
 const isSystemAdmin = (operator) => operator?.role === 'admin';
+const isDataEntry = (operator) => operator?.role === 'b_admin'; // 录入员：全局记录写权
 
-// v3.4.1: submitter can edit/remove their own proxy submissions (e.g. b_admin
-// fixing a typo in a record they filed for someone else).  Audit log captures
-// the diff, month-lock still applies.  v3.7: 录入员（a_admin/b_admin）可跨人操作。
+// v3.8: 谁能跨人管理这条台账记录（改/删/确认/代确认/改受训考勤）。
+//   - admin / b_admin(录入员): 全局
+//   - a_admin(部长): 仅**本部门**（记录 owner 志愿者的部门 == 部长部门）
+//   - 其他: 否（回落到 owner/submitter 判断）
+// record 需带 volunteer.departmentId（SUPPORT_INCLUDE 已 select）。
+const canManageRecord = (record, operator) => {
+  if (isSystemAdmin(operator) || isDataEntry(operator)) return true;
+  if (isDeptHead(operator)) return !!operator.departmentId && record.volunteer?.departmentId === operator.departmentId;
+  return false;
+};
+
+// v3.4.1: submitter can edit/remove their own proxy submissions.  Audit log captures
+// the diff, month-lock still applies.  v3.8: 部长只能管本部门记录（canManageRecord）。
 const requireOwnerOrAdmin = (record, operator) => {
-  if (isReviewer(operator)) return null;
+  if (canManageRecord(record, operator)) return null;
   if (record.volunteerId === operator?.volunteerId) return null;
   if (record.submittedById && record.submittedById === operator?.volunteerId) return null;
   return { forbidden: '只有本人、提交者或管理员可以操作此记录' };
@@ -71,7 +78,7 @@ const checkLock = async (serviceDate, operator) => {
 // So even the nominal owner must not edit/delete them — only 录入员+ can correct
 // attendance. Mirrors the create()-time block on the personal-submit path.
 const requireEditableCategory = (record, operator) => {
-  if (isReviewer(operator)) return null;
+  if (canManageRecord(record, operator)) return null;
   if (record.serviceItem?.category === 'TRAINING_ATTENDANCE') {
     return { forbidden: '受训考勤记录由组织方统一管理，不能本人修改或删除' };
   }
@@ -287,6 +294,10 @@ class ProjectSupportService {
       prisma.serviceItem.findUnique({ where: { id: serviceItemId } }),
     ]);
     if (!owner) return { validationError: `志愿者不存在: ${volunteerId}` };
+    // v3.8: 部长(a_admin) 只能为**本部门**志愿者提交/代提交记录
+    if (isDeptHead(operator) && owner.departmentId !== operator.departmentId) {
+      return { validationError: '部长只能为本部门志愿者提交记录' };
+    }
     if (!item || !item.isActive) return { validationError: `服务项不存在或已停用: ${serviceItemId}` };
     // 受训考勤只能通过项目级批量录入进入系统（wave 2 的 batch-entry 路径）。
     // 走个人提交通道会违背"受训是考勤、由组织方统一录入"的产品语义。
@@ -477,7 +488,7 @@ class ProjectSupportService {
     }
 
     const isOwner = existing.volunteerId === operator?.volunteerId;
-    if (!isOwner && !isReviewer(operator)) {
+    if (!isOwner && !canManageRecord(existing, operator)) {
       return { forbidden: '只有本人可以确认此记录（管理员可代为确认）' };
     }
 
@@ -519,7 +530,7 @@ class ProjectSupportService {
     }
 
     const isOwner = existing.volunteerId === operator?.volunteerId;
-    if (!isOwner && !isReviewer(operator)) {
+    if (!isOwner && !canManageRecord(existing, operator)) {
       return { forbidden: '只有本人可以拒绝此记录（管理员可代为拒绝）' };
     }
 

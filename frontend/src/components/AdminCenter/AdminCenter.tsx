@@ -40,6 +40,7 @@ import {
   X,
 } from 'lucide-react';
 import authService, { AdminAccountItem, CsvValidation } from '@services/authService';
+import { useAuth } from '@/context/AuthContext';
 import departmentService from '@services/departmentService';
 import volunteerService from '@services/volunteerService';
 import type { Department, Role } from '@services/types';
@@ -64,10 +65,10 @@ interface AdminCenterProps {
 const REGION_OPTIONS = ['中国大陆', '中国台湾', '东南亚', '美国', '欧洲', '其他'] as const;
 
 const ROLE_LABELS: Record<Role, string> = {
-  user: 'user',
-  b_admin: 'b_admin',
-  a_admin: 'a_admin',
-  admin: 'admin',
+  user: '志愿者',
+  b_admin: '录入员',
+  a_admin: '部长',
+  admin: '系统管理员',
 };
 
 const roleBadgeVariant = (role: Role): 'default' | 'success' | 'info' | 'destructive' => {
@@ -111,7 +112,9 @@ const CreateVolunteerDialog: React.FC<{
   onOpenChange: (v: boolean) => void;
   departments: Department[];
   onCreated: () => void;
-}> = ({ open, onOpenChange, departments, onCreated }) => {
+  isDeptHead?: boolean;
+  lockedDeptId?: string | null;
+}> = ({ open, onOpenChange, departments, onCreated, isDeptHead = false, lockedDeptId = null }) => {
   const {
     register,
     handleSubmit,
@@ -123,14 +126,18 @@ const CreateVolunteerDialog: React.FC<{
     resolver: zodResolver(createVolunteerSchema),
     defaultValues: {
       chineseName: '', englishName: '', status: '在职', region: '其他', province: '',
-      birthday: '', departmentId: '', email: '', phone: '', password: 'Volunteer@123', role: 'user',
+      birthday: '', departmentId: isDeptHead ? (lockedDeptId || '') : '', email: '', phone: '', password: 'Volunteer@123', role: 'user',
     },
   });
 
   const region = watch('region');
   const showProvince = region === '中国大陆' || region === '中国台湾';
 
-  useEffect(() => { if (open) reset(); }, [open, reset]);
+  useEffect(() => {
+    if (open) reset();
+    // 部长建档：部门锁死为本部门
+    if (open && isDeptHead && lockedDeptId) setValue('departmentId', lockedDeptId);
+  }, [open, reset, isDeptHead, lockedDeptId, setValue]);
   // 台湾只有「台湾省」，切到台湾时自动填上，省得用户手选
   useEffect(() => { if (region === '中国台湾') setValue('province', TAIWAN_PROVINCE); }, [region, setValue]);
 
@@ -194,10 +201,10 @@ const CreateVolunteerDialog: React.FC<{
               <option value="不在职">不在职</option>
             </FormSelect>
           </FormField>
-          <FormField label="部门" required error={errors.departmentId?.message}>
-            <FormSelect {...register('departmentId')}>
-              <option value="">— 选择部门 —</option>
-              {departments.map((d) => (
+          <FormField label="部门" required error={errors.departmentId?.message} hint={isDeptHead ? '部长只能给本部门建号，已锁定' : undefined}>
+            <FormSelect {...register('departmentId')} disabled={isDeptHead}>
+              {!isDeptHead && <option value="">— 选择部门 —</option>}
+              {(isDeptHead ? departments.filter((d) => d.id === lockedDeptId) : departments).map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </FormSelect>
@@ -253,9 +260,10 @@ const CreateVolunteerDialog: React.FC<{
           </FormField>
           <FormField label="角色" required>
             <FormSelect {...register('role')}>
-              <option value="user">user</option>
-              <option value="b_admin">b_admin</option>
-              <option value="a_admin">a_admin</option>
+              <option value="user">志愿者 (user)</option>
+              <option value="b_admin">录入员 (b_admin)</option>
+              {/* 部长不能建部长/管理员 */}
+              {!isDeptHead && <option value="a_admin">部长 (a_admin)</option>}
             </FormSelect>
           </FormField>
         </div>
@@ -536,7 +544,8 @@ const EditAccountDialog: React.FC<{
   isSelf: boolean;
   onClose: () => void;
   onSaved: () => void;
-}> = ({ account, departments, isSelf, onClose, onSaved }) => {
+  isDeptHead?: boolean;
+}> = ({ account, departments, isSelf, onClose, onSaved, isDeptHead = false }) => {
   const open = !!account;
   const hasVolunteer = !!account?.volunteer;
   const {
@@ -671,9 +680,10 @@ const EditAccountDialog: React.FC<{
             </FormField>
             <FormField label="角色" required>
               <FormSelect {...register('role')} disabled={isSelf}>
-                <option value="user">user</option>
-                <option value="b_admin">b_admin</option>
-                <option value="a_admin">a_admin</option>
+                <option value="user">志愿者 (user)</option>
+                <option value="b_admin">录入员 (b_admin)</option>
+                {/* 部长不能把成员设成部长/管理员 */}
+                {!isDeptHead && <option value="a_admin">部长 (a_admin)</option>}
               </FormSelect>
             </FormField>
             <FormField label="账号状态">
@@ -765,6 +775,11 @@ const EditAccountDialog: React.FC<{
 // ─── Main AdminCenter ───────────────────────────────────────────────────────
 
 const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
+  const { account: currentUser } = useAuth();
+  // v3.8: 部长(a_admin) 进的是**受限**人事视图——只本部门、无系统级操作
+  const isDeptHead = currentUser?.role === 'a_admin';
+  const deptHeadDeptId = currentUser?.departmentId ?? null;
+
   const [accounts, setAccounts] = useState<AdminAccountItem[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(false);
@@ -871,10 +886,12 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
             <RefreshCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
             刷新
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => setCsvImportOpen(true)}>
-            <FileSpreadsheet className="h-4 w-4" />
-            Excel 导入
-          </Button>
+          {!isDeptHead && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setCsvImportOpen(true)}>
+              <FileSpreadsheet className="h-4 w-4" />
+              Excel 导入
+            </Button>
+          )}
           <Button type="button" size="sm" onClick={() => setCreateVolunteerOpen(true)}>
             <UserPlus className="h-4 w-4" />
             新增志愿者
@@ -1139,7 +1156,8 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
         </div>
       </Card>
 
-      {/* Danger zone */}
+      {/* Danger zone — 仅 admin 可见（部长无系统级操作） */}
+      {!isDeptHead && (
       <Card variant="elevated" className="border-destructive/30 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -1161,6 +1179,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
           </Button>
         </div>
       </Card>
+      )}
 
       {/* Dialogs */}
       <CreateVolunteerDialog
@@ -1168,6 +1187,8 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
         onOpenChange={setCreateVolunteerOpen}
         departments={departments}
         onCreated={refresh}
+        isDeptHead={isDeptHead}
+        lockedDeptId={deptHeadDeptId}
       />
       <CsvImportDialog
         open={csvImportOpen}
@@ -1185,6 +1206,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
         isSelf={editingAccount?.id === currentAccountId}
         onClose={() => setEditingAccount(null)}
         onSaved={refresh}
+        isDeptHead={isDeptHead}
       />
     </div>
   );

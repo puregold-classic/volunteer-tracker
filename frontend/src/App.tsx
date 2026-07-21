@@ -31,6 +31,7 @@ const ReviewPage = lazy(() => import('./pages/ReviewPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const VolunteerDetailPage = lazy(() => import('./pages/VolunteerDetailPage'));
 const TagsPage = lazy(() => import('./pages/TagsPage'));
+const AdminCenter = lazy(() => import('@components/AdminCenter'));
 import { useHomeState, QUICK_FOCUS_OPTIONS } from './hooks/useHomeState';
 import { useAuth } from './context/AuthContext';
 import { resolveVolunteerCardTarget } from '@/lib/routing';
@@ -155,6 +156,10 @@ function App() {
           { label: '标签管理', to: '/tags', end: false },
         ]
       : []),
+    // v3.8: 部长(a_admin) 通过导航进人事管理（保留 /me 个人中心 + 代提交）。admin 走 /me。
+    ...(isAuthenticated && account?.role === 'a_admin'
+      ? [{ label: '人事管理', to: '/team', end: false }]
+      : []),
   ];
 
   // Listen to unauthorized events (from api.ts) and redirect
@@ -238,6 +243,14 @@ function App() {
                 </RequireRole>
               }
             />
+            <Route
+              path="/team"
+              element={
+                <RequireRole allowed={['admin', 'a_admin']}>
+                  <TeamCenterWrapper />
+                </RequireRole>
+              }
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
@@ -266,6 +279,16 @@ function ReviewPageWrapper() {
   const { account } = useAuth();
   const isReviewer = Boolean(account && ['b_admin', 'a_admin', 'admin'].includes(account.role));
   return <ReviewPage isReviewer={isReviewer} />;
+}
+
+// v3.8: /team = 人事管理中心（admin 全局 / 部长本部门）。AdminCenter 内部按角色自适应。
+function TeamCenterWrapper() {
+  const { account } = useAuth();
+  return (
+    <div className="mx-auto max-w-5xl px-4">
+      <AdminCenter currentAccountId={account?.id} />
+    </div>
+  );
 }
 
 function NotFound() {

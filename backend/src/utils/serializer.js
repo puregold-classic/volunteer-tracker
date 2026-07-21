@@ -72,6 +72,8 @@ export function serializeAccount(a) {
     role: a.role,
     volunteerId: a.volunteerId,                                // FK (cuid) or null
     volunteerCode: a.volunteer?.volunteerCode ?? null,         // human code if joined
+    departmentId: a.volunteer?.departmentId ?? null,           // v3.8: 部长作用域用
+    departmentName: a.volunteer?.department?.name ?? null,
     isActive: a.isActive,
     lastLoginAt: a.lastLoginAt,
     createdAt: a.createdAt,

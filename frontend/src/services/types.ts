@@ -104,6 +104,9 @@ export interface Account {
   volunteerId: string | null;
   // Joined human code; null for admin
   volunteerCode: string | null;
+  // v3.8: 部长(a_admin) 的管辖部门 = 自己志愿者档案的部门；admin 为 null
+  departmentId?: string | null;
+  departmentName?: string | null;
   isActive: boolean;
   lastLoginAt?: string | null;
   createdAt?: string;

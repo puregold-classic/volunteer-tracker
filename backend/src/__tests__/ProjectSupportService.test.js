@@ -188,6 +188,25 @@ describe('ProjectSupportService.create', () => {
     expect(createArgs.data.status).toBe('ACTIVE');
   });
 
+  // v3.8: 部长(a_admin) 代提交只能给**本部门**志愿者
+  it('部长 can proxy-submit for a volunteer in their own department', async () => {
+    const deptHead = { accountId: 'dh', role: 'a_admin', volunteerId: 'vol-dh', departmentId: 'TECH' };
+    mockPrisma.volunteer.findUnique.mockResolvedValue({ ...sampleVolunteer, departmentId: 'TECH' });
+    mockPrisma.serviceItem.findUnique.mockResolvedValue(sampleServiceItem);
+    mockPrisma.projectSupport.create.mockResolvedValue(fakeRecord({ status: 'ACTIVE' }));
+    const result = await ProjectSupportService.create(baseInput, deptHead);
+    expect(result.record).toBeDefined();
+  });
+
+  it('部长 cannot proxy-submit for a volunteer in another department', async () => {
+    const deptHead = { accountId: 'dh', role: 'a_admin', volunteerId: 'vol-dh', departmentId: 'TECH' };
+    mockPrisma.volunteer.findUnique.mockResolvedValue({ ...sampleVolunteer, departmentId: 'PROMO' });
+    mockPrisma.serviceItem.findUnique.mockResolvedValue(sampleServiceItem);
+    const result = await ProjectSupportService.create(baseInput, deptHead);
+    expect(result.validationError).toMatch(/本部门/);
+    expect(mockPrisma.projectSupport.create).not.toHaveBeenCalled();
+  });
+
   it('admin self-submit with forceActive override → ACTIVE', async () => {
     mockPrisma.volunteer.findUnique.mockResolvedValue(sampleVolunteer);
     mockPrisma.serviceItem.findUnique.mockResolvedValue(sampleServiceItem);
