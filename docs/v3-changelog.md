@@ -341,6 +341,21 @@ HTTP 实测：login `0305a`/`0305A`→成功，`GET /volunteers/0305a`→200，`
 
 ---
 
+## v3.8 — 部长(a_admin) 部门作用域角色（2026-07-17 落地）
+
+重定义 `a_admin` 为**部长**（零 migration，用 v3.7 留的分化口子）。4 角色：user(志愿者) /
+b_admin(录入员,全局录入不变) / **a_admin(部长)** / admin。部长作用域 = 自己 `volunteer.departmentId`。
+
+- **本部门人事**：建号(锁部门+只设user/b_admin)/改人/停用/重置密码/设角色。**别部门只读**。
+- **本部门台账写**：代提交/批量录入受训/改删本部门记录。**全局只读台账**（reviewer read）。
+- **不能**：碰别部门写、全局配置、建 admin/部长、删账号、月结锁定。指定部长仅 admin。
+- 后端：`authenticate` 带 departmentId；新 `utils/deptScope.js`；`ProjectSupportService` isReviewer→
+  `canManageRecord`(部长按记录 owner 部门)；`TagService` 批量限本部门；人事路由放开 a_admin+作用域。
+- 前端：新 `/team` 路由 + 「人事管理」导航(仅部长，保留 /me)；AdminCenter 按角色自适应；ROLE_LABELS 中文化。
+- 后端 187 tests；本地 HTTP + Playwright 全绿。commit `72ec4a9`。
+
+---
+
 ## 当前部署状态（2026-07-17）
 
 | 环境 | Branch | HEAD | 备注 |
