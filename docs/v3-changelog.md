@@ -379,12 +379,12 @@ b_admin(录入员,全局录入不变) / **a_admin(部长)** / admin。部长作�
 
 ---
 
-## 当前部署状态（2026-07-17）
+## 当前部署状态（2026-08-14）
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
 | 本地 dev（WSL + Docker） | develop | fe42dd0 | v3.7 …+省份防呆下拉+Excel粘贴导入 |
-| Mac mini sandbox | develop | fe42dd0 | https://dev.puregoldclassictranslation.com · v3.7 全部已 deploy + **清库到纯净测试基线**（配置+admin，0 志愿者/记录/日志） |
+| Mac mini sandbox | develop | 031067e | https://dev.puregoldclassictranslation.com · v3.8.1 已 deploy 并端到端验证（部长删本部门 200 / 别部门 403，临时账号已清理，库回到 5 志愿者基线） |
 | 生产 | — | — | 未上 |
 
 > v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy
