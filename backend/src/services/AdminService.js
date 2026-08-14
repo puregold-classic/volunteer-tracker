@@ -126,8 +126,12 @@ export const resetToSystemAdmin = async ({ confirm }) => {
 
   // Order matters: Account → Volunteer (FK), then ProjectSupport must go before
   // Volunteer (FK), AuditLog can go any time.
+  // v3.8.1: volunteer_lists / volunteer_list_members 也硬 FK 到 Volunteer（无 cascade），
+  // 漏删会让整个 reset 撞 P2003。TagAttachment 随 ProjectSupport 级联，不用单独删。
   await prisma.$transaction([
     prisma.projectSupport.deleteMany({}),
+    prisma.volunteerListMember.deleteMany({}),
+    prisma.volunteerList.deleteMany({}),
     prisma.account.deleteMany({}),
     prisma.volunteer.deleteMany({}),
     prisma.auditLog.deleteMany({}),

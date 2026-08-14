@@ -826,6 +826,16 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
 
   useEffect(() => { void refresh(); }, []);
 
+  // v3.8.1: 部长能删本部门的志愿者/录入员（列表本来就只有本部门），但删不了部长/admin。
+  // 后端 assertDeptScope + 角色白名单兜底，这里只是别让按钮看着能点、点了必 403。
+  const deleteBlockReason = (account: AdminAccountItem, isSelf: boolean): string | null => {
+    if (isSelf) return '不能删除自己';
+    if (isDeptHead && (account.role === 'admin' || account.role === 'a_admin')) {
+      return '部长只能删除志愿者 / 录入员账号';
+    }
+    return null;
+  };
+
   const handleDelete = async (accountId: string, name: string) => {
     if (!window.confirm(`确认删除 ${name} 的账号及关联志愿者？此操作不可撤销。`)) return;
     const result = await authService.adminDeleteAccount(accountId);
@@ -1007,6 +1017,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
           <ul className="divide-y divide-border md:hidden">
             {filteredAccounts.map((account) => {
               const isSelf = account.id === currentAccountId;
+              const deleteBlocked = deleteBlockReason(account, isSelf);
               return (
                 <li
                   key={`m-${account.id}`}
@@ -1060,8 +1071,8 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
                         size="icon-sm"
                         variant="ghost"
                         onClick={() => handleDelete(account.id, account.name)}
-                        disabled={isSelf}
-                        title={isSelf ? '不能删除自己' : '删除账号'}
+                        disabled={!!deleteBlocked}
+                        title={deleteBlocked || '删除账号'}
                         aria-label="删除"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1091,6 +1102,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
               <tbody>
                 {filteredAccounts.map((account) => {
                   const isSelf = account.id === currentAccountId;
+                  const deleteBlocked = deleteBlockReason(account, isSelf);
                   return (
                     <tr
                       key={account.id}
@@ -1142,8 +1154,8 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
                           size="icon-sm"
                           variant="ghost"
                           onClick={() => handleDelete(account.id, account.name)}
-                          disabled={isSelf}
-                          title={isSelf ? '不能删除自己' : '删除账号'}
+                          disabled={!!deleteBlocked}
+                          title={deleteBlocked || '删除账号'}
                           aria-label="删除"
                         >
                           <Trash2 className="h-3.5 w-3.5" />

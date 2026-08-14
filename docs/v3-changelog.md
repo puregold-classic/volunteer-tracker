@@ -356,6 +356,29 @@ b_admin(录入员,全局录入不变) / **a_admin(部长)** / admin。部长作�
 
 ---
 
+## v3.8.1 — 删除志愿者修复（2026-08-14 落地）
+
+线上症状：**部长点删除志愿者一直失败**。Mac sandbox 日志确认是 `DELETE /auth/admin/accounts/:id`
+稳定 403 —— v3.8 把 `/team` 开给了部长，但删除路由仍是 `authorizeRoles('admin')`，前端又没按角色
+隐藏删除按钮，于是按钮看着能点、点了必挂。
+
+- **放权**（本次决策，改了 v3.8「部长不能删账号」那条）：部长可删**本部门**的 user / 录入员。
+  路由放开 a_admin，`AccountService.deleteAccount` 里用 `assertDeptScope` +
+  `DEPT_HEAD_ASSIGNABLE_ROLES` 兜底；删部长/admin、删别部门仍 403。签名从裸 `currentUserId`
+  改成 `operator`（和 `updateAccount` 对齐）。
+- **顺带修的真 500**：`deleteAccount` 只挡了 ProjectSupport，漏了 `volunteer_lists` /
+  `volunteer_list_members` / `tag_attachments` 三张硬 FK 表。被谁加进过「我的关注」的人一删就撞
+  P2003 → 500。现在 list 关系（私有工作区数据）随人删掉，标签操作痕迹和台账一样显式挡下并给人话。
+  `AdminService.resetToSystemAdmin` 同一个坑（清库会 FK 报错），一并补上 list 两张表。
+- 前端：AdminCenter 删除按钮按角色 disable（部长对部长/admin 灰掉并提示原因）。
+- 后端 195 tests（新增 6 个：tag-attachment 拦截 / list cascade / 部长作用域 4 例）；前端 `tsc --noEmit` 绿。
+
+**遗留**：`TagAttachment.attachedById` 仍是硬 FK。按 v3.7 对 `Tag.createdById` 的同一套理由
+（操作者是快照不是拥有关系），后续可改 nullable + `onDelete: SetNull`，那样有标签痕迹的人也能删。
+另：删除账号目前**不写 AuditLog**，部长有删除权之后建议补。
+
+---
+
 ## 当前部署状态（2026-07-17）
 
 | 环境 | Branch | HEAD | 备注 |

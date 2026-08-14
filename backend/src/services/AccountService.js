@@ -276,11 +276,27 @@ export const updateAccount = async (accountId, patch, operator) => {
 /**
  * Delete an account and (if bound) its volunteer + cascade. Refuses to delete
  * the last active admin or self.
+ *
+ * v3.8.1: 部长(a_admin) 可删**本部门**的 user / 录入员(b_admin)；admin 全局。
+ * operator = req.user（之前是裸 accountId 字符串，改成对象和 updateAccount 对齐）。
  */
-export const deleteAccount = async (accountId, currentUserId) => {
-  const target = await prisma.account.findUnique({ where: { id: accountId } });
+export const deleteAccount = async (accountId, operator) => {
+  const target = await prisma.account.findUnique({
+    where: { id: accountId },
+    include: { volunteer: { select: { departmentId: true } } },
+  });
   if (!target) return { notFound: true };
-  if (target.id === currentUserId) return { selfDelete: true };
+  if (target.id === operator?.accountId) return { selfDelete: true };
+
+  // v3.8.1: 部长只能删本部门的非 admin/非部长账号（防跨部门 + 防越权删治理层）
+  if (isDeptHead(operator)) {
+    if (!DEPT_HEAD_ASSIGNABLE_ROLES.includes(target.role)) {
+      return { forbidden: '部长只能删除志愿者 / 录入员账号' };
+    }
+    const scopeErr = assertDeptScope(operator, target.volunteer?.departmentId);
+    if (scopeErr) return scopeErr;
+  }
+
   if (target.role === 'admin') {
     const activeAdmins = await prisma.account.count({ where: { role: 'admin', isActive: true } });
     if (activeAdmins <= 1) return { lastAdmin: true };
@@ -305,7 +321,31 @@ export const deleteAccount = async (accountId, currentUserId) => {
       );
     }
 
+    // v3.8.1: TagAttachment.attachedById 是硬 FK（没 cascade / 没 SetNull）——
+    // 有"这人给别人的台账打过标签"的痕迹时，裸删会撞 P2003 变成 500。
+    // 先显式挡住并给人话，而不是抛 Prisma 原文。
+    const attachmentCount = await tx.tagAttachment.count({ where: { attachedById: volunteerId } });
+    if (attachmentCount > 0) {
+      throw new Error(
+        `volunteer 仍有 ${attachmentCount} 条标签操作记录，请先处理（删除或转移）`,
+      );
+    }
+
+    // v3.8.1: list 是志愿者私有工作区数据（"我的关注"/自建分组），人没了就跟着走。
+    // 之前漏了这两张表 → 只要这人被谁加进过 list（或自己建过 list），删除必 500。
+    // 成员行先删（含别人 list 里指向他的行），再删他自己拥有的 list（成员行 onDelete: Cascade）。
+    const removedMemberships = await tx.volunteerListMember.deleteMany({ where: { volunteerId } });
+    const removedLists = await tx.volunteerList.deleteMany({ where: { ownerId: volunteerId } });
+
     await tx.volunteer.delete({ where: { id: volunteerId } });
-    return { accountId, volunteerId, deleted: { volunteer: 1 } };
+    return {
+      accountId,
+      volunteerId,
+      deleted: {
+        volunteer: 1,
+        listMemberships: removedMemberships.count,
+        ownedLists: removedLists.count,
+      },
+    };
   });
 };

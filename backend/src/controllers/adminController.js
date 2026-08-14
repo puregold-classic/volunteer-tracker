@@ -73,9 +73,10 @@ class AdminController {
 
   static async deleteAccount(req, res) {
     try {
-      const result = await AccountService.deleteAccount(req.params.accountId, req.user.accountId);
+      const result = await AccountService.deleteAccount(req.params.accountId, req.user);
       if (result.notFound) return fail(res, 404, '账号不存在');
       if (result.selfDelete) return fail(res, 400, '不能删除自身账号');
+      if (result.forbidden) return fail(res, 403, result.forbidden);
       if (result.lastAdmin) return fail(res, 400, '不能删除最后一个 admin');
       return res.status(200).json({ success: true, message: '账号已删除', data: result });
     } catch (err) {

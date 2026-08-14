@@ -11,6 +11,9 @@ const { mockPrisma, mockHash, mockIDGen } = vi.hoisted(() => {
     volunteer: { findUnique: vi.fn(), create: vi.fn(), delete: vi.fn() },
     department: { findUnique: vi.fn() },
     projectSupport: { count: vi.fn() },
+    tagAttachment: { count: vi.fn() },
+    volunteerList: { deleteMany: vi.fn() },
+    volunteerListMember: { deleteMany: vi.fn() },
     $transaction: vi.fn(),
   };
   prisma.$transaction.mockImplementation((fnOrArr) => {
@@ -53,6 +56,10 @@ beforeEach(() => {
   mockPrisma.department.findUnique.mockResolvedValue({ id: 'TECH', name: '技术部' });
   mockPrisma.account.findUnique.mockResolvedValue(null);
   mockPrisma.volunteer.create.mockResolvedValue({ id: 'vol-new', volunteerCode: 'PG-0099' });
+  // deleteAccount 的 cascade 默认干净：无标签痕迹、无 list 关系
+  mockPrisma.tagAttachment.count.mockResolvedValue(0);
+  mockPrisma.volunteerList.deleteMany.mockResolvedValue({ count: 0 });
+  mockPrisma.volunteerListMember.deleteMany.mockResolvedValue({ count: 0 });
   mockPrisma.account.create.mockResolvedValue({ id: 'acc-new', email: 'test@vt.local', role: 'user', volunteerId: 'vol-new' });
 });
 
@@ -233,16 +240,19 @@ describe('AccountService.updateAccount', () => {
 // ─── deleteAccount() ─────────────────────────────────────────────────────────
 
 describe('AccountService.deleteAccount', () => {
+  const sysAdmin = { accountId: 'admin-self', role: 'admin' };
+  const deptHead = { accountId: 'dh', role: 'a_admin', departmentId: 'TECH' };
+
   it('rejects self-delete', async () => {
     mockPrisma.account.findUnique.mockResolvedValue({ id: 'me', role: 'user' });
-    const result = await deleteAccount('me', 'me');
+    const result = await deleteAccount('me', { accountId: 'me', role: 'admin' });
     expect(result.selfDelete).toBe(true);
   });
 
   it('rejects deleting last admin', async () => {
     mockPrisma.account.findUnique.mockResolvedValue({ id: 'admin-1', role: 'admin' });
     mockPrisma.account.count.mockResolvedValue(1);
-    const result = await deleteAccount('admin-1', 'someone-else');
+    const result = await deleteAccount('admin-1', sysAdmin);
     expect(result.lastAdmin).toBe(true);
   });
 
@@ -250,7 +260,15 @@ describe('AccountService.deleteAccount', () => {
     mockPrisma.account.findUnique.mockResolvedValue({ id: 'u1', role: 'user', volunteerId: 'v1' });
     // Inside transaction: count returns > 0
     mockPrisma.projectSupport.count.mockResolvedValue(3);
-    await expect(deleteAccount('u1', 'admin')).rejects.toThrow(/ProjectSupport/);
+    await expect(deleteAccount('u1', sysAdmin)).rejects.toThrow(/ProjectSupport/);
+  });
+
+  it('refuses delete if volunteer still has tag attachments', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({ id: 'u1', role: 'user', volunteerId: 'v1' });
+    mockPrisma.projectSupport.count.mockResolvedValue(0);
+    mockPrisma.tagAttachment.count.mockResolvedValue(2);
+    await expect(deleteAccount('u1', sysAdmin)).rejects.toThrow(/标签操作记录/);
+    expect(mockPrisma.volunteer.delete).not.toHaveBeenCalled();
   });
 
   it('happy path: deletes account + volunteer when no supports exist', async () => {
@@ -258,17 +276,71 @@ describe('AccountService.deleteAccount', () => {
     mockPrisma.projectSupport.count.mockResolvedValue(0);
     mockPrisma.account.delete.mockResolvedValue({});
     mockPrisma.volunteer.delete.mockResolvedValue({});
-    const result = await deleteAccount('u1', 'admin');
+    const result = await deleteAccount('u1', sysAdmin);
     expect(result.accountId).toBe('u1');
     expect(result.volunteerId).toBe('v1');
+  });
+
+  // v3.8.1: list 关系是私有工作区数据，删人时跟着走（漏删会撞 FK → 500）
+  it('cleans up list memberships + owned lists before deleting the volunteer', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({ id: 'u1', role: 'user', volunteerId: 'v1' });
+    mockPrisma.projectSupport.count.mockResolvedValue(0);
+    mockPrisma.volunteerListMember.deleteMany.mockResolvedValue({ count: 3 });
+    mockPrisma.volunteerList.deleteMany.mockResolvedValue({ count: 1 });
+    mockPrisma.account.delete.mockResolvedValue({});
+    mockPrisma.volunteer.delete.mockResolvedValue({});
+
+    const result = await deleteAccount('u1', sysAdmin);
+
+    expect(mockPrisma.volunteerListMember.deleteMany).toHaveBeenCalledWith({ where: { volunteerId: 'v1' } });
+    expect(mockPrisma.volunteerList.deleteMany).toHaveBeenCalledWith({ where: { ownerId: 'v1' } });
+    expect(result.deleted).toEqual({ volunteer: 1, listMemberships: 3, ownedLists: 1 });
   });
 
   it('happy path: admin without volunteer just deletes account', async () => {
     mockPrisma.account.findUnique.mockResolvedValue({ id: 'admin-2', role: 'admin', volunteerId: null });
     mockPrisma.account.count.mockResolvedValue(2); // not the last admin
     mockPrisma.account.delete.mockResolvedValue({});
-    const result = await deleteAccount('admin-2', 'admin-self');
+    const result = await deleteAccount('admin-2', sysAdmin);
     expect(result.accountId).toBe('admin-2');
     expect(mockPrisma.volunteer.delete).not.toHaveBeenCalled();
+  });
+
+  // ── v3.8.1 部长作用域 ──
+  it('部长 can delete a user in their own department', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({
+      id: 'u1', role: 'user', volunteerId: 'v1', volunteer: { departmentId: 'TECH' },
+    });
+    mockPrisma.projectSupport.count.mockResolvedValue(0);
+    mockPrisma.account.delete.mockResolvedValue({});
+    mockPrisma.volunteer.delete.mockResolvedValue({});
+    const result = await deleteAccount('u1', deptHead);
+    expect(result.volunteerId).toBe('v1');
+  });
+
+  it('部长 cannot delete someone in another department', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({
+      id: 'u2', role: 'b_admin', volunteerId: 'v2', volunteer: { departmentId: 'CARE' },
+    });
+    const result = await deleteAccount('u2', deptHead);
+    expect(result.forbidden).toMatch(/本部门/);
+    expect(mockPrisma.account.delete).not.toHaveBeenCalled();
+  });
+
+  it('部长 cannot delete another 部长 or an admin', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({
+      id: 'a2', role: 'a_admin', volunteerId: 'v3', volunteer: { departmentId: 'TECH' },
+    });
+    const result = await deleteAccount('a2', deptHead);
+    expect(result.forbidden).toMatch(/志愿者 \/ 录入员/);
+    expect(mockPrisma.account.delete).not.toHaveBeenCalled();
+  });
+
+  it('部长 without a department cannot delete anyone', async () => {
+    mockPrisma.account.findUnique.mockResolvedValue({
+      id: 'u1', role: 'user', volunteerId: 'v1', volunteer: { departmentId: 'TECH' },
+    });
+    const result = await deleteAccount('u1', { accountId: 'dh2', role: 'a_admin', departmentId: null });
+    expect(result.forbidden).toMatch(/未绑定部门/);
   });
 });
