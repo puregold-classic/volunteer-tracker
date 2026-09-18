@@ -62,6 +62,15 @@ const CHINA_BOUNDS: LatLngBoundsExpression = [
 ];
 const CHINA_CENTER: [number, number] = [35.5, 104.5];
 const CHINA_GEOJSON_URL = '/china-100000.json';
+
+// Basemap tiles. Was CARTO light_nolabels until CARTO started watermarking
+// keyless anonymous requests with "API KEY REQUIRED" — the tiles still return
+// 200 with a valid PNG, the notice is burned into the image, so there is no
+// error to catch. Esri's gray canvas is the closest keyless replacement.
+// NOTE: Esri's path is {z}/{y}/{x} — y before x, unlike most tile sources.
+const TILE_URL =
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+const TILE_ATTRIBUTION = 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ';
 const REGION_VIEW: Record<
   string,
   { center: [number, number]; zoom: number; bounds?: LatLngBoundsExpression; label?: string; borderColor?: string }
@@ -546,11 +555,7 @@ const HomeMap: React.FC<HomeMapProps> = ({
           <FocusRegion focusRegion={focusRegion} />
           <FocusBorder focusRegion={focusRegion} />
           <MapZoomControls onReset={onReset} onRefresh={onRefresh} />
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
-            subdomains="abcd"
-            attribution='&copy; OpenStreetMap &copy; CARTO'
-          />
+          <TileLayer url={TILE_URL} attribution={TILE_ATTRIBUTION} />
           {geoData && (
             <GeoJSON
               key={geoJsonRenderKey}
