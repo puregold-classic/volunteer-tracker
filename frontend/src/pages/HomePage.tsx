@@ -454,8 +454,6 @@ function HomePage(props: HomePageProps) {
           compact
           onVolunteerClick={onVolunteerClick}
           onVolunteerSelect={setSelectedVolunteer}
-          showStats={false}
-          showPagination={false}
           filterParams={homeFilterParams}
         />
       </div>
@@ -570,8 +568,6 @@ function HomePage(props: HomePageProps) {
               compact
               onVolunteerClick={onVolunteerClick}
               onVolunteerSelect={setSelectedVolunteer}
-              showStats={false}
-              showPagination={false}
               filterParams={homeFilterParams}
             />
           </Card>
