@@ -104,8 +104,15 @@ export const volunteerService = {
    * Province-level headcount for the homepage heatmap. Not filtered — shows
    * the global ACTIVE volunteer distribution.
    */
-  getProvinceCounts: async (): Promise<ApiResponse<Array<{ province: string; count: number }>>> => {
-    return publicApi.get('/volunteers/province-counts');
+  /**
+   * Heatmap source. Takes status / department / search only — region and
+   * province are intentionally not sent, see VolunteerService.getProvinceCounts.
+   */
+  getProvinceCounts: async (
+    params?: Pick<VolunteersParams, 'status' | 'departmentId' | 'search'>,
+  ): Promise<ApiResponse<Array<{ province: string; count: number }>>> => {
+    const queryString = buildVolunteerQueryString(params, false);
+    return publicApi.get(`/volunteers/province-counts${queryString ? `?${queryString}` : ''}`);
   },
 
   updateVolunteer: async (idOrCode: string, data: Partial<Volunteer>): Promise<ApiResponse<Volunteer>> => {

@@ -70,9 +70,10 @@ export const getVolunteerDerivedStats = async (req, res) => {
   }
 };
 
-export const getProvinceCounts = async (_req, res) => {
+export const getProvinceCounts = async (req, res) => {
   try {
-    const data = await VolunteerService.getProvinceCounts();
+    const { status, departmentId, search } = req.query;
+    const data = await VolunteerService.getProvinceCounts({ status, departmentId, search });
     return ok(res, data);
   } catch (err) {
     return fail(res, 500, err.message);

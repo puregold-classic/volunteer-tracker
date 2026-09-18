@@ -29,6 +29,7 @@ import {
   update,
   getStats,
   getDerivedStats,
+  getProvinceCounts,
 } from '../services/VolunteerService.js';
 
 beforeEach(() => {
@@ -195,6 +196,41 @@ describe('getStats', () => {
     expect(r.summary.totalActive).toBe(4);
     expect(r.regionDistribution).toHaveLength(1);
     expect(r.departmentDistribution).toHaveLength(1);
+  });
+});
+
+// ─── getProvinceCounts ───────────────────────────────────────────────────────
+
+describe('getProvinceCounts', () => {
+  const whereOf = () => mockPrisma.volunteer.groupBy.mock.calls[0][0].where;
+
+  beforeEach(() => {
+    mockPrisma.volunteer.groupBy.mockResolvedValue([
+      { province: '广东省', _count: { id: 7 } },
+    ]);
+  });
+
+  it('counts every status by default — the map total has to match the stat strip', async () => {
+    const r = await getProvinceCounts();
+    expect(whereOf().status).toBeUndefined();
+    expect(whereOf().province).toEqual({ not: null });
+    expect(r).toEqual([{ province: '广东省', count: 7 }]);
+  });
+
+  it('applies status / department / search so the map follows the filters', async () => {
+    await getProvinceCounts({ status: '在职', departmentId: 'TECH', search: '张' });
+    const where = whereOf();
+    expect(where.status).toBe('ACTIVE');
+    expect(where.departmentId).toBe('TECH');
+    expect(where.OR).toBeDefined();
+  });
+
+  it('ignores region / province — a clicked province must not blank the map', async () => {
+    await getProvinceCounts({ province: '广东省', region: '中国大陆', status: '在职' });
+    const where = whereOf();
+    expect(where.province).toEqual({ not: null });
+    expect(where.region).toBeUndefined();
+    expect(where.status).toBe('ACTIVE');
   });
 });
 

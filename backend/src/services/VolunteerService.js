@@ -220,14 +220,27 @@ export const update = async (idOrCode, body, operator = null) => {
 };
 
 /**
- * Province-level headcount for the homepage heatmap. Counts ACTIVE volunteers
- * only, globally (no filter applied) — the heatmap is meant to show 全球分布,
- * not a filtered subset. NULL provinces are excluded.
+ * Province-level headcount for the homepage heatmap. NULL provinces excluded.
+ *
+ * Takes the same status / department / search filters as findAll and getStats,
+ * so the map, the list and the stat strip all count the same people. Before
+ * this it hardcoded status ACTIVE and ignored every filter, so the map summed
+ * to 65 while the header above it said 95, and filtering by department left
+ * the map untouched.
+ *
+ * Geography filters (region / province) are deliberately NOT applied: clicking
+ * a province on the map feeds that province straight back in here, which would
+ * collapse the heat layer to the one province the user just clicked and blank
+ * everything else. Distribution is the map's job; narrowing is the list's.
  */
-export const getProvinceCounts = async () => {
+export const getProvinceCounts = async ({ status, departmentId, search } = {}) => {
+  const where = {
+    ...buildVolunteerWhere({ status, departmentId, search }),
+    province: { not: null },
+  };
   const rows = await prisma.volunteer.groupBy({
     by: ['province'],
-    where: { status: 'ACTIVE', province: { not: null } },
+    where,
     _count: { id: true },
   });
   return rows.map((r) => ({ province: r.province, count: r._count.id }));

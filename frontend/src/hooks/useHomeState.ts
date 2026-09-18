@@ -79,6 +79,17 @@ export function useHomeState() {
     return params;
   }, [homeStatus, homeDepartmentId, selectedRegions, selectedProvinces, debouncedSearch]);
 
+  // Heatmap filter subset — status / department / search only. Geography is
+  // left out on purpose: selecting a province would otherwise blank out every
+  // other province on the map. See VolunteerService.getProvinceCounts.
+  const heatFilterParams = useMemo<VolunteersParams>(() => {
+    const params: VolunteersParams = {};
+    if (homeStatus !== 'all') params.status = homeStatus;
+    if (homeDepartmentId) params.departmentId = homeDepartmentId;
+    if (debouncedSearch) params.search = debouncedSearch;
+    return params;
+  }, [homeStatus, homeDepartmentId, debouncedSearch]);
+
   // Track whether we've ever successfully loaded stats. Subsequent fetches
   // skip the loading flag so the StatStrip doesn't flash "加载中…" on every
   // filter change. Stale data stays visible until new data arrives.
@@ -176,6 +187,7 @@ export function useHomeState() {
     debouncedSearch,
     primaryFocusRegion,
     homeFilterParams,
+    heatFilterParams,
     setHomeStatus,
     setHomeDepartmentId,
     toggleService,

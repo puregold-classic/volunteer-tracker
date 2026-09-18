@@ -79,18 +79,20 @@ function HomePageContainer() {
   const home = useHomeState();
   const [provinceCounts, setProvinceCounts] = useState<ProvinceCount[]>([]);
 
-  // Heatmap source data — fetched once on mount. Not affected by filters;
-  // the heatmap shows the global 志愿者分布 regardless of what the list
-  // above is currently filtered to.
+  // Heatmap source data. Refetched whenever 状态 / 部门 / 搜索 changes so the map
+  // counts the same people as the list and the stat strip; geography filters are
+  // excluded from heatFilterParams so clicking a province doesn't blank the map.
+  const heatKey = JSON.stringify(home.heatFilterParams);
   useEffect(() => {
     let cancelled = false;
-    void volunteerService.getProvinceCounts().then((res) => {
+    void volunteerService.getProvinceCounts(home.heatFilterParams).then((res) => {
       if (!cancelled && res?.success && Array.isArray(res.data)) {
         setProvinceCounts(res.data);
       }
     });
     return () => { cancelled = true; };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heatKey]);
 
   // Click routing: anonymous → /login, self → /me, other → detail page.
   // Decision logic lives in lib/routing.ts so it can be unit-tested
