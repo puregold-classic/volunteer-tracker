@@ -379,12 +379,82 @@ b_admin(录入员,全局录入不变) / **a_admin(部长)** / admin。部长作�
 
 ---
 
-## 当前部署状态（2026-08-14）
+## v3.9 — 个人简介 + 地图口径/底图/配色修复（2026-09-18 落地）
+
+一批各自独立的修复 + 一个小功能，同批 deploy。唯一带 migration 的是个人简介
+（`20260918025730_add_volunteer_bio`，纯 `ADD COLUMN`，不碰现有表）。
+
+### 个人简介（唯一的新功能）
+
+`Volunteer.bio`，200 字上限。上限放 service 层的 `normalizeBio` 而不是
+`@db.VarChar(200)`：Prisma DSL 表达不了 CHECK，写死 DB 长度以后想放宽也麻烦。
+trim、空串→null、**按码点计数**（emoji 算一个字，跟前端计数器口径一致）。
+
+- **新路由 `PATCH /volunteers/me`** —— 这是项目里**第一条普通 user 能写的通道**
+  （此前 `PUT /volunteers/:id` 只放行 admin/a_admin/b_admin）。可写字段是**硬编码
+  白名单**而不是对 body 做过滤：以后给 `update()` 加字段，不会悄悄变成用户可自改。
+  测试里锁了「body 塞 departmentId/status 被忽略」这条。
+- **代填**走原 `PUT /volunteers/:id`，权限不变，部长仍受本部门约束。两条路径共用
+  同一个 `normalizeBio`，不存在绕开上限的第二条路。
+- 简介**对匿名访客可见**（性质同姓名/部门）；email/phone 的隐藏逻辑不受影响。
+- 前端 `components/shared/volunteer-bio.tsx` 一份数据两种形态：MePage 自助编辑
+  （实时字数、超限禁用保存、用服务端规范化值回填而非本地草稿），详情页只读且
+  超 90 字折叠——阈值低于 200 是故意的，两行以内挂折叠按钮纯属噪音。
+
+### province-counts 口径统一（真 bug）
+
+`getProvinceCounts` 原本硬编码 `status: 'ACTIVE'` 且忽略一切筛选：地图各省加起来
+是 65（在职），顶部 StatStrip 显示 95（全部），两个数字长期对不上；筛部门时列表和
+统计都变、地图纹丝不动。现在跟 `findAll` / `getStats` 共用 `buildVolunteerWhere`。
+
+**地理筛选（region / province）故意不接**：点省份筛选会把该省灌回这个接口，接了
+热力层就会塌成「只剩刚点的那个省，其余全空」。分布是地图的职责，收窄是列表的职责。
+测试里锁了这条，防止以后被顺手接回去。
+
+### 列表分页（真 bug）
+
+列表只取第一页且丢掉接口返回的 `total`，95 人的库只渲染 20 张卡片。现在哨兵触底
+追加，底部常驻「已显示 N / 共 M 人」。三个坑写在注释里：新筛选的第一页在途中不许
+追加；`loadingMoreRef` 必须独立于 state（observer 会在重渲染前再次触发）；按 id
+去重（两次翻页间新建的人会错位 `createdAt` 窗口）。顺带删掉 `showStats` /
+`showPagination` 两个注释里写着 "no-op now" 的死 prop。
+
+### 地图底图换 Esri（外部变更导致的故障）
+
+CARTO 开始对无 key 的匿名请求返回**带 "API KEY REQUIRED" 水印的瓦片**。注意这不是
+HTTP 错误：响应是 200 + 合法 PNG，水印烧在图里，代码层面无从捕获。换成 Esri World
+Light Gray（keyless）。tile URL 抽成常量。
+
+### 热力图配色
+
+改蓝→青绿→黄→橘→橘红（parula/turbo 路径）。在 OKLCH 里沿控制点采样而非手挑 hex，
+彩度顶到 sRGB 色域边缘 97%，色相走暖侧绕开紫区。**亮度不再单调**（黄色那档必然最亮），
+「越深=越多」的线索改由色相顺序 + 图例 + 悬停人数承担——多色相色阶只有语义热力算
+合规例外且必须配图例，所以左下角的密度图例是跟着配色一起进来的，不是可选项。
+填充不透明度 0.78 → 0.92（低于此值灰底图会混进每一档），省份标签加白色描边。
+
+### 验证
+
+后端 206 tests（新增 11：province-counts 3 + bio 8）；前端 55 tests + `tsc --noEmit` 绿。
+sandbox 公网实测：瓦片零 CARTO 请求；列表「已显示 20 / 共 95 人」；province-counts
+无参合计 95（= totalVolunteers）、`status=在职` 65（= totalActive）、带 `province`
+参数仍 95（按设计被忽略）。commits `9c926fe`→`1df3c90`。
+
+### 遗留
+
+- 筛选结果为空时 `heatmapAvailable` 变 false，热力图开关按钮会整个消失、松开筛选
+  又回来。不影响数据正确性，但交互上突兀。
+- 公网 `/api/health` 被 nginx 层探针拦截，只返回 `{"status":"ok"}`，拿不到后端那个
+  带 `schemaVersion` 的响应。别拿它判断线上 schema 版本。
+
+---
+
+## 当前部署状态（2026-09-18）
 
 | 环境 | Branch | HEAD | 备注 |
 |---|---|---|---|
-| 本地 dev（WSL + Docker） | develop | fe42dd0 | v3.7 …+省份防呆下拉+Excel粘贴导入 |
-| Mac mini sandbox | develop | 031067e | https://dev.puregoldclassictranslation.com · v3.8.1 已 deploy 并端到端验证（部长删本部门 200 / 别部门 403，临时账号已清理，库回到 5 志愿者基线） |
+| 本地 dev（Linux/WSL + Docker） | develop | 1df3c90 | v3.9 |
+| Mac mini sandbox | develop | 1df3c90 | https://dev.puregoldclassictranslation.com · v3.9 已 deploy 并端到端验证（migration 已应用，公网四项功能实测通过）。机器实测：Mac mini M4 / 16GB / 磁盘可用 121GB |
 | 生产 | — | — | 未上 |
 
 > v3.5 deploy 流程：push develop → Mac `git pull` → `docker compose --env-file .env.deploy

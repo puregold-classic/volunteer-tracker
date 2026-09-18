@@ -2,7 +2,7 @@
 
 全球志愿者可视化管理系统。地图展示分布、按部门组织、自管 + 代提交项目支援记录。
 
-**当前 schema 版本**：**v2.1 + v3 增量**（v2.1 于 2026-04-08 落地；v3 `service_category` 迁移于 2026-04-17）。部门/服务的最新状态是 **v3.5 三大组 reorg**（2026-06-24，纯 seed 数据，无 schema migration）。**v3.6**（2026-06-24）加了生日制 `volunteerCode` + `Volunteer.birthday` migration + 首页部门分组 hover 筛选。**v3.7**（2026-07-17）把 `TagGroup/Tag.createdById` 改可空 + FK `onDelete: SetNull`（migration `20260717174244_tag_created_by_nullable`）——tag 组是组织配置不是用户拥有物，纯 admin 可建 tag，系统管理员不再需要志愿者替身身份。详见 `backend/prisma/schema.prisma` + `backend/prisma/seed.js` + `docs/v3-changelog.md`。
+**当前 schema 版本**：**v2.1 + v3 增量**（v2.1 于 2026-04-08 落地；v3 `service_category` 迁移于 2026-04-17）。部门/服务的最新状态是 **v3.5 三大组 reorg**（2026-06-24，纯 seed 数据，无 schema migration）。**v3.6**（2026-06-24）加了生日制 `volunteerCode` + `Volunteer.birthday` migration + 首页部门分组 hover 筛选。**v3.7**（2026-07-17）把 `TagGroup/Tag.createdById` 改可空 + FK `onDelete: SetNull`（migration `20260717174244_tag_created_by_nullable`）——tag 组是组织配置不是用户拥有物，纯 admin 可建 tag，系统管理员不再需要志愿者替身身份。**v3.9**（2026-09-18）加了 `Volunteer.bio` 个人简介 migration（`20260918025730_add_volunteer_bio`，纯 ADD COLUMN）——200 字上限在 service 层的 `normalizeBio`（Prisma DSL 表达不了 CHECK），且新增了项目里**第一条普通 user 可写的路由** `PATCH /volunteers/me`，可写字段是硬编码白名单而非 body 过滤，给 `update()` 加字段不会连带变成用户可自改。详见 `backend/prisma/schema.prisma` + `backend/prisma/seed.js` + `docs/v3-changelog.md`。
 
 ## 核心模型（最重要）
 
@@ -39,7 +39,7 @@
 - Prisma ORM 6.19 + PostgreSQL 16（Mongo 已彻底退役）
 - JWT + bcrypt
 - 角色：`user / b_admin / a_admin / admin`（v2.1 起 admin 唯一允许 `volunteerId=null`）。**v3.7 三层重排**：语义收敛成 user / **录入员**（`a_admin`≡`b_admin`，暂时一致留分化口子）/ admin（治理层）。录入员＝代提交+台账+改志愿者+批量录入受训+建改 tag+跨人改删台账；admin 独占部门/服务项/tag组配置、账号管理、建志愿者账号、月结锁定。服务层双档：`isReviewer`（录入员+）vs `isSystemAdmin`（仅 admin，月结封档豁免）。详见 `docs/architecture.md#角色与权限模型`
-- 测试：vitest，5 个 service 测试文件，86 tests，~80% line coverage（详见 `backend/vitest.config.js`）
+- 测试：vitest，11 个测试文件，206 tests（详见 `backend/vitest.config.js`）
 - **架构约定**：controller 只做 HTTP 适配（解析请求 → 调用 service → 映射 HTTP 响应），业务逻辑全部放 `services/`
 - **创建账号统一入口**：`AccountService.createVolunteerAccount`（atomic transaction），所有创建路径（admin form / CSV import / register / seed）都走它。**禁止裸调用 `prisma.account.create` 或 `prisma.volunteer.create`**
 
@@ -83,7 +83,7 @@ volunteer-tracker/
 │   │   └── utils/          # serializer / IDGenerator / idUtils / passwordUtils / queryUtils / prismaClient
 │   └── prisma/
 │       ├── schema.prisma   # v2.1 模型
-│       ├── seed.js         # 10 部门 + 50 服务项 + 4 sample 账号
+│       ├── seed.js         # 15 部门 + 75 服务项 + 5 tag 组 + 4 sample 账号
 │       └── migrations/
 │           ├── 20260408..._schema_v2_1/      # 破坏性 reset + 手工 SQL patch
 │           ├── 20260411..._add_token_valid_after/  # JWT revoke 字段
@@ -131,7 +131,7 @@ ssh mac 'cd ~/srv/volunteer-tracker && echo RESTORE | make restore'  # 恢复 la
 ## 测试
 
 ```bash
-make test              # vitest run, ~86 tests, 全 mock 不需要 DB
+make test              # vitest run, 206 tests, 全 mock 不需要 DB
 make test-coverage     # 覆盖率报告
 ```
 
@@ -150,7 +150,7 @@ make test-coverage     # 覆盖率报告
 **配色真值源** `frontend/src/lib/ledger-colors.ts`：
 
 - `CATEGORY_COLOR[cat]` —— 4 板块主色（项目管理 indigo / 项目培训 emerald / 项目支持 amber / 受训考勤 slate）
-- `DEPT_COLOR[deptId]` —— 12 部门色，按所属 category 家族取同色系不同档
+- `DEPT_COLOR[deptId]` —— 15 部门色，按所属 category 家族取同色系不同档
 - 所有图表、submit dialog、record card 都从这里取，别硬编 hex
 
 ## 浏览器调试（Playwright MCP）
@@ -173,6 +173,8 @@ make test-coverage     # 覆盖率报告
 
 ## 注意事项 + 历史坑
 
+- **地图底图不能用 CARTO**：`basemaps.cartocdn.com` 对无 key 的匿名请求返回**带 "API KEY REQUIRED" 水印的瓦片**，且响应是 200 + 合法 PNG——水印烧在图里，代码层面捕获不到。v3.9 起用 Esri World Light Gray（keyless），URL 是 `{z}/{y}/{x}`（y 在 x 前，跟多数瓦片源相反），抽在 `HomeMap.tsx` 的 `TILE_URL` 常量
+- **地图热力 `getProvinceCounts` 故意不接地理筛选**：点省份会把该省灌回这个接口，接了热力层就塌成「只剩刚点的那个省」。status / departmentId / search 要接（否则地图和顶部统计数字对不上），region / province 不接。测试里锁了这条
 - 旧的 v1 文档（NPS 审核流 / Mongo / SCSS / hash routing / stages 拆分）已全部移到 `docs/archive/v1-*` 子目录，仅作 history 留存。当前真值源是 `docs/architecture.md` + `prisma/schema.prisma` + 本文件
 - `render.yaml` 是历史遗留，不再使用
 - `backend/Dockerfile` 在容器启动时自动跑 `prisma migrate deploy` 然后启 server。改了 schema 之后 deploy 重 build 即可
