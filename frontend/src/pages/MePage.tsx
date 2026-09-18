@@ -42,6 +42,7 @@ import {
 // otherwise inflate every login session.
 const AdminCenter = lazy(() => import('@components/AdminCenter'));
 import { useAuth } from '@/context/AuthContext';
+import { BioEditor } from '@components/shared/volunteer-bio';
 import volunteerService from '@services/volunteerService';
 import projectSupportService from '@services/projectSupportService';
 import serviceItemService from '@services/serviceItemService';
@@ -452,6 +453,12 @@ function MePage({ onBackHome }: MePageProps) {
                   </span>
                 )}
               </div>
+              {volunteer && (
+                <BioEditor
+                  bio={volunteer.bio}
+                  onSaved={(bio) => setVolunteer((prev) => (prev ? { ...prev, bio } : prev))}
+                />
+              )}
             </div>
             <div className="flex flex-col gap-1">
               <Button

@@ -70,6 +70,18 @@ export const getVolunteerDerivedStats = async (req, res) => {
   }
 };
 
+export const updateOwnProfile = async (req, res) => {
+  try {
+    const volunteerId = req.user?.volunteerId;
+    if (!volunteerId) return fail(res, 400, '当前账号未绑定志愿者身份，无法编辑个人简介');
+    const updated = await VolunteerService.updateOwnProfile(volunteerId, { bio: req.body?.bio });
+    if (!updated) return fail(res, 404, '志愿者不存在');
+    return ok(res, updated);
+  } catch (err) {
+    return fail(res, 400, err.message);
+  }
+};
+
 export const getProvinceCounts = async (req, res) => {
   try {
     const { status, departmentId, search } = req.query;

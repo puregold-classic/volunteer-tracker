@@ -118,6 +118,15 @@ export const volunteerService = {
   updateVolunteer: async (idOrCode: string, data: Partial<Volunteer>): Promise<ApiResponse<Volunteer>> => {
     return api.put(`/volunteers/${idOrCode}`, data);
   },
+
+  /**
+   * Self-service 个人简介 edit. Separate endpoint from updateVolunteer, which is
+   * reviewer/admin-only — this one any logged-in volunteer may call, and the
+   * server only accepts `bio` from it.
+   */
+  updateMyBio: async (bio: string | null): Promise<ApiResponse<Volunteer>> => {
+    return api.patch('/volunteers/me', { bio });
+  },
 };
 
 export default volunteerService;

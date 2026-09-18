@@ -10,6 +10,7 @@ const { mockPrisma } = vi.hoisted(() => ({
   mockPrisma: {
     volunteer: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
       update: vi.fn(),
@@ -30,6 +31,9 @@ import {
   getStats,
   getDerivedStats,
   getProvinceCounts,
+  updateOwnProfile,
+  normalizeBio,
+  BIO_MAX_LENGTH,
 } from '../services/VolunteerService.js';
 
 beforeEach(() => {
@@ -196,6 +200,61 @@ describe('getStats', () => {
     expect(r.summary.totalActive).toBe(4);
     expect(r.regionDistribution).toHaveLength(1);
     expect(r.departmentDistribution).toHaveLength(1);
+  });
+});
+
+// ─── bio / updateOwnProfile ──────────────────────────────────────────────────
+
+describe('normalizeBio', () => {
+  it('trims and keeps normal text', () => {
+    expect(normalizeBio('  热爱翻译  ')).toBe('热爱翻译');
+  });
+
+  it('blank or null becomes null (clearing the bio)', () => {
+    expect(normalizeBio('')).toBeNull();
+    expect(normalizeBio('   ')).toBeNull();
+    expect(normalizeBio(null)).toBeNull();
+  });
+
+  it(`rejects over ${BIO_MAX_LENGTH} chars`, () => {
+    expect(() => normalizeBio('字'.repeat(BIO_MAX_LENGTH + 1))).toThrow(/最多 200 字/);
+  });
+
+  it('counts by code point, so emoji are one char not two', () => {
+    expect(() => normalizeBio('🙂'.repeat(BIO_MAX_LENGTH))).not.toThrow();
+  });
+});
+
+describe('updateOwnProfile', () => {
+  it('writes the bio for the caller\'s own record', async () => {
+    mockPrisma.volunteer.findUnique.mockResolvedValue({ id: 'v1' });
+    mockPrisma.volunteer.update.mockResolvedValue({
+      id: 'v1', volunteerCode: 'PG-0001', chineseName: '张三', bio: '热爱翻译',
+    });
+    const r = await updateOwnProfile('v1', { bio: '热爱翻译' });
+    expect(mockPrisma.volunteer.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'v1' }, data: { bio: '热爱翻译' } }),
+    );
+    expect(r.bio).toBe('热爱翻译');
+  });
+
+  it('ignores every field except bio — no privilege escalation via body', async () => {
+    mockPrisma.volunteer.findUnique.mockResolvedValue({ id: 'v1' });
+    mockPrisma.volunteer.update.mockResolvedValue({ id: 'v1', bio: 'hi' });
+    await updateOwnProfile('v1', {
+      bio: 'hi', departmentId: 'TECH', status: '不在职', phone: '13800000000',
+    });
+    expect(mockPrisma.volunteer.update.mock.calls[0][0].data).toEqual({ bio: 'hi' });
+  });
+
+  it('rejects an unbound account (admin with volunteerId null)', async () => {
+    await expect(updateOwnProfile(null, { bio: 'hi' })).rejects.toThrow(/未绑定志愿者/);
+    expect(mockPrisma.volunteer.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects an over-long bio before touching the db', async () => {
+    await expect(updateOwnProfile('v1', { bio: '字'.repeat(201) })).rejects.toThrow(/最多 200 字/);
+    expect(mockPrisma.volunteer.update).not.toHaveBeenCalled();
   });
 });
 

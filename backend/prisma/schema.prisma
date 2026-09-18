@@ -248,6 +248,10 @@ model Volunteer {
   // The code only encodes month-day; this field keeps the full date for any
   // future use (greetings, age). See IDGenerator.generateVolunteerCode.
   birthday        DateTime?
+  // v3.9: short self-authored intro shown on the volunteer's profile page.
+  // Capped at 200 chars in VolunteerService — Prisma DSL can't express a CHECK,
+  // and a hard DB limit would make the cap painful to raise later.
+  bio             String?
   departmentId    String
   department      Department      @relation(fields: [departmentId], references: [id])
   activityLevel   ActivityLevel   @default(MEDIUM)

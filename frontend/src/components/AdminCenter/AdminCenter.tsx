@@ -543,6 +543,8 @@ const editAccountSchema = z.object({
   departmentId: z.string().optional(),
   phone: z.string().optional(),
   birthday: z.string().optional(),
+  // 200 chars matches VolunteerService.normalizeBio; the server re-checks.
+  bio: z.string().trim().max(200, '个人简介最多 200 字').optional(),
 });
 
 type EditAccountForm = z.infer<typeof editAccountSchema>;
@@ -599,6 +601,7 @@ const EditAccountDialog: React.FC<{
       departmentId: account.volunteer?.department?.id || '',
       phone: account.volunteer?.phone || '',
       birthday: account.volunteer?.birthday ? account.volunteer.birthday.slice(0, 10) : '',
+      bio: account.volunteer?.bio || '',
     });
   }, [account, reset]);
   // 台湾只有「台湾省」；切到台湾自动填（标 dirty 以便随编辑保存）
@@ -640,6 +643,8 @@ const EditAccountDialog: React.FC<{
       if (dirtyFields.phone) volunteerPatch.phone = data.phone || null;
       // v3.7: birthday 可后补/改；后端只更新字段，不重算 volunteerCode（ID 不可变）
       if (dirtyFields.birthday) volunteerPatch.birthday = data.birthday || null;
+      // v3.9: 代填个人简介。本人也能在 MePage 自助改，两条路径共用后端校验。
+      if (dirtyFields.bio) volunteerPatch.bio = data.bio || null;
 
       if (Object.keys(volunteerPatch).length > 0) {
         const res = await volunteerService.updateVolunteer(account.volunteerId, volunteerPatch as any);
@@ -764,6 +769,13 @@ const EditAccountDialog: React.FC<{
                 <FormInput type="date" {...register('birthday')} />
               </FormField>
             </div>
+            <FormField
+              label="个人简介"
+              error={errors.bio?.message}
+              hint="最多 200 字，显示在该志愿者的个人主页；本人也能在「我的」页面自行编辑"
+            >
+              <FormTextarea {...register('bio')} rows={3} placeholder="可选" />
+            </FormField>
           </div>
         )}
 

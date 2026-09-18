@@ -38,6 +38,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { BioDisplay } from '@components/shared/volunteer-bio';
 import { parseLocalDate, formatLocalDate } from '@/lib/date-utils';
 import { HeroAvatar } from '@/components/shared/hero-avatar';
 import { FollowHeart } from '@/components/shared/follow-heart';
@@ -216,6 +217,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
               {volunteer.englishName && (
                 <p className="text-sm text-muted-foreground italic">{volunteer.englishName}</p>
               )}
+              <BioDisplay bio={volunteer.bio} className="mt-2" />
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="font-mono tabular-nums">{volunteer.volunteerCode}</span>
                 {volunteer.department && (

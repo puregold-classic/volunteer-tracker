@@ -88,6 +88,7 @@ export interface Volunteer {
   department: Pick<Department, 'id' | 'name'> | null;
   activityLevel: ActivityLevelDisplay;
   birthday?: string | null;   // ISO date; drives birthday-based volunteerCode
+  bio?: string | null;        // v3.9 个人简介, <=200 chars, public
   email?: string | null;
   phone?: string | null;
   joinDate?: string;

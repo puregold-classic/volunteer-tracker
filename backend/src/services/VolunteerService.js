@@ -27,6 +27,23 @@ const parseMulti = (value) => {
   return String(raw || '').split(',').map((s) => s.trim()).filter(Boolean);
 };
 
+export const BIO_MAX_LENGTH = 200;
+
+/**
+ * Normalize a bio for storage: trim, blank → null, reject over-long input.
+ * Both the self-service path and the reviewer/admin path go through this, so
+ * the cap can't be bypassed by using the other endpoint.
+ */
+export const normalizeBio = (raw) => {
+  if (raw === null) return null;
+  const text = String(raw ?? '').trim();
+  if (!text) return null;
+  if ([...text].length > BIO_MAX_LENGTH) {
+    throw new Error(`个人简介最多 ${BIO_MAX_LENGTH} 字，当前 ${[...text].length} 字`);
+  }
+  return text;
+};
+
 export const buildVolunteerWhere = (queryParams = {}) => {
   const { status, region, province, departmentId, search } = queryParams;
   const where = {};
@@ -202,6 +219,7 @@ export const update = async (idOrCode, body, operator = null) => {
   if (body.activityLevel !== undefined) {
     data.activityLevel = body.activityLevel === '高' ? 'HIGH' : body.activityLevel === '低' ? 'LOW' : 'MEDIUM';
   }
+  if (body.bio !== undefined) data.bio = normalizeBio(body.bio);
   if (body.email !== undefined) data.email = body.email;
   if (body.phone !== undefined) data.phone = normalizePhone(body.phone);
   // v3.7: birthday 可后补/修改。注意：这只更新 birthday 字段，**不重算 volunteerCode**
@@ -213,6 +231,33 @@ export const update = async (idOrCode, body, operator = null) => {
 
   const updated = await prisma.volunteer.update({
     where: { id: target.id },
+    data,
+    include: { department: true },
+  });
+  return serializeVolunteer(updated);
+};
+
+/**
+ * Self-service profile update. Deliberately separate from update() above, which
+ * is reviewer/admin-only and can touch department, status, phone, …
+ *
+ * This one is reachable by any logged-in volunteer for their OWN record, so the
+ * writable set is a hard-coded whitelist of one field rather than a filter over
+ * the request body — a future field added to update() must not silently become
+ * self-writable here.
+ */
+export const updateOwnProfile = async (volunteerId, body = {}) => {
+  if (!volunteerId) throw new Error('当前账号未绑定志愿者身份');
+
+  const data = {};
+  if (body.bio !== undefined) data.bio = normalizeBio(body.bio);
+  if (Object.keys(data).length === 0) throw new Error('没有可更新的字段');
+
+  const target = await prisma.volunteer.findUnique({ where: { id: volunteerId } });
+  if (!target) return null;
+
+  const updated = await prisma.volunteer.update({
+    where: { id: volunteerId },
     data,
     include: { department: true },
   });
