@@ -293,6 +293,8 @@
     font-size: 10px;
     font-weight: 500;
     color: hsl(20 25% 25% / 0.5);
+    /* Halo keeps 10px labels legible where the heat ramp fills go saturated. */
+    text-shadow: 0 0 2px hsl(0 0% 100% / 0.9), 0 0 4px hsl(0 0% 100% / 0.7);
     letter-spacing: 0.02em;
     white-space: nowrap;
     pointer-events: none;

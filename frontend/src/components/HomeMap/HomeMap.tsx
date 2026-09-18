@@ -71,6 +71,24 @@ const CHINA_GEOJSON_URL = '/china-100000.json';
 const TILE_URL =
   'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
 const TILE_ATTRIBUTION = 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ';
+
+// Heatmap ramp — semantic heat (cool = few volunteers, hot = many), the
+// parula/turbo path: blue → teal → yellow → orange → orange-red. A multi-hue
+// sequential ramp is only defensible as semantic heat and only with a scale
+// legend, which is why HeatLegend below ships with it.
+//
+// Sampled in OKLCH along control points, chroma pinned near the sRGB gamut edge
+// at every step so nothing reads gray. Hue runs the warm way round (258° → 42°
+// via cyan/green/yellow) and never enters the violet arc. The hot end stops at
+// orange-red rather than carrying on to pure red — past ~30° it reads as an
+// alert color rather than the top of a heat scale.
+//
+// Lightness is NOT monotonic here — it peaks at the yellow step, because yellow
+// is intrinsically light and the ramp has to pass through it to get from blue to
+// orange. That costs the "darker = more" cue, so the scale legend and the hover
+// count badge are doing that work instead.
+const HEAT_RAMP = ['#2881fc', '#1bc8b9', '#ecd21e', '#f38f15', '#e5590e'];
+const HEAT_EMPTY = '#f1f5f9'; // slate-100 = "no volunteers here", outside the ramp
 const REGION_VIEW: Record<
   string,
   { center: [number, number]; zoom: number; bounds?: LatLngBoundsExpression; label?: string; borderColor?: string }
@@ -475,21 +493,17 @@ const HomeMap: React.FC<HomeMapProps> = ({
     ).trim();
   };
 
-  // Choropleth color ramp for heatmap mode. Graded by ratio of province
-  // count to global max. Intentionally uses the existing warm palette
-  // (terracotta / amber) so it stays on-brand with the active-province color.
-  const HEAT_RAMP = ['#fef3c7', '#fde68a', '#fcd34d', '#f59e0b', '#d97706', '#a16207'];
+  // Graded by ratio of province count to global max — see HEAT_RAMP.
   const heatColorFor = (name: string): string => {
     const n = countByProvince.get(name) ?? 0;
-    if (n === 0 || maxCount === 0) return '#f1f5f9'; // slate-100 = "no data"
+    if (n === 0 || maxCount === 0) return HEAT_EMPTY;
     const ratio = n / maxCount;
     // Threshold the ratio into ramp buckets. log-ish so small counts aren't invisible.
     const idx =
-      ratio >= 0.8 ? 5 :
-      ratio >= 0.5 ? 4 :
-      ratio >= 0.3 ? 3 :
-      ratio >= 0.15 ? 2 :
-      ratio >= 0.05 ? 1 : 0;
+      ratio >= 0.75 ? 4 :
+      ratio >= 0.5 ? 3 :
+      ratio >= 0.28 ? 2 :
+      ratio >= 0.1 ? 1 : 0;
     return HEAT_RAMP[idx];
   };
 
@@ -509,7 +523,9 @@ const HomeMap: React.FC<HomeMapProps> = ({
         color: '#475569',
         weight: 0.8,
         fillColor: heatColorFor(name),
-        fillOpacity: 0.78,
+        // 0.92, not the 0.78 the warm ramp used — anything lower mixes the gray
+        // basemap into every step and the ramp reads muddy instead of vivid.
+        fillOpacity: 0.92,
       };
     }
     return {
@@ -613,6 +629,30 @@ const HomeMap: React.FC<HomeMapProps> = ({
       {selectionLabel && (
         <div className="home-map__toolbar">
           {selectionLabel}
+        </div>
+      )}
+
+      {/* Heat scale legend. A multi-hue ramp is unreadable without one — the
+          hover badge gives an exact count, this gives the reading for every
+          other province on screen at a glance. Sits above the selection
+          toolbar when one is showing so the two never overlap. */}
+      {heatmapActive && (
+        <div
+          className={cn(
+            'pointer-events-none absolute left-3 z-[400] rounded-xl border border-border bg-card/95 px-3 py-2 shadow-md backdrop-blur',
+            selectionLabel ? 'bottom-14' : 'bottom-3',
+          )}
+        >
+          <div className="mb-1 text-[10px] font-medium text-muted-foreground">志愿者密度</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-muted-foreground">少</span>
+            <div className="flex overflow-hidden rounded-sm border border-border/60">
+              {HEAT_RAMP.map((color) => (
+                <span key={color} className="h-2.5 w-5" style={{ backgroundColor: color }} />
+              ))}
+            </div>
+            <span className="text-[10px] tabular-nums text-muted-foreground">{maxCount} 人</span>
+          </div>
         </div>
       )}
 
