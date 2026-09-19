@@ -217,7 +217,6 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
               {volunteer.englishName && (
                 <p className="text-sm text-muted-foreground italic">{volunteer.englishName}</p>
               )}
-              <BioDisplay bio={volunteer.bio} className="mt-2" />
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="font-mono tabular-nums">{volunteer.volunteerCode}</span>
                 {volunteer.department && (
@@ -244,6 +243,7 @@ function VolunteerDetailPage({ volunteerId, onBackHome }: VolunteerDetailPagePro
                   {volunteer.status}
                 </span>
               </div>
+              <BioDisplay bio={volunteer.bio} className="mt-3" />
             </div>
           </div>
 

@@ -456,6 +456,7 @@ function MePage({ onBackHome }: MePageProps) {
               {volunteer && (
                 <BioEditor
                   bio={volunteer.bio}
+                  className="mt-3"
                   onSaved={(bio) => setVolunteer((prev) => (prev ? { ...prev, bio } : prev))}
                 />
               )}
