@@ -338,3 +338,28 @@ input[type='password']::-ms-reveal,
 input[type='password']::-ms-clear {
   display: none;
 }
+
+/* The editor and published document share the same typography. */
+.forum-rich {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.9375rem;
+  line-height: 1.85;
+}
+.forum-rich p { margin: 0.65em 0; min-height: 1.85em; }
+.forum-rich h1, .forum-rich h2, .forum-rich h3 { font-weight: 650; line-height: 1.5; margin: 1.1em 0 0.5em; }
+.forum-rich h1 { font-size: 1.65rem; }
+.forum-rich h2 { font-size: 1.35rem; }
+.forum-rich h3 { font-size: 1.1rem; }
+.forum-rich > :first-child { margin-top: 0; }
+.forum-rich > :last-child { margin-bottom: 0; }
+.forum-rich ul { list-style: disc; padding-left: 1.6em; margin: 0.6em 0; }
+.forum-rich ol { list-style: decimal; padding-left: 1.6em; margin: 0.6em 0; }
+.forum-rich li p { margin: 0.15em 0; }
+.forum-rich a { color: hsl(var(--primary)); text-decoration: underline; text-underline-offset: 3px; }
+.forum-rich-editor p:first-child:last-child:has(> br.ProseMirror-trailingBreak:only-child)::before {
+  content: '写下你的想法…'; color: hsl(var(--muted-foreground)); font-weight: 400; float: left; height: 0; pointer-events: none;
+}
+
+/* The image-edge caret replaces the generic horizontal gap indicator. */
+.forum-rich-editor:has(.forum-image-caret[aria-pressed="true"]) .ProseMirror-gapcursor { visibility: hidden; }

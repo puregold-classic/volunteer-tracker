@@ -2,8 +2,7 @@
 // Replaces the old LinkProjectDialog (Project concept dropped in v3.3).
 //
 // Shows tag groups bound to the PS's serviceItem. Each group renders its
-// tags as pills; user toggles them and the dialog computes the diff on
-// submit (attaches newly-selected tags, detaches unselected ones).
+// tags as pills; the server saves the whole selection atomically.
 
 import { useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -25,6 +24,7 @@ export const LinkTagsDialog: React.FC<Props> = ({ open, support, onOpenChange, o
   const [boundGroups, setBoundGroups] = useState<TagGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState('');
   // Tracks current selection per group, initialized from support.tags on open.
   const [selectedTagIds, setSelectedTagIds] = useState<Record<string, string[]>>({});
 
@@ -42,13 +42,18 @@ export const LinkTagsDialog: React.FC<Props> = ({ open, support, onOpenChange, o
 
   useEffect(() => {
     if (!open || !support) return;
+    let live = true;
     setLoading(true);
+    setLoadError('');
     setSelectedTagIds(initialSelection);
     tagService.getGroupsBoundTo(support.serviceItemId)
       .then((res) => {
-        if (res?.success && res.data) setBoundGroups(res.data);
+        if (!res.success || !res.data) throw new Error(res.error || '标签加载失败');
+        if (live) setBoundGroups(res.data);
       })
-      .finally(() => setLoading(false));
+      .catch(() => { if (live) setLoadError('标签加载失败，请关闭后重新打开。'); })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
   }, [open, support, initialSelection]);
 
   const toggleTagInGroup = (group: TagGroup, tagId: string) => {
@@ -67,8 +72,9 @@ export const LinkTagsDialog: React.FC<Props> = ({ open, support, onOpenChange, o
   };
 
   const missingRequiredGroups = boundGroups.filter(
-    (g) => g.required && (selectedTagIds[g.id] ?? []).length === 0,
+    (g) => g.required && !g.tags.some((t) => (selectedTagIds[g.id] ?? []).includes(t.id)),
   );
+  const historical = (support?.tags || []).filter((t) => !boundGroups.some((g) => g.tags.some((tag) => tag.id === t.tagId)));
 
   const handleSubmit = async () => {
     if (!support) return;
@@ -82,35 +88,13 @@ export const LinkTagsDialog: React.FC<Props> = ({ open, support, onOpenChange, o
     }
     setSubmitting(true);
     try {
-      // Compute diff per group: current vs initial → lists to attach/detach.
-      const toAttach: string[] = [];
-      const toDetach: string[] = [];
-      for (const g of boundGroups) {
-        const now = new Set(selectedTagIds[g.id] ?? []);
-        const before = new Set(initialSelection[g.id] ?? []);
-        for (const id of now) if (!before.has(id)) toAttach.push(id);
-        for (const id of before) if (!now.has(id)) toDetach.push(id);
-      }
-      if (toAttach.length === 0 && toDetach.length === 0) {
-        onOpenChange(false);
-        return;
-      }
-      const results = await Promise.allSettled([
-        ...toAttach.map((tagId) => tagService.attach(tagId, support.supportId)),
-        ...toDetach.map((tagId) => tagService.detach(tagId, support.supportId)),
-      ]);
-      const failed = results.filter((r) => r.status === 'rejected' || !(r.status === 'fulfilled' && (r.value as { success?: boolean })?.success)).length;
-      if (failed > 0) {
-        toast({
-          title: `部分操作失败 (${failed}/${results.length})`,
-          description: '请刷新后重试',
-          variant: 'destructive',
-        });
-      } else {
-        toast({ title: '标签已更新' });
-      }
+      const result = await tagService.replaceRecordTags(support.id, Object.values(selectedTagIds).flat());
+      if (!result.success) throw new Error(result.error || '保存失败');
+      toast({ title: '标签已更新' });
       onChanged?.();
       onOpenChange(false);
+    } catch (error) {
+      toast({ title: '保存失败', description: error instanceof Error ? error.message : (error as { error?: string })?.error || '请重试', variant: 'destructive' });
     } finally {
       setSubmitting(false);
     }
@@ -127,13 +111,14 @@ export const LinkTagsDialog: React.FC<Props> = ({ open, support, onOpenChange, o
       description={`${support.serviceItem?.departmentName ?? ''} / ${support.serviceItem?.name ?? ''} · ${support.duration}h`}
     >
       <div className="flex flex-col gap-3 px-6 py-4">
+        {loadError && <p role="alert" className="text-sm text-destructive">{loadError}</p>}
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         ) : boundGroups.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            当前 service item 没有绑定任何标签组
+            当前服务项没有适用的标签组
           </p>
         ) : (
           boundGroups.map((g) => {
@@ -148,7 +133,7 @@ export const LinkTagsDialog: React.FC<Props> = ({ open, support, onOpenChange, o
                   </span>
                 </div>
                 {g.tags.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">（该组暂无 tag）</p>
+                  <p className="text-xs text-muted-foreground">（该组暂无标签）</p>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {g.tags.map((t) => {
@@ -175,6 +160,7 @@ export const LinkTagsDialog: React.FC<Props> = ({ open, support, onOpenChange, o
             );
           })
         )}
+        {!loading && historical.length > 0 && <div className="space-y-2 rounded-xl bg-primary/5 p-3"><p className="text-sm font-medium">历史标签需检查</p><p className="text-xs leading-5 text-muted-foreground">以下标签已停用或不再适用，保留原有关联；可明确解除。</p>{historical.map((tag) => <div key={tag.tagId} className="flex items-center justify-between gap-2 text-xs"><span>{tag.name}</span><button type="button" className="text-primary underline" onClick={() => setSelectedTagIds((previous) => { const next = { ...previous }; const groupId = tag.group?.id; if (!groupId) return previous; const ids = next[groupId] || []; next[groupId] = ids.includes(tag.tagId) ? ids.filter((id) => id !== tag.tagId) : [...ids, tag.tagId]; return next; })}>{Object.values(selectedTagIds).flat().includes(tag.tagId) ? '解除关联' : '撤销解除'}</button></div>)}</div>}
         {missingRequiredGroups.length > 0 && (
           <p className="text-xs text-destructive">
             必选未填：{missingRequiredGroups.map((g) => g.name).join('、')}
@@ -185,7 +171,7 @@ export const LinkTagsDialog: React.FC<Props> = ({ open, support, onOpenChange, o
         <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>
           取消
         </Button>
-        <Button type="button" onClick={handleSubmit} disabled={submitting || loading}>
+        <Button type="button" onClick={handleSubmit} disabled={submitting || loading || !!loadError || missingRequiredGroups.length > 0}>
           {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           保存
         </Button>

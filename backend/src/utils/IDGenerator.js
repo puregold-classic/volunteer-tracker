@@ -77,14 +77,14 @@ class IDGenerator {
   /**
    * Generate the next "PS-{volunteerCode}-{NNN}" supportId for a given owner.
    */
-  static async generateSupportId(volunteerCode) {
+  static async generateSupportId(volunteerCode, db = prisma) {
     if (!this.isValidVolunteerCode(volunteerCode)) {
       throw new Error(`无效的志愿者 code 格式: ${volunteerCode}`);
     }
     const prefix = `PS-${volunteerCode}-`;
-    const latest = await prisma.projectSupport.findFirst({
+    const latest = await db.projectSupport.findFirst({
       where: { supportId: { startsWith: prefix } },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { supportId: 'desc' },
       select: { supportId: true },
     });
     if (!latest) return `${prefix}001`;

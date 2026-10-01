@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ProjectSupport } from '@services/types';
 import { formatLocalDate } from '@/lib/date-utils';
+import { Link } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 
 export interface SupportRecordCardProps {
   support: ProjectSupport;
@@ -32,6 +34,7 @@ export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
   showEdit = true,
   showId = true,
 }) => {
+  const { account } = useAuth();
   // Training-attendance records are organizer-owned (batch-entered); the owner
   // can't edit or delete them — only view. Mirrors the backend guard.
   const isAttendance = support.serviceItem?.category === 'TRAINING_ATTENDANCE';
@@ -66,7 +69,7 @@ export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
               title={t.group ? `${t.group.name}: ${t.name}` : t.name}
             >
               <Tag className="h-2.5 w-2.5" />
-              {t.name}
+              <Link to={`/tags/${t.tagId}`} className="hover:underline">{t.name}</Link>
             </Badge>
           ))}
         </div>
@@ -95,7 +98,7 @@ export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
             <Pencil className="h-3.5 w-3.5" />
           </Button>
         )}
-        {onEditTags && support.status === 'ACTIVE' && (
+        {onEditTags && support.status === 'ACTIVE' && !isAttendance && (
           <Button
             type="button"
             size="icon-sm"
@@ -123,6 +126,8 @@ export const SupportRecordCard: React.FC<SupportRecordCardProps> = ({
       </div>
     </div>
     <p className="text-xs text-muted-foreground line-clamp-2">{support.description}</p>
+    {support.trainingSessionId && account && ['admin', 'a_admin', 'b_admin'].includes(account.role) && <Link to={`/training/${support.trainingSessionId}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">进入培训场次管理 →</Link>}
+    {support.submittedByAccount && !support.submittedBy && <p className="text-[11px] text-muted-foreground">录入：{support.submittedByAccount.name}</p>}
     {support.isProxy && support.submittedBy && (
       <p className="flex items-center gap-1 text-[11px] text-accent">
         <Send className="h-3 w-3" />

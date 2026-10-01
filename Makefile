@@ -15,7 +15,7 @@ help:
 	@echo "📋 志愿者管理系统命令 (v2.1)"
 	@echo ""
 	@echo "本地开发（docker-compose.yml）:"
-	@echo "  make dev          稳定启动 backend + postgres，前端单独 npm run dev"
+	@echo "  make dev          同根目录 npm run dev，一键启动并打开网页；Ctrl+C 关闭"
 	@echo "  make start        同 dev"
 	@echo "  make stop         停掉本地容器"
 	@echo "  make restart      重启"
@@ -86,9 +86,10 @@ db-studio:
 
 db-reset:
 	@docker compose down -v
-	@docker compose up -d
-	@sleep 5
-	@docker compose exec -T backend npx prisma migrate deploy
+	@docker compose build backend
+	@docker compose up -d --wait postgres
+	@docker compose run --rm -T --no-deps --user root backend node scripts/prepare-dev.mjs
+	@docker compose up -d --no-deps backend
 	@docker compose exec -T backend npx prisma db seed
 
 # ─── 测试 ───────────────────────────────────────────────────────────────────

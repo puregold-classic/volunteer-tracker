@@ -10,6 +10,8 @@ import type {
 } from './types';
 
 export interface CreateTagGroupPayload {
+  applicability?: 'all' | 'specified' | 'legacy';
+  isActive?: boolean;
   name: string;
   description?: string;
   boundServiceItemIds?: string[];
@@ -57,6 +59,7 @@ export interface BatchPreview {
 }
 
 export const tagService = {
+  replaceRecordTags: (supportId: string, tagIds: string[]): Promise<ApiResponse<ProjectSupport>> => api.put(`/tags/records/${supportId}`, { tagIds }),
   // Group CRUD
   listGroups: async (): Promise<ApiResponse<TagGroup[]>> => api.get('/tag-groups'),
   getGroup: async (id: string): Promise<ApiResponse<TagGroup>> => api.get(`/tag-groups/${id}`),

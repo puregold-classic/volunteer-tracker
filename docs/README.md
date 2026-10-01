@@ -2,7 +2,7 @@
 
 全球志愿者可视化管理系统。地图展示分布、按部门组织、自管 + 代提交项目支援记录。
 
-**当前版本**：schema **v2.1 + v3 增量**（v2.1 于 2026-04-08 破坏性 reset；v3 于 2026-04-17 上线前落地，增 `ServiceCategory` / `Project` / `VolunteerList` 三块 + 台账重构 + 视觉重做）。
+**当前实现**：以 `backend/prisma/schema.prisma` 为准，包含培训场次、服务标签、台账、关注名单及论坛。2026-09 的培训与标签升级采用增量迁移，不 reset 或 seed。
 
 ---
 
@@ -11,11 +11,16 @@
 ### 入门与开发
 - **[architecture.md](architecture.md)** — 技术栈、模块结构、数据模型概览、角色权限模型
 - **[development.md](development.md)** — 本地开发环境、git workflow、测试约定
-- **[api-overview.md](api-overview.md)** — API endpoint 巡览（按业务域分组，含 v3 新增的 `/projects` / `/lists` / 台账多个新端点）
+- **[api-overview.md](api-overview.md)** — API endpoint 巡览（按业务域分组，含 `/training` / `/tags` / `/lists` / 台账端点）
 
 ### 部署与运维
 - **[deploy/mac-mini-setup.md](deploy/mac-mini-setup.md)** — Mac mini sandbox 完整部署清单（域名 → Cloudflare Tunnel → launchd 服务）
 - **[deploy/backup-strategy.md](deploy/backup-strategy.md)** — pg_dump GFS rotation + iCloud Drive 离机冗余策略
+
+### 培训与标签升级
+- **[training-tags-plan.md](training-tags-plan.md)** — 培训考勤与普通标签拆分；已启用，含原始基线及分阶段任务清单，当前实现见升级说明。
+
+- **[training-tags-upgrade.md](training-tags-upgrade.md)** — 新入口、权限与数据契约、迁移操作和验收证据。
 
 ### 历史 / 已归档
 - **[archive/](archive/)** — v1（Mongo + 哈希路由 + SCSS 时代）的设计文档、stage 拆分、NPS 审核流程、chunk 6 计划等。**仅作 history 留存，不再代表系统当前形态**，新人请先读上面的活文档
@@ -48,7 +53,8 @@
 | **v3** | 2026-04-17 的上线前增量。加 `ServiceCategory` 四板块（项目管理/培训/支持/受训考勤）+ `Project` 一等实体（批量考勤）+ `VolunteerList`（我的关注）+ 台账 3 级 drill |
 | **chunk 6** | 2026-04 的前端视觉重做。Tailwind v4 + react-router v7 + react-hook-form + 5 张主页面全 chunk-6 化 |
 | **ProjectSupport** | 项目支援记录（v1 叫 NonProjectService / NPS） |
-| **Project** | v3 新增。一个具体的 session/项目实例（如某次培训），批量考勤入账 + 个人支援可贴 tag |
+| **TrainingSession / TrainingAttendance** | 独立培训场次与参加关系，复用 ProjectSupport 入账；旧 Project 已移除 |
+| **TagGroup / Tag / TagAttachment** | 普通服务记录分类、标签和具体记录关联；不承担考勤批量入账 |
 | **ServiceCategory** | v3 新增 enum：`PROJECT_MGMT` / `PROJECT_TRAINING` / `PROJECT_SUPPORT` / `TRAINING_ATTENDANCE` |
 | **我的关注 / VolunteerList** | v3 新增。私有 per-owner 跟踪名单，MVP 只开默认 list "我的关注" |
 | **代提交 / proxy submission** | 由 A 提交但 volunteerId 是 B 的记录，状态机 PENDING_CONFIRMATION，等 B 确认。v3 起 a_admin/b_admin 代提交免 confirm |

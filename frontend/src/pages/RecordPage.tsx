@@ -1,0 +1,11 @@
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, CalendarDays, Clock3, FileText } from 'lucide-react';
+import { labelService } from '@/services/labelService';
+import { trainingError } from '@/services/trainingService';
+import type { ProjectSupport } from '@/services/types';
+export default function RecordPage() {
+  const { supportId = '' } = useParams(); const [record, setRecord] = useState<ProjectSupport | null>(null), [error, setError] = useState('');
+  useEffect(() => { let live = true; setRecord(null); labelService.record(supportId).then((r) => live && setRecord(r)).catch((e) => live && setError(trainingError(e))); return () => { live = false; }; }, [supportId]);
+  return <div className="mx-auto max-w-2xl space-y-5 px-4 py-8"><Link to="/tags" className="inline-flex items-center gap-2 text-sm text-muted-foreground"><ArrowLeft size={15} />服务标签</Link>{error ? <p role="alert">{error}</p> : !record ? <p role="status">正在读取记录…</p> : <article className="rounded-3xl border border-border bg-card p-6 shadow-sm sm:p-9"><div className="mb-5 flex items-center gap-2 text-xs text-primary"><FileText size={16} />服务记录</div><h1 className="font-serif text-2xl font-semibold">{record.serviceItem?.name}</h1><p className="mt-2 font-mono text-xs text-muted-foreground">{record.supportId}</p><Link to={`/volunteers/${record.volunteerId}`} className="mt-6 inline-block text-sm font-medium text-primary hover:underline">{record.volunteer?.chineseName} · {record.volunteer?.volunteerCode}</Link><div className="my-6 flex flex-wrap items-center gap-5 rounded-xl bg-muted/40 p-4 text-sm"><span className="flex items-center gap-2"><CalendarDays size={16} />{record.serviceDate.slice(0, 10)}</span><span className="flex items-center gap-2"><Clock3 size={16} />{record.duration} 小时</span><span className="text-accent">{record.statusDisplay}</span></div><p className="whitespace-pre-wrap break-words text-sm leading-8">{record.description}</p><div className="mt-6 flex flex-wrap gap-2">{record.tags.map((t) => <Link to={`/tags/${t.tagId}`} key={t.tagId} className="rounded-full border border-border px-3 py-1 text-xs hover:text-primary">{t.name}</Link>)}</div></article>}</div>;
+}

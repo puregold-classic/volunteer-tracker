@@ -15,6 +15,7 @@
 // pipeline; reference data (Department/ServiceItem) added; review flow simplified.
 
 import express from 'express';
+import { pathToFileURL } from 'node:url';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import helmet from 'helmet';
@@ -23,6 +24,10 @@ import morgan from 'morgan';
 import prisma from './utils/prismaClient.js';
 import { createInitialAdminIfMissing } from './startup/createInitialAdmin.js';
 import authRoutes from './routes/authRoutes.js';
+import devAccountRoutes from './routes/devAccountRoutes.js';
+import forumRoutes from './routes/forumRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
+import { createNewcomerCircleIfMissing } from './startup/createNewcomerCircle.js';
 import volunteerRoutes from './routes/volunteerRoutes.js';
 import departmentRoutes from './routes/departmentRoutes.js';
 import serviceItemRoutes from './routes/serviceItemRoutes.js';
@@ -30,6 +35,7 @@ import systemSettingsRoutes from './routes/systemSettingsRoutes.js';
 import projectSupportRoutes from './routes/projectSupportRoutes.js';
 import volunteerListRoutes from './routes/volunteerListRoutes.js';
 import tagGroupRoutes, { tagRouter } from './routes/tagRoutes.js';
+import trainingRoutes from './routes/trainingRoutes.js';
 import supportLedgerRoutes from './routes/supportLedgerRoutes.js';
 import auditRoutes from './routes/auditRoutes.js';
 import exportRoutes from './routes/exportRoutes.js';
@@ -37,14 +43,14 @@ import { notFound, errorHandler } from './middleware/errorHandler.js';
 
 dotenv.config();
 
-const app = express();
+export const app = express();
 const PORT = process.env.PORT || 5000;
 const HOST = '0.0.0.0';
 
 // 安全 / 日志 / body 解析
 app.use(helmet());
 app.use(morgan('dev'));
-app.use(express.json());
+app.use(express.json({ limit: '256kb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Behind Cloudflare tunnel — trust X-Forwarded-* headers so rate-limit
@@ -81,6 +87,9 @@ app.use(
 
 // API routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/dev/accounts', devAccountRoutes);
+app.use('/api/v1/forum', forumRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/volunteers', volunteerRoutes);
 app.use('/api/v1/departments', departmentRoutes);
 app.use('/api/v1/service-items', serviceItemRoutes);
@@ -89,6 +98,7 @@ app.use('/api/v1/project-supports', projectSupportRoutes);
 app.use('/api/v1/lists', volunteerListRoutes);
 app.use('/api/v1/tag-groups', tagGroupRoutes);
 app.use('/api/v1/tags', tagRouter);
+app.use('/api/v1/training', trainingRoutes);
 app.use('/api/v1/support-ledger', supportLedgerRoutes);
 app.use('/api/v1/audit', auditRoutes);
 app.use('/api/v1/exports', exportRoutes);
@@ -110,7 +120,7 @@ app.get('/api/health', async (req, res) => {
     status: 'ok',
     ...(isDev && {
       message: '志愿者管理系统 API 正常运行',
-      schemaVersion: '2.1+v3',
+      schemaVersion: '2.1+v4',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
       postgresql: pgStatus,
@@ -139,8 +149,9 @@ app.use(errorHandler);
 const start = async () => {
   try {
     await createInitialAdminIfMissing();
+    await createNewcomerCircleIfMissing();
   } catch (err) {
-    console.error('[startup] admin bootstrap threw:', err);
+    console.error('[startup] initialization failed:', err);
   }
 
   app.listen(PORT, HOST, () => {
@@ -156,4 +167,4 @@ const start = async () => {
   });
 };
 
-start();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) start();

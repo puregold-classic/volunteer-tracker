@@ -42,6 +42,7 @@ class ExportService {
       include: {
         volunteer: { select: { volunteerCode: true, chineseName: true, departmentId: true } },
         submittedBy: { select: { volunteerCode: true, chineseName: true } },
+        submittedByAccount: { select: { name: true } },
         serviceItem: { include: { department: true } },
       },
       orderBy: { serviceDate: 'desc' },
@@ -56,7 +57,7 @@ class ExportService {
       serviceDate: r.serviceDate ? r.serviceDate.toISOString().split('T')[0] : '',
       duration: r.duration,
       description: r.description,
-      submittedBy: r.submittedBy?.chineseName ?? '',
+      submittedBy: r.submittedBy?.chineseName ?? r.submittedByAccount?.name ?? '',
       isProxy: r.submittedById !== r.volunteerId,
       confirmedAt: r.confirmedAt ?? '',
       createdAt: r.createdAt,

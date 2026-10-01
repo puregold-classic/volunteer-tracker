@@ -15,6 +15,8 @@ import App from './App'
 import './styles/tailwind.css'
 import { AuthProvider } from './context/AuthContext'
 import { FollowedProvider } from './context/FollowedContext'
+import { NotificationProvider } from './components/Notifications/NotificationProvider'
+import { ForumDraftDockProvider } from './components/Forum/ForumDraftDock'
 import { ThemeProvider } from './components/theme-provider'
 import { Toaster } from './components/ui/toaster'
 
@@ -37,7 +39,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <ThemeProvider defaultTheme="system" storageKey="volunteer-theme">
           <AuthProvider>
             <FollowedProvider>
-              <App />
+              <NotificationProvider><ForumDraftDockProvider><App /></ForumDraftDockProvider></NotificationProvider>
               <Toaster />
             </FollowedProvider>
           </AuthProvider>

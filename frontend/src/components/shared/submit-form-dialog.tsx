@@ -227,6 +227,7 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
   const [boundGroups, setBoundGroups] = useState<TagGroup[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<Record<string, string[]>>({});
   const [boundGroupsLoading, setBoundGroupsLoading] = useState(false);
+  const [boundGroupsError, setBoundGroupsError] = useState('');
 
   useEffect(() => {
     if (open) {
@@ -295,21 +296,23 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
 
   // When serviceItem changes, fetch bound tag groups
   useEffect(() => {
+    let live = true;
+    setBoundGroupsError('');
+    setBoundGroups([]);
+    setSelectedTagIds({});
     if (!selectedItemId) {
-      setBoundGroups([]);
-      setSelectedTagIds({});
+      setBoundGroupsLoading(false);
       return;
     }
     setBoundGroupsLoading(true);
     tagService.getGroupsBoundTo(selectedItemId)
       .then((res) => {
-        if (res?.success && res.data) {
-          setBoundGroups(res.data);
-          // Reset selections when service item changes
-          setSelectedTagIds({});
-        }
+        if (!res.success || !res.data) throw new Error('标签加载失败');
+        if (live) setBoundGroups(res.data);
       })
-      .finally(() => setBoundGroupsLoading(false));
+      .catch(() => { if (live) setBoundGroupsError('标签加载失败，请重新选择服务项后重试。'); })
+      .finally(() => { if (live) setBoundGroupsLoading(false); });
+    return () => { live = false; };
   }, [selectedItemId]);
 
   const toggleTagInGroup = (group: TagGroup, tagId: string) => {
@@ -398,27 +401,10 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
       serviceDate: data.serviceDate,
       duration: parseFloat(data.duration),
       description: data.description,
+      tagIds: Object.values(selectedTagIds).flat(),
     });
 
     if (result?.success && result.data) {
-      // Attach any selected tags. Failures logged but don't fail the submit —
-      // the PS is already saved; user can manually fix tag state after.
-      const createdId = result.data.id;
-      const attachPromises: Promise<unknown>[] = [];
-      for (const group of boundGroups) {
-        const tagIds = selectedTagIds[group.id] ?? [];
-        for (const tagId of tagIds) {
-          attachPromises.push(tagService.attach(tagId, createdId));
-        }
-      }
-      if (attachPromises.length > 0) {
-        const results = await Promise.allSettled(attachPromises);
-        const failures = results.filter((r) => r.status === 'rejected').length;
-        if (failures > 0) {
-          toast({ title: '标签附加部分失败', description: `${failures} 个 tag 未成功挂上，可到记录卡片手动补`, variant: 'destructive' });
-        }
-      }
-
       const isProxy = result.data.isProxy;
       const pending = result.data.status === 'PENDING_CONFIRMATION';
       const targetName = targetVolunteer?.chineseName || pickedVolunteer?.chineseName;
@@ -709,7 +695,7 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
         {!editingSupport && selectedItemId && (boundGroups.length > 0 || boundGroupsLoading) && (
           <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
             <p className="text-[11px] font-medium text-muted-foreground">
-              根据所选 service item 附加的标签
+              选择适用于当前服务项的标签
               {boundGroupsLoading && <span className="ml-2 text-muted-foreground">加载中…</span>}
             </p>
             {boundGroups.map((g) => {
@@ -724,7 +710,7 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
                     </span>
                   </div>
                   {g.tags.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">（该组暂无 tag，去 /tags 添加）</p>
+                    <p className="text-xs text-muted-foreground">该组暂无标签，请联系管理员配置。</p>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
                       {g.tags.map((t) => {
@@ -809,12 +795,13 @@ export const SubmitFormDialog: React.FC<SubmitFormDialogProps> = ({
         </div>
 
         {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}
+        {!editingSupport && boundGroupsError && <p role="alert" className="text-sm text-destructive">{boundGroupsError}</p>}
 
         <div className="flex gap-3 pt-1">
           <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             {editingSupport ? '关闭' : '取消'}
           </Button>
-          <Button type="submit" className="flex-1" disabled={isSubmitting} size="lg">
+          <Button type="submit" className="flex-1" disabled={isSubmitting || (!editingSupport && (boundGroupsLoading || !!boundGroupsError))} size="lg">
             {isSubmitting ? '提交中…' : editingSupport ? '保存' : '提交'}
           </Button>
         </div>

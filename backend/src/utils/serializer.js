@@ -192,6 +192,9 @@ export function serializeProjectSupport(p) {
         }
       : null,
     submittedById: p.submittedById,
+    submittedByAccountId: p.submittedByAccountId ?? null,
+    submittedByAccount: p.submittedByAccount ? { id: p.submittedByAccount.id, name: p.submittedByAccount.name } : null,
+    trainingSessionId: p.trainingSessionId ?? null,
     submittedBy: p.submittedBy
       ? {
           id: p.submittedBy.id,
@@ -251,6 +254,8 @@ export function serializeTagGroup(g) {
     name: g.name,
     description: g.description,
     boundServiceItemIds: g.boundServiceItemIds ?? [],
+    applicability: g.applicability ?? (g.boundServiceItemIds?.length ? 'specified' : 'legacy'),
+    isActive: g.isActive ?? true,
     selectionMode: g.selectionMode,
     opMode: g.opMode,
     openness: g.openness,
@@ -270,10 +275,10 @@ export function serializeTag(t) {
   return {
     id: t.id,
     groupId: t.groupId,
+    isActive: t.isActive ?? true,
     name: t.name,
     createdById: t.createdById,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   };
 }
-

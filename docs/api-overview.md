@@ -158,3 +158,30 @@
 HTTP 状态码：`200` ok / `201` created / `400` 业务校验失败 / `401` 未认证 / `403` 权限不足 / `404` not found / `409` 冲突（如重复提交）/ `500` 服务器错误。
 
 > Frontend `services/api.ts` 监听 `401` 并 dispatch `app:unauthorized` event，App.tsx 接住后跳 `/login`。
+
+
+## 培训考勤与服务标签（2026-09 增量）
+
+培训入口均需 `admin / b_admin / a_admin`，`a_admin` 的名单、人数、搜索与保存按本部门人员限制：
+
+- `GET /training` — 场次分页；`search / from / to / page / limit`。
+- `POST /training` — 创建空场次；`name / serviceItemId / serviceDate / duration / description`。
+- `GET /training/:id` — 详情及名单分页，支持 `search / removed / page / limit`。
+- `PATCH /training/:id` — 上述场次字段加 `version`，同步有效考勤。
+- `GET /training/:id/search?search=姓名` — 查找可录入人员。
+- `POST /training/:id/validate` — `{text, choices?}`，纯姓名文本校验；`choices` 为输入行号到候选 Volunteer ID 的映射。
+- `POST /training/:id/members` — `{version, volunteerIds}`，追加名单。
+- `POST /training/:id/members/:volunteerId/remove`、`/restore` — `{version}`，撤销／恢复原记录。
+
+普通标签沿用 `/tag-groups` 和 `/tags`，由 `LabelService` 统一校验：
+
+- 标签组 `applicability` 为 `all / specified`；旧空范围保留为 `legacy`；`DELETE` 停用，历史保留。
+- `GET /tags/:id` — 标签详情、记录列表、去重人数、有效记录数、历史冲突提示、可选迁移场次链接。
+- `GET /tags/:id/candidates` — 当前有权关联的有效普通服务记录。
+- `POST /tags/:id/attach`、`DELETE /tags/:id/attach/:supportId` — 添加／解除关联，不删除服务记录。
+- `PUT /tags/records/:supportId` — `{tagIds}` 原子替换；必填及单选规则在服务端检查。
+- `GET /tags/records/:supportId` — 按当前记录范围读取详情。
+- `/tags/:id/batch/:operation` — 所有方法返回 `410`，原批量考勤写通道关闭。
+- `/project-supports` 创建及修改接受 `tagIds`，记录与标签一起提交；已归属培训场次的记录不允许从该接口独立改写。
+
+日期采用 `YYYY-MM-DD`；版本冲突 `409`、越权 `403`、封档 `423`、不可见场次 `404`。完整权限和历史配置契约见 [升级说明](training-tags-upgrade.md)。

@@ -70,6 +70,7 @@ enum ProjectSupportStatus {
 }
 
 enum AuditTargetType {
+  TrainingSession
   ProjectSupport
   Volunteer
   Account
@@ -77,11 +78,20 @@ enum AuditTargetType {
   Project
   TagGroup
   Tag
+  Circle
+  Post
+  PostComment
 
   @@map("AuditTargetType")
 }
 
 enum AuditAction {
+  training_create
+  training_update
+  training_add
+  training_remove
+  training_restore
+  training_migrate
   support_create
   support_update
   support_delete
@@ -125,6 +135,26 @@ enum AuditAction {
   account_password_change
   account_password_reset
   account_avatar_update
+  // v4: forum governance, separate from ledger privileges.
+  circle_create
+  circle_update
+  circle_archive
+  circle_restore
+  circle_role_assign
+  circle_role_remove
+  circle_ownership_transfer
+  post_moderation_edit
+  post_moderation_delete
+  post_moderation_restore
+  post_pin
+  post_unpin
+  post_feature
+  post_unfeature
+  comment_moderation_edit
+  comment_moderation_delete
+  comment_moderation_restore
+  comment_pin
+  comment_unpin
 }
 
 // v3.2 tag system — 3 orthogonal config axes on the group level.
@@ -204,6 +234,8 @@ model ServiceItem {
   @@index([departmentId, displayOrder])
   @@index([category])
   @@map("service_items")
+  trainingSessions TrainingSession[]
+
 }
 
 // ─── Identity ─────────────────────────────────────────────────────────────────
@@ -226,6 +258,25 @@ model Account {
   tokenValidAfter DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+
+  // Forum identity belongs to Account, including system admins without a Volunteer.
+  createdCircles     Circle[]               @relation("CircleCreator")
+  circleRoles        CircleRoleAssignment[]
+  circleFollows      CircleFollow[]
+  forumPosts         Post[]                 @relation("PostAuthor")
+  forumComments      PostComment[]          @relation("CommentAuthor")
+  forumImages        ForumImage[]
+  circleAssets       CircleAsset[]
+  postLikes          PostLike[]
+  commentFavorites   CommentFavorite[]
+  postFavorites      PostFavorite[]
+  notifications      Notification[]         @relation("NotificationRecipient")
+  triggeredNotifications Notification[]     @relation("NotificationActor")
+
+  submittedLedgerRecords ProjectSupport[] @relation("SupportAccountSubmitter")
+  attachedLedgerTags TagAttachment[] @relation("TagAccountOperator")
+  createdTrainingSessions TrainingSession[] @relation("TrainingCreator")
+  updatedTrainingSessions TrainingSession[] @relation("TrainingUpdater")
 
   @@index([role, isActive])
   @@map("accounts")
@@ -274,6 +325,7 @@ model Volunteer {
   createdTagGroups   TagGroup[]            @relation("CreatedTagGroups")
   createdTags        Tag[]                 @relation("CreatedTags")
   tagAttachments     TagAttachment[]       @relation("TagAttachments")
+  trainingAttendances TrainingAttendance[]
 
   @@index([status])
   @@index([region])
@@ -292,10 +344,15 @@ model ProjectSupport {
   volunteerId     String
   volunteer       Volunteer            @relation("OwnedSupports", fields: [volunteerId], references: [id])
   // Submitter (may be the same as owner for self-submit, or different for proxy submit)
-  submittedById   String
-  submittedBy     Volunteer            @relation("SubmittedSupports", fields: [submittedById], references: [id])
+  submittedById   String?
+  submittedBy     Volunteer?            @relation("SubmittedSupports", fields: [submittedById], references: [id])
   serviceItemId   String
   serviceItem     ServiceItem          @relation(fields: [serviceItemId], references: [id])
+  submittedByAccountId String?
+  submittedByAccount Account? @relation("SupportAccountSubmitter", fields: [submittedByAccountId], references: [id], onDelete: SetNull)
+  trainingSessionId String?
+  trainingSession TrainingSession? @relation(fields: [trainingSessionId], references: [id], onDelete: Restrict)
+  trainingAttendance TrainingAttendance?
   // v3.2 tag attachments (M:N to Tag via TagAttachment). Replaces the old
   // single projectId FK — dropped in 20260420 migration.
   tagAttachments  TagAttachment[]
@@ -310,6 +367,7 @@ model ProjectSupport {
 
   @@index([volunteerId, serviceDate(sort: Desc)])
   @@index([submittedById, status])
+  @@unique([trainingSessionId, volunteerId])
   @@index([serviceItemId])
   @@index([status])
   // Partial unique index for dedup added in migration SQL:
@@ -383,6 +441,9 @@ model TagGroup {
   name                 String            @unique
   description          String?
   boundServiceItemIds  String[]
+  // legacy = hidden in submit forms, unrestricted manual association.
+  applicability String @default("specified")
+  isActive Boolean @default(true)
   selectionMode        TagSelectionMode  @default(single)
   opMode               TagOpMode         @default(tag_only)
   openness             TagOpenness       @default(closed)
@@ -403,6 +464,8 @@ model TagGroup {
 }
 
 model Tag {
+  isActive Boolean @default(true)
+  migratedTrainingSession TrainingSession?
   id           String    @id @default(cuid())
   groupId      String
   group        TagGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
@@ -426,8 +489,10 @@ model TagAttachment {
   tag          Tag            @relation(fields: [tagId], references: [id], onDelete: Cascade)
   supportId    String
   support      ProjectSupport @relation(fields: [supportId], references: [id], onDelete: Cascade)
-  attachedById String
-  attachedBy   Volunteer      @relation("TagAttachments", fields: [attachedById], references: [id])
+  attachedById String?
+  attachedBy   Volunteer?      @relation("TagAttachments", fields: [attachedById], references: [id])
+  attachedByAccountId String?
+  attachedByAccount Account? @relation("TagAccountOperator", fields: [attachedByAccountId], references: [id], onDelete: SetNull)
   attachedAt   DateTime       @default(now())
 
   @@unique([tagId, supportId])
@@ -474,4 +539,314 @@ model AuditLog {
   @@index([targetId])
   @@index([modifiedId])
   @@map("audit_logs")
+}
+
+// ─── Forum (v4 foundation) ─────────────────────────────────────────────────────
+
+enum CircleStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum CircleRole {
+  OWNER
+  STEWARD
+}
+
+enum ContentStatus {
+  ACTIVE
+  DELETED
+}
+
+enum ContentEditKind {
+  AUTHOR
+  ADMIN
+}
+
+enum ForumBodyFormat {
+  MARKDOWN
+  RICH_TEXT
+}
+
+enum NotificationType {
+  MENTION
+  POST_COMMENT
+  CIRCLE_ROLE_ASSIGNED
+  CIRCLE_ROLE_REMOVED
+  CIRCLE_OWNERSHIP_TRANSFERRED
+  CONTENT_EDITED
+  CONTENT_DELETED
+  CONTENT_RESTORED
+  POST_PINNED
+  POST_UNPINNED
+  POST_FEATURED
+  POST_UNFEATURED
+}
+
+model Circle {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  name        String
+  description String?
+  status      CircleStatus @default(ACTIVE)
+  createdById String?
+  createdBy   Account?     @relation("CircleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  archivedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  roles         CircleRoleAssignment[]
+  follows       CircleFollow[]
+  posts         Post[]
+  notifications Notification[]
+  images        ForumImage[]
+  assets        CircleAsset[]
+
+  @@index([status, createdAt])
+  @@index([createdById])
+  @@map("circles")
+}
+
+model CircleRoleAssignment {
+  id        String     @id @default(cuid())
+  circleId  String
+  circle    Circle     @relation(fields: [circleId], references: [id], onDelete: Restrict)
+  accountId String
+  account   Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  role      CircleRole
+  addedAt   DateTime   @default(now())
+
+  @@unique([circleId, accountId])
+  @@index([accountId])
+  @@map("circle_role_assignments")
+}
+
+model CircleFollow {
+  circleId  String
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Restrict)
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([circleId, accountId])
+  @@index([accountId, createdAt])
+  @@map("circle_follows")
+}
+
+model Post {
+  id             String           @id @default(cuid())
+  circleId       String
+  circle         Circle           @relation(fields: [circleId], references: [id], onDelete: Restrict)
+  // Null authors are displayed as 已注销. Never persist an author-name snapshot.
+  authorId       String?
+  author         Account?         @relation("PostAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  title          String
+  body           String
+  bodyFormat     ForumBodyFormat  @default(MARKDOWN)
+  status         ContentStatus    @default(ACTIVE)
+  isPinned       Boolean          @default(false)
+  pinnedAt       DateTime?
+  isFeatured     Boolean          @default(false)
+  featuredAt     DateTime?
+  lastActivityAt DateTime         @default(now())
+  editedAt       DateTime?
+  lastEditKind   ContentEditKind?
+  deletedAt      DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  comments      PostComment[]
+  likes         PostLike[]
+  favorites     PostFavorite[]
+  notifications Notification[]
+  images        ForumImage[]
+
+  @@index([circleId, status, isPinned, lastActivityAt])
+  @@index([circleId, status, createdAt])
+  @@index([authorId, createdAt])
+  @@map("posts")
+}
+
+model PostComment {
+  id           String           @id @default(cuid())
+  postId       String
+  post         Post             @relation(fields: [postId], references: [id], onDelete: Restrict)
+  authorId     String?
+  author       Account?         @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  body         String
+  bodyFormat   ForumBodyFormat  @default(MARKDOWN)
+  status       ContentStatus    @default(ACTIVE)
+  isPinned     Boolean          @default(false)
+  pinnedAt     DateTime?
+  editedAt     DateTime?
+  lastEditKind ContentEditKind?
+  deletedAt    DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  images       ForumImage[]
+  favorites    CommentFavorite[]
+
+  @@index([postId, status, createdAt, id])
+  @@index([postId, status, isPinned, createdAt, id])
+  @@index([authorId, createdAt])
+  @@map("post_comments")
+}
+
+model PostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Restrict)
+  // PostgreSQL allows multiple NULLs in this unique key: retain each deleted
+  // account's historical like without merging it with other deleted accounts.
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, accountId])
+  @@index([accountId])
+  @@index([postId, createdAt])
+  @@map("post_likes")
+}
+
+model PostFavorite {
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Restrict)
+  accountId String
+  account   Account  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([postId, accountId])
+  @@index([accountId, createdAt])
+  @@map("post_favorites")
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  recipientId String
+  recipient   Account          @relation("NotificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actorId     String?
+  actor       Account?         @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  type        NotificationType
+  eventKey    String
+  // Generic target for future non-forum events; no sensitive content snapshots.
+  targetType  String
+  targetId    String
+  postId      String?
+  post        Post?            @relation(fields: [postId], references: [id], onDelete: Restrict)
+  circleId    String?
+  circle      Circle?          @relation(fields: [circleId], references: [id], onDelete: Restrict)
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  @@unique([recipientId, eventKey])
+  @@index([recipientId, readAt, createdAt])
+  @@index([actorId])
+  @@index([postId])
+  @@index([circleId])
+  @@map("notifications")
+}
+
+// Compressed private images live separately from document JSON. PostgreSQL
+// backups include the image bytes; a storage adapter can replace data later.
+model ForumImage {
+  id        String @id @default(cuid())
+  ownerId   String?
+  owner     Account? @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  circleId  String
+  circle    Circle @relation(fields: [circleId], references: [id], onDelete: Restrict)
+  postId    String?
+  post      Post? @relation(fields: [postId], references: [id], onDelete: Restrict)
+  commentId String?
+  comment   PostComment? @relation(fields: [commentId], references: [id], onDelete: Restrict)
+  data      Bytes
+  mimeType  String @default("image/webp")
+  size      Int
+  width     Int
+  height    Int
+  createdAt DateTime @default(now())
+
+  @@index([ownerId, createdAt])
+  @@index([circleId])
+  @@index([postId])
+  @@index([commentId])
+  @@index([createdAt])
+  @@map("forum_images")
+}
+
+
+enum CircleAssetKind {
+  COVER
+  FILE
+}
+
+model CircleAsset {
+  id         String @id @default(cuid())
+  circleId   String
+  circle     Circle @relation(fields: [circleId], references: [id], onDelete: Restrict)
+  uploaderId String?
+  uploader   Account? @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+  kind       CircleAssetKind
+  name       String
+  data       Bytes
+  mimeType   String
+  size       Int
+  createdAt  DateTime @default(now())
+  deletedAt  DateTime?
+
+  @@index([circleId, kind, deletedAt, createdAt])
+  @@index([uploaderId])
+  @@map("circle_assets")
+}
+
+// Training is the source of attendance; ProjectSupport remains the ledger.
+model TrainingSession {
+  id String @id @default(cuid())
+  name String
+  serviceItemId String
+  serviceItem ServiceItem @relation(fields: [serviceItemId], references: [id], onDelete: Restrict)
+  serviceDate DateTime @db.Date
+  duration Float
+  description String
+  departmentId String?
+  version Int @default(1)
+  createdByAccountId String?
+  createdByAccount Account? @relation("TrainingCreator", fields: [createdByAccountId], references: [id], onDelete: SetNull)
+  updatedByAccountId String?
+  updatedByAccount Account? @relation("TrainingUpdater", fields: [updatedByAccountId], references: [id], onDelete: SetNull)
+  legacyTagId String? @unique
+  legacyTag Tag? @relation(fields: [legacyTagId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  attendances TrainingAttendance[]
+  supports ProjectSupport[]
+  @@index([serviceDate, name])
+  @@map("training_sessions")
+}
+
+model TrainingAttendance {
+  id String @id @default(cuid())
+  sessionId String
+  session TrainingSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  volunteerId String
+  volunteer Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Restrict)
+  supportId String @unique
+  support ProjectSupport @relation(fields: [supportId], references: [id], onDelete: Restrict)
+  removedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([sessionId, volunteerId])
+  @@map("training_attendances")
+}
+
+model CommentFavorite {
+  commentId String
+  comment   PostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  accountId String
+  account   Account     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt DateTime    @default(now())
+
+  @@id([commentId, accountId])
+  @@index([accountId, createdAt])
+  @@map("comment_favorites")
 }

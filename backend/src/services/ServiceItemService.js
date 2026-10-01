@@ -102,7 +102,8 @@ class ServiceItemService {
    */
   static async remove(id) {
     const supportCount = await prisma.projectSupport.count({ where: { serviceItemId: id } });
-    if (supportCount > 0) {
+    const trainingCount = await prisma.trainingSession.count({ where: { serviceItemId: id } });
+    if (supportCount > 0 || trainingCount > 0) {
       // Soft-disable instead — audit history must be preserved
       const updated = await prisma.serviceItem.update({
         where: { id },

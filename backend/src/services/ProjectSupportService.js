@@ -22,10 +22,13 @@ import QueryUtils from '../utils/queryUtils.js';
 import SystemSettingsService from './SystemSettingsService.js';
 import { isDeptHead } from '../utils/deptScope.js';
 import { serializeProjectSupport } from '../utils/serializer.js';
+import { saveRecordTags } from './TagRules.js';
+import { LedgerError } from '../utils/ledgerPolicy.js';
 
 const SUPPORT_INCLUDE = {
   volunteer: { select: { id: true, volunteerCode: true, chineseName: true, departmentId: true } },
   submittedBy: { select: { id: true, volunteerCode: true, chineseName: true } },
+  submittedByAccount: { select: { id: true, name: true } },
   serviceItem: {
     select: {
       id: true, name: true, category: true, departmentId: true,
@@ -78,6 +81,7 @@ const checkLock = async (serviceDate, operator) => {
 // So even the nominal owner must not edit/delete them — only 录入员+ can correct
 // attendance. Mirrors the create()-time block on the personal-submit path.
 const requireEditableCategory = (record, operator) => {
+  if (record.trainingSessionId) return { forbidden: '此记录由培训场次统一维护，请进入培训考勤修改或移除' };
   if (canManageRecord(record, operator)) return null;
   if (record.serviceItem?.category === 'TRAINING_ATTENDANCE') {
     return { forbidden: '受训考勤记录由组织方统一管理，不能本人修改或删除' };
@@ -207,7 +211,7 @@ class ProjectSupportService {
       prisma.projectSupport.findMany({
         where,
         include: SUPPORT_INCLUDE,
-        orderBy: { [sortField]: sortOrder },
+        orderBy: [{ [sortField]: sortOrder }, { id: 'asc' }],
         skip: pg.skip,
         take: pg.limit,
       }),
@@ -321,7 +325,7 @@ class ProjectSupportService {
     const status = (isSelfSubmit || isPrivilegedProxy || forcedByAdmin)
       ? 'ACTIVE'
       : 'PENDING_CONFIRMATION';
-    const submittedById = operator.volunteerId || volunteerId; // admin without volunteer self-attributes
+    const submittedById = operator.volunteerId ?? null;
 
     const supportId = await IDGenerator.generateSupportId(owner.volunteerCode);
 
@@ -332,6 +336,7 @@ class ProjectSupportService {
             supportId,
             volunteerId,
             submittedById,
+            submittedByAccountId: operator.accountId,
             serviceItemId,
             serviceDate: date,
             duration,
@@ -341,15 +346,18 @@ class ProjectSupportService {
           },
           include: SUPPORT_INCLUDE,
         });
+        record.tagAttachments = await saveRecordTags(tx, record, input.tagIds ?? [], operator);
         await writeAuditLog(tx, 'support_create', {
           record,
           operator,
           extraDetails: isPrivilegedProxy ? { proxyBypassedConfirm: true } : undefined,
         });
         return record;
-      });
+      }, { isolationLevel: 'Serializable' });
       return { record: serializeProjectSupport(created) };
     } catch (err) {
+      if (err instanceof LedgerError) return { validationError: err.message };
+      if (err.code === 'P2034') return { duplicate: '记录或标签配置已更新，请重试' };
       if (err.code === 'P2002' || /project_supports_active_dedup/.test(err.message)) {
         return { duplicate: '已存在完全相同的服务记录（同一志愿者、日期、服务项、时长、描述）' };
       }
@@ -391,6 +399,7 @@ class ProjectSupportService {
     if (patch.serviceItemId !== undefined) {
       const item = await prisma.serviceItem.findUnique({ where: { id: patch.serviceItemId } });
       if (!item || !item.isActive) return { validationError: `服务项不存在或已停用: ${patch.serviceItemId}` };
+      if (item.category === 'TRAINING_ATTENDANCE') return { validationError: '受训记录只能由培训场次创建' };
       trackChange('serviceItemId', existing.serviceItemId, patch.serviceItemId);
     }
     if (patch.serviceDate !== undefined) {
@@ -418,7 +427,7 @@ class ProjectSupportService {
       data.description = desc;
     }
 
-    if (changes.length === 0) {
+    if (changes.length === 0 && patch.tagIds === undefined) {
       return { record: serializeProjectSupport(existing) };
     }
 
@@ -429,11 +438,17 @@ class ProjectSupportService {
           data,
           include: SUPPORT_INCLUDE,
         });
+        if (patch.tagIds !== undefined || data.serviceItemId) {
+          const selected = patch.tagIds ?? record.tagAttachments.map((a) => a.tagId);
+          record.tagAttachments = await saveRecordTags(tx, record, selected, operator, { serviceChanged: !!data.serviceItemId });
+        }
         await writeAuditLog(tx, 'support_update', { record, operator, changes });
         return record;
-      });
+      }, { isolationLevel: 'Serializable' });
       return { record: serializeProjectSupport(updated) };
     } catch (err) {
+      if (err instanceof LedgerError) return { validationError: err.message };
+      if (err.code === 'P2034') return { duplicate: '记录或标签配置已更新，请重试' };
       if (err.code === 'P2002' || /project_supports_active_dedup/.test(err.message)) {
         return { duplicate: '修改后会与已有记录重复' };
       }

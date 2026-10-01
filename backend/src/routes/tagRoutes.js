@@ -1,50 +1,42 @@
-// src/routes/tagRoutes.js — v3.2
-//
-// Tag + TagGroup HTTP surface. Mounts at /api/v1/tags (for tag ops) and
-// /api/v1/tag-groups (for group ops). Batch endpoints are under the tag
-// namespace because they're fundamentally tag-scoped.
-
 import express from 'express';
-import * as TC from '../controllers/tagController.js';
-import { authenticate, authorizeRoles } from '../middleware/authenticate.js';
+import { authenticate } from '../middleware/authenticate.js';
+import LabelService from '../services/LabelService.js';
+import { LedgerError } from '../utils/ledgerPolicy.js';
 
-const router = express.Router();
-
-router.use(authenticate);
-
-// ─── Group CRUD (admin only, except list/read) ──
-router.get('/',                    TC.listGroups);
-router.get('/bound/:serviceItemId', TC.groupsBoundTo);
-router.get('/:id',                 TC.getGroup);
-router.post('/',                   authorizeRoles('admin'),              TC.createGroup);
-router.patch('/:id',               authorizeRoles('admin'),              TC.updateGroup);
-router.delete('/:id',              authorizeRoles('admin'),              TC.deleteGroup);
-
-// Tags inside a group
-router.get('/:groupId/tags',       TC.listTagsByGroup);
-
+const initialize = () => {
+  const router = express.Router();
+  router.use(authenticate);
+  router.use((_req, res, next) => { res.set('Cache-Control', 'private, no-store'); next(); });
+  return router;
+};
+const handle = (work, status = 200) => async (req, res, next) => {
+  try { res.status(status).json({ success: true, data: await work(req) }); }
+  catch (error) {
+    if (error instanceof LedgerError) return res.status(error.status).json({ success: false, error: error.message, message: error.message });
+    next(error);
+  }
+};
+const router = initialize();
+router.get('/', handle(() => LabelService.groups()));
+router.get('/bound/:serviceItemId', handle((r) => LabelService.bound(r.params.serviceItemId)));
+router.get('/:id', handle(async (r) => (await LabelService.groups()).find((g) => g.id === r.params.id) || null));
+router.get('/:groupId/tags', handle(async (r) => (await LabelService.groups()).find((g) => g.id === r.params.groupId)?.tags || []));
+router.post('/', handle((r) => LabelService.saveGroup(r.user, null, r.body), 201));
+router.patch('/:id', handle((r) => LabelService.saveGroup(r.user, r.params.id, r.body)));
+// Archive configuration, retaining historical associations.
+router.delete('/:id', handle((r) => LabelService.archiveGroup(r.user, r.params.id)));
 export default router;
 
-// ─── Tag-level router — mounted at /api/v1/tags ──
-
-export const tagRouter = express.Router();
-tagRouter.use(authenticate);
-
-// Tag CRUD — 录入员+（v3.7 权限重排：admin/a_admin/b_admin 都可建/改 tag；tag 组仍 admin only）
-tagRouter.post('/',                authorizeRoles('admin', 'a_admin', 'b_admin'),  TC.createTag);
-tagRouter.patch('/:id',            authorizeRoles('admin', 'a_admin', 'b_admin'),  TC.updateTag);
-tagRouter.delete('/:id',           authorizeRoles('admin', 'a_admin', 'b_admin'),  TC.deleteTag);
-
-// Attach / detach (any authed; service layer enforces owner vs admin)
-tagRouter.post('/:tagId/attach',                                           TC.attachTag);
-tagRouter.delete('/:tagId/attach/:supportId',                              TC.detachTag);
-
-// Tag → supports list
-tagRouter.get('/:tagId/supports',                                          TC.listTagSupports);
-
-// Batch ops — 录入员+（含受训批量录入，见 TagService.batchCreate）
-tagRouter.post('/:tagId/batch/create',  authorizeRoles('admin', 'a_admin', 'b_admin'), TC.batchCreate);
-tagRouter.post('/:tagId/batch/update',  authorizeRoles('admin', 'a_admin', 'b_admin'), TC.batchUpdate);
-tagRouter.post('/:tagId/batch/delete',  authorizeRoles('admin', 'a_admin', 'b_admin'), TC.batchDelete);
-tagRouter.post('/:tagId/batch/attach',  authorizeRoles('admin', 'a_admin', 'b_admin'), TC.batchAttach);
-tagRouter.post('/:tagId/batch/detach',  authorizeRoles('admin', 'a_admin', 'b_admin'), TC.batchDetach);
+export const tagRouter = initialize();
+tagRouter.get('/records/:supportId', handle((r) => LabelService.record(r.user, r.params.supportId)));
+tagRouter.put('/records/:supportId', handle((r) => LabelService.replace(r.user, r.params.supportId, r.body.tagIds)));
+tagRouter.post('/', handle((r) => LabelService.saveTag(r.user, null, r.body), 201));
+tagRouter.patch('/:id', handle((r) => LabelService.saveTag(r.user, r.params.id, r.body)));
+tagRouter.delete('/:id', handle((r) => LabelService.saveTag(r.user, r.params.id, { isActive: false })));
+tagRouter.get('/:tagId', handle((r) => LabelService.detail(r.user, r.params.tagId, r.query)));
+tagRouter.get('/:tagId/supports', handle(async (r) => (await LabelService.detail(r.user, r.params.tagId, r.query)).records.map((support) => ({ support }))));
+tagRouter.get('/:tagId/candidates', handle((r) => LabelService.candidates(r.user, r.params.tagId, r.query)));
+tagRouter.post('/:tagId/attach', handle((r) => LabelService.link(r.user, r.params.tagId, r.body.supportId)));
+tagRouter.delete('/:tagId/attach/:supportId', handle((r) => LabelService.link(r.user, r.params.tagId, r.params.supportId, true)));
+// Never leave legacy record-changing paths writable after introducing sessions.
+tagRouter.all('/:tagId/batch/:operation', (_req, res) => res.status(410).json({ success: false, error: '旧批量入口已停用。受训名单请进入培训考勤，普通标签请关联已有记录。' }));

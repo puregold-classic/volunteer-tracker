@@ -7,6 +7,9 @@ import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from './button'
 
+const openDialogs: string[] = []
+let originalBodyOverflow = ''
+
 interface DialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -24,30 +27,39 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onOpenChange, title, description, children, footer, className, closeOnOutsideClick = true }: DialogProps) {
+  const titleId = React.useId()
   React.useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onOpenChange(false)
+      if (event.key === 'Escape' && openDialogs[openDialogs.length - 1] === titleId) { event.stopImmediatePropagation(); onOpenChange(false) }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onOpenChange])
+  }, [open, onOpenChange, titleId])
 
   React.useEffect(() => {
     if (!open) return
-    const orig = document.body.style.overflow
+    if (!openDialogs.length) originalBodyOverflow = document.body.style.overflow
+    openDialogs.push(titleId)
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = orig }
-  }, [open])
+    return () => {
+      const index = openDialogs.indexOf(titleId)
+      if (index !== -1) openDialogs.splice(index, 1)
+      if (!openDialogs.length) document.body.style.overflow = originalBodyOverflow
+    }
+  }, [open, titleId])
 
   if (!open) return null
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-foreground/30 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-foreground/30 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={() => { if (closeOnOutsideClick) onOpenChange(false) }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
         className={cn(
           'flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden bg-card shadow-2xl',
           // Mobile: bottom sheet (rounded top only); Desktop: centered card
@@ -62,7 +74,7 @@ export function Dialog({ open, onOpenChange, title, description, children, foote
         {(title || description) && (
           <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4">
             <div>
-              {title && <h3 className="font-serif text-lg font-semibold text-foreground">{title}</h3>}
+              {title && <h3 id={titleId} className="font-serif text-lg font-semibold text-foreground">{title}</h3>}
               {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
             </div>
             <Button type="button" variant="ghost" size="icon" onClick={() => onOpenChange(false)} aria-label="关闭">

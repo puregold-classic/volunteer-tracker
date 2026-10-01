@@ -1,3 +1,4 @@
+import { ForumWorkspaceEntry } from '@/components/Forum/ForumCommon';
 // frontend/src/pages/MePage.tsx — chunk 6 phase D (mobile-first rewrite)
 //
 // Information architecture (volunteer view, mobile-first stack):
@@ -222,7 +223,7 @@ function MePage({ onBackHome }: MePageProps) {
   const { refresh: refreshFollowed } = useFollowed();
   // Self records get inline edit / delete in the drill-down dialog; watched
   // others' records stay read-only (ownership checked per-record).
-  const recordsDialog = useRecordsDialog({ currentVolunteerId: account?.volunteerId });
+  const recordsDialog = useRecordsDialog({ currentVolunteerId: account?.volunteerId, onChanged: () => { void refresh(false); } });
   // v3.5: every volunteer gets both CTAs (submit self / for others) and watch
   // lists. admin_a/b get the full proxy console; regular users get the
   // lightweight pick dialog.
@@ -233,31 +234,29 @@ function MePage({ onBackHome }: MePageProps) {
   // grouped-by-month list). Fetched on refresh along with everything else.
   const [mySelfServices, setMySelfServices] = useState<LedgerVolunteerService[]>([]);
 
-  const refresh = async () => {
+  const refresh = async (showLoading = true) => {
     if (!account?.volunteerId) return;
-    setLoading(true);
+    if (showLoading) setLoading(true);
     try {
       const [vRes, sRes, pRes, proxyRes, itemsRes, servicesRes] = await Promise.all([
         volunteerService.getVolunteerById(account.volunteerId),
-        projectSupportService.list({ volunteerId: account.volunteerId, limit: 50 }),
+        projectSupportService.listPersonalRecords({ volunteerId: account.volunteerId }),
         projectSupportService.listPendingForMe(),
-        projectSupportService.list({ submittedById: account.volunteerId, limit: 50 }),
+        projectSupportService.listPersonalRecords({ submittedById: account.volunteerId }),
         serviceItemService.listGrouped(),
         ledgerService.volunteerServices(account.volunteerId),
       ]);
       if (vRes?.success && vRes.data) setVolunteer(vRes.data);
-      if (sRes?.success && sRes.data?.records) setSupports(sRes.data.records);
+      setSupports(sRes);
       if (pRes?.success && pRes.data) setPendingForMe(pRes.data);
       // Filter proxy results: only records submitted for someone else
-      if (proxyRes?.success && proxyRes.data?.records) {
-        setProxyForOthers(proxyRes.data.records.filter((r: ProjectSupport) => r.isProxy));
-      }
+      setProxyForOthers(proxyRes.filter((r: ProjectSupport) => r.isProxy));
       if (itemsRes?.success && itemsRes.data) setServiceItemsGrouped(itemsRes.data);
       if (servicesRes?.success && servicesRes.data) setMySelfServices(servicesRes.data);
     } catch (err: any) {
       toast({ title: '加载失败', description: err?.message || '未知错误', variant: 'destructive' });
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -327,7 +326,8 @@ function MePage({ onBackHome }: MePageProps) {
   // 返回首页/退出 已由全局 Header 提供（Logo 回首页 + "退出登录"），这里不再重复。
   if (isSystemAdmin) {
     return (
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-5xl space-y-5">
+        <ForumWorkspaceEntry />
         <Suspense fallback={<p className="py-12 text-center text-sm text-muted-foreground">加载管理中心…</p>}>
           <AdminCenter currentAccountId={account?.id} />
         </Suspense>
@@ -412,6 +412,7 @@ function MePage({ onBackHome }: MePageProps) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 pb-20 sm:space-y-5">
+      <ForumWorkspaceEntry />
       {/* ─── Hero ────────────────────────────────────────────────────────── */}
       <Card variant="elevated" className="overflow-hidden">
         <div className="p-5 sm:p-6">

@@ -129,7 +129,21 @@ export const resetToSystemAdmin = async ({ confirm }) => {
   // v3.8.1: volunteer_lists / volunteer_list_members 也硬 FK 到 Volunteer（无 cascade），
   // 漏删会让整个 reset 撞 P2003。TagAttachment 随 ProjectSupport 级联，不用单独删。
   await prisma.$transaction([
+    // v4: this explicit system reset removes discussions; ordinary account
+    // deletion preserves them. Children precede Restrict parent foreign keys.
+    prisma.circleAsset.deleteMany({}),
+    prisma.forumImage.deleteMany({}),
+    prisma.notification.deleteMany({}),
+    prisma.postFavorite.deleteMany({}),
+    prisma.postLike.deleteMany({}),
+    prisma.postComment.deleteMany({}),
+    prisma.post.deleteMany({}),
+    prisma.circleFollow.deleteMany({}),
+    prisma.circleRoleAssignment.deleteMany({}),
+    prisma.circle.deleteMany({}),
+    prisma.trainingAttendance.deleteMany({}),
     prisma.projectSupport.deleteMany({}),
+    prisma.trainingSession.deleteMany({}),
     prisma.volunteerListMember.deleteMany({}),
     prisma.volunteerList.deleteMany({}),
     prisma.account.deleteMany({}),

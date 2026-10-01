@@ -17,6 +17,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import Header from '@components/Header';
+import { NotificationEntry } from '@/components/Notifications/NotificationEntry';
 import Footer from '@components/Footer';
 import { Button } from '@/components/ui/button';
 import volunteerService from '@services/volunteerService';
@@ -31,7 +32,16 @@ const ReviewPage = lazy(() => import('./pages/ReviewPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const VolunteerDetailPage = lazy(() => import('./pages/VolunteerDetailPage'));
 const TagsPage = lazy(() => import('./pages/TagsPage'));
+const TrainingPage = lazy(() => import('./pages/TrainingPage'));
+const RecordPage = lazy(() => import('./pages/RecordPage'));
+const PostPage = lazy(() => import('./pages/PostPage'));
+const MessagesPage = lazy(() => import('./pages/MessagesPage'));
+const MyForumPage = lazy(() => import('./pages/MyForumPage'));
+const ForumPage = lazy(() => import('./pages/ForumPage'));
+const CirclePage = lazy(() => import('./pages/CirclePage'));
+const CircleManagePage = lazy(() => import('./pages/CircleManagePage'));
 const AdminCenter = lazy(() => import('@components/AdminCenter'));
+const DevAccountSwitcher = import.meta.env.DEV ? lazy(() => import('./components/Dev/AccountSwitcher')) : null;
 import { useHomeState, QUICK_FOCUS_OPTIONS } from './hooks/useHomeState';
 import { useAuth } from './context/AuthContext';
 import { resolveVolunteerCardTarget } from '@/lib/routing';
@@ -151,11 +161,12 @@ function App() {
   // Build nav items per role
   const navItems = [
     { label: '首页', to: '/', end: true },
-    ...(isAuthenticated ? [{ label: '个人中心', to: '/me', end: false }] : []),
+    ...(isAuthenticated ? [{ label: '论坛', to: '/forum', end: false }, { label: '个人中心', to: '/me', end: false }] : []),
     ...(isAuthenticated && account && ['b_admin', 'a_admin', 'admin'].includes(account.role)
       ? [
           { label: '项目服务台账', to: '/review', end: false },
           { label: '标签管理', to: '/tags', end: false },
+          { label: '培训考勤', to: '/training', end: false },
         ]
       : []),
     // v3.8: 部长(a_admin) 通过导航进人事管理（保留 /me 个人中心 + 代提交）。admin 走 /me。
@@ -192,6 +203,7 @@ function App() {
         actions={
           isAuthenticated ? (
             <>
+              <NotificationEntry />
               <span className="hidden sm:inline-flex rounded-lg bg-muted/60 border border-border px-3 py-1.5 text-sm font-medium text-foreground shrink-0">
                 {account?.name} · {account?.role}
               </span>
@@ -240,9 +252,9 @@ function App() {
             <Route
               path="/tags"
               element={
-                <RequireRole allowed={['b_admin', 'a_admin', 'admin']}>
+                <RequireAuth>
                   <TagsPage />
-                </RequireRole>
+                </RequireAuth>
               }
             />
             <Route
@@ -253,6 +265,17 @@ function App() {
                 </RequireRole>
               }
             />
+            <Route path="/forum/p/:id" element={<RequireAuth><PostPage /></RequireAuth>} />
+            <Route path="/training" element={<RequireRole allowed={['admin', 'a_admin', 'b_admin']}><TrainingPage /></RequireRole>} />
+            <Route path="/tags/:id" element={<RequireAuth><TagsPage /></RequireAuth>} />
+            <Route path="/records/:supportId" element={<RequireAuth><RecordPage /></RequireAuth>} />
+            <Route path="/training/:id" element={<RequireRole allowed={['admin', 'a_admin', 'b_admin']}><TrainingPage /></RequireRole>} />
+            <Route path="/projects/*" element={<Navigate to="/training" replace />} />
+            <Route path="/messages" element={<RequireAuth><MessagesPage /></RequireAuth>} />
+            <Route path="/me/forum" element={<RequireAuth><MyForumPage /></RequireAuth>} />
+            <Route path="/forum" element={<RequireAuth><ForumPage /></RequireAuth>} />
+            <Route path="/forum/c/:slug" element={<RequireAuth><CirclePage /></RequireAuth>} />
+            <Route path="/forum/c/:slug/manage" element={<RequireAuth><CircleManagePage /></RequireAuth>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
           </Suspense>
@@ -260,6 +283,7 @@ function App() {
       </main>
 
       <Footer />
+      {DevAccountSwitcher && <Suspense fallback={null}><DevAccountSwitcher /></Suspense>}
     </div>
   );
 }

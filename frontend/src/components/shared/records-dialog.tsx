@@ -29,6 +29,7 @@ const PAGE_SIZE = 10;
 export interface UseRecordsDialogOptions {
   /** When a record's volunteerId matches this, show edit / delete controls. */
   currentVolunteerId?: string | null;
+  onChanged?: () => void;
 }
 
 export interface UseRecordsDialog {
@@ -37,7 +38,7 @@ export interface UseRecordsDialog {
 }
 
 export function useRecordsDialog(options: UseRecordsDialogOptions = {}): UseRecordsDialog {
-  const { currentVolunteerId } = options;
+  const { currentVolunteerId, onChanged } = options;
   const [isOpen, setIsOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [records, setRecords] = useState<ProjectSupport[]>([]);
@@ -91,13 +92,14 @@ export function useRecordsDialog(options: UseRecordsDialogOptions = {}): UseReco
       if (res?.success) {
         toast({ title: '已删除' });
         await refetch();
+        onChanged?.();
       } else {
         toast({ title: '删除失败', description: res?.message || '未知错误', variant: 'destructive' });
       }
     } finally {
       setBusy(false);
     }
-  }, [refetch]);
+  }, [refetch, onChanged]);
 
   const isOwn = (r: ProjectSupport) =>
     !!currentVolunteerId && r.volunteerId === currentVolunteerId;
@@ -164,7 +166,7 @@ export function useRecordsDialog(options: UseRecordsDialogOptions = {}): UseReco
       <EditRecordDialog
         record={editingRecord}
         onOpenChange={(o) => { if (!o) setEditingRecord(null); }}
-        onSaved={() => { setEditingRecord(null); void refetch(); }}
+        onSaved={() => { setEditingRecord(null); void refetch(); onChanged?.(); }}
       />
     </>
   );

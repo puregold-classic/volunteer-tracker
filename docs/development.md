@@ -4,8 +4,8 @@
 
 | 工具 | 版本 | 用途 |
 |---|---|---|
-| Node.js | ≥ 18 | frontend dev server，本地装依赖 |
-| Docker + Docker Compose | 任意现代版本 | 跑 backend + postgres |
+| Node.js | 20.19+ 或 22.12+（推荐 22 LTS） | frontend dev server，本地装依赖 |
+| Docker + Docker Compose | Compose v2.20+ | 跑 backend + postgres |
 | Git | — | 你懂的 |
 | GNU Make | optional | 命令糖，所有 `make X` 都能在 `Makefile` 里查到等价的原始命令 |
 
@@ -23,8 +23,8 @@ cd volunteer-tracker
 cp backend/.env.example backend/.env
 # 默认值在本地开发足够了，要改 JWT_SECRET 等可以改
 
-# Frontend 依赖
-cd frontend && npm install && cd ..
+# 启动（自动安装所需依赖）
+npm run dev
 ```
 
 ---
@@ -34,20 +34,29 @@ cd frontend && npm install && cd ..
 ### 启动整套
 
 ```bash
-make dev
-# 等价于 docker compose up -d，启动 postgres + backend + (可选 mongo)
-# 第一次会比较慢（拉镜像 + npm ci + prisma generate）
-
-# 前端单独跑
-cd frontend && npm run dev
-# Vite 会启在 http://localhost:3000，proxy /api → http://localhost:5000
+# 在仓库根目录执行；make dev / make start 也使用同一脚本
+npm run dev
 ```
+
+脚本按步骤打印：环境和端口检查 → 前端依赖 → Docker 镜像构建 → PostgreSQL、后端依赖、Prisma Client 和待执行迁移 → 后端健康检查 → 前端 → 打开浏览器。首次启动需下载镜像和依赖，后续复用缓存；不会执行 seed 或重置数据库。
+
+网页为 `http://localhost:3000`，前端代理 `/api` 到 `http://localhost:5000`。Docker 引擎须预先启动。脚本支持 Linux / WSL / macOS 自动打开浏览器，无法自动打开时会打印链接；可用 `BROWSER=none npm run dev` 跳过打开。
+
+**按 Ctrl+C 停止前端、后端和 PostgreSQL，保留数据库及依赖数据卷。** 启动中断或失败也会清理已启动的任务。端口 3000 被占用时会提示退出，不会擅自结束已有进程。
+
+后端容器依赖放在独立的 `backend-deps` 数据卷中，不覆盖本机 `backend/node_modules`；前后端依赖在首次运行或依赖清单 / Node 版本变化时通过 `npm ci` 安装。本机单独运行后端测试前，仍需 `cd backend && npm ci && npx prisma generate`。
+
+### 本地快速切换账号
+
+右下角 `DEV · 切换账号` 浮窗可直接切换已有有效账号，无需密码或 admin 解锁。支持按姓名、邮箱、志愿者 ID 搜索，并显示账号角色及圈务身份。切换保留当前地址并重新加载页面，清空上个账号的页面和查询状态；未登录时也能使用，不会创建账号或运行 seed。
+
+此工具只在 Vite 开发模式和后端 `NODE_ENV=development`、`DEV_ACCOUNT_SWITCHER=true` 同时满足时启用。开关仅配置在本地 `docker-compose.yml`；部署测试站使用 production 构建，既不打包浮窗脚本，也不开放切换接口。开发切换签发的登录令牌在测试/生产模式下会被拒绝。修改开关后需重启开发环境。
 
 ### 健康检查
 
 ```bash
 curl http://localhost:5000/api/health
-# 期望: {"status":"ok","schemaVersion":"2.1","postgresql":"connected", ...}
+# 期望: {"status":"ok","schemaVersion":"2.1+v4","postgresql":"connected", ...}
 ```
 
 ### 看日志 / 重启
@@ -88,6 +97,12 @@ make db-reset          # 完全重置：down -v + up + migrate deploy + seed
 ```bash
 # Backend service tests (Vitest, 全 mock 不需要 DB)
 cd backend && npm test
+
+# v4 论坛基础集成测试（需 Docker；自动创建并销毁独立 PostgreSQL 16）
+cd backend && npm run test:integration:forum
+
+# v4 论坛完整流程（需 Docker 和 Playwright Chromium；独立数据库、真实后端及 Vite）
+cd backend && npm run test:e2e:forum
 
 # Frontend unit tests (Vitest + jsdom)
 cd frontend && npm test
@@ -164,3 +179,10 @@ ssh mac 'export PATH=/usr/local/bin:$PATH && cd ~/srv/volunteer-tracker && \
   git pull --ff-only origin develop && \
   docker compose --env-file .env.deploy -f docker-compose.deploy.yml up -d --build backend frontend'
 ```
+
+
+## 培训与标签回归
+
+`cd backend && npm run test:e2e:training` 会自动启动隔离 PostgreSQL、临时 API 和 Vite，运行迁移／事务／权限测试及桌面、手机浏览器流程；不使用应用 `.env` 的数据库。仅跑数据库测试用 `npm run test:integration:training`。普通单元测试仍用各目录的 `npm test`。
+
+当前培训入口是 `/training`，普通标签入口是 `/tags`；原始需求见 [计划](training-tags-plan.md)，数据契约、迁移清单格式及最终验收结果见 [升级说明](training-tags-upgrade.md)。

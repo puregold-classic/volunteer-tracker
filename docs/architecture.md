@@ -117,9 +117,11 @@ ServiceItem (~60 个服务项, 带 ServiceCategory enum)
    ▼
 ProjectSupport ─── volunteerId ───▶ Volunteer ◀─── 1:1 ─── Account
    │  │                                                      │
-   │  │ projectId? ─── N:1 ───▶ Project (v3 新增, 批量考勤/tag)
+   │  │ trainingSessionId? ─▶ TrainingSession ─▶ TrainingAttendance
+   │  │                       独立培训场次         场次 + 人员 + 原服务记录
    │  │
-   │  │ submittedById ────────▶ Volunteer (代提交人)
+   │  │ submittedById? ───────▶ Volunteer (旧提交归属)
+   │  │ submittedByAccountId? ▶ Account (真实操作者)
    │                                                          │
    ▼ status                                                   ▼ role
    ACTIVE / PENDING_CONFIRMATION /                  user / b_admin /
@@ -139,10 +141,11 @@ SystemSettings (单行表，存 lockedBefore — 月结锁定日期)
 ### 关键约束
 
 - **`Account ↔ Volunteer` 强 1:1 FK**：CHECK constraint `role = 'admin' OR volunteerId IS NOT NULL`，非 admin 必须绑 volunteer
-- **`ProjectSupport` 防重 partial unique**：`(volunteerId, serviceDate, serviceItemId, duration, description) WHERE status='ACTIVE'`，防止同人同天同项重复提交
+- **`ProjectSupport` 防重 partial unique**：`(volunteerId, serviceDate, serviceItemId, duration, description) WHERE status='ACTIVE' AND trainingSessionId IS NULL`，防止同人同天同项重复提交
 - **代提交状态机**：`submittedById ≠ volunteerId` 时普通志愿者代提交落 `PENDING_CONFIRMATION`；**v3 起 `a_admin / b_admin` 代提交直接 `ACTIVE`**（相当于录入员，无需 owner confirm），audit 打 `proxyBypassedConfirm: true`
-- **TRAINING_ATTENDANCE 拦截**：service 层拒绝个人提交该类 service item，只允许走 Project 批量考勤入口（v3）
-- **Project sessionDuration 冻结**：TRAINING_ATTENDANCE 项目创建后 sessionDuration 不可修改，每次批量入账时 snapshot 到每条 PS
+- **TRAINING_ATTENDANCE 拦截**：service 层拒绝个人提交该类 service item，只允许走独立培训场次入口（`TrainingService`）
+- **培训场次统一编辑**：时长、日期、类型、内容与全部有效参加记录在同一事务内同步；版本检查协调补录与编辑，不能独立修改已归属场次的服务记录。
+- **普通标签**：`TagGroup → Tag → TagAttachment → ProjectSupport`，只维护分类和关联；记录及标签原子保存。详见 [培训与标签升级契约](training-tags-upgrade.md)。
 - **月结锁定**：`lockedBefore` 之前的日期不允许新建 / 修改 ProjectSupport，forward-only
 - **删除是软删**：`status='DELETED'`，从 ACTIVE 统计中消失但 row 保留，AuditLog 留有删除事件
 
@@ -150,19 +153,16 @@ Prisma DSL 不能表达 partial unique index 和 CHECK constraint，所以 `2026
 
 ---
 
-## 角色与权限模型（v3.7 三层重排）
+## 角色与权限模型
 
-enum 保留 4 个角色，但**语义收敛成三层**：`user` / **录入员**（`a_admin` ≡ `b_admin`，暂时一致，为将来分化留口子）/ `admin`（治理层）。
+| 角色 | 志愿者档案 | 台账与培训管理范围 |
+|---|---|---|
+| `user` | 必须 | 本人普通服务记录；自己的受训考勤只读 |
+| `b_admin` | 必须 | 全局录入员；代提交直接生效，不能豁免封档 |
+| `a_admin` | 必须 | 部长；按当前志愿者所属部门管理人员及台账，不能豁免封档 |
+| `admin` | 不需要 | 全局治理、标签组配置及封档更正，使用真实 Account 留审计 |
 
-| 角色 | 创建方式 | volunteerId | 主要能力 |
-|---|---|---|---|
-| `user` | 仅 admin 建（form / CSV / register） | 必须 | 搜索志愿者 / 提交自己的 ProjectSupport / 确认或拒绝代提交 / 看自己的台账 |
-| `b_admin` = `a_admin`（**录入员**）| 仅 admin 建 | 必须 | + 代提交（直接 ACTIVE）/ 看台账·审计·导出 / 改志愿者信息 / **批量录入受训** + managed tag 批量 / 新建·改 tag / 跨人改·删·确认台账记录 |
-| `admin`（治理层）| bootstrap env / `/admin/admins` | NULL | + 部门·服务项·**tag 组** 配置 / 账号管理（含**建志愿者账号**）/ **月结锁定** / 封档期编辑豁免 / 重置系统 |
-
-- `admin` 是唯一 `volunteerId=null` 的角色（CHECK constraint 保证），v3.7 起彻底不需要志愿者替身（见 [tag createdById 可空](v3-changelog.md#v37)）。
-- **录入员分界**：`a_admin`/`b_admin` 现在权限完全一致。想让 a_admin 高于 b_admin 时，改 `ProjectSupportService.isReviewer` / `TagService.isBAdminOrAbove` / 各 `authorizeRoles` 列表即可（enum 已就位）。
-- 服务层双档判断：`isReviewer`（录入员+ = admin/a_admin/b_admin，跨人管理台账）vs `isSystemAdmin`（仅 admin，月结封档豁免）。tag 写/批量走 `isBAdminOrAbove`；tag 组配置走路由 `authorizeRoles('admin')`。
+培训查询、人数、搜索、校验和保存使用相同部门范围；整场编辑要求覆盖全部有效参加人员。空场次归属、调部门及历史标签规则见 [升级说明](training-tags-upgrade.md#数据和权限契约)。论坛圈务权限独立，不赋予台账管理权。
 
 ### 卡片点击的三态分流
 

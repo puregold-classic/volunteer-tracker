@@ -1,0 +1,6 @@
+{
+  "name": "volunteer-tracker",
+  "private": true,
+  "scripts": { "dev": "node scripts/dev/run.mjs" },
+  "engines": { "node": "^20.19.0 || >=22.12.0" }
+}

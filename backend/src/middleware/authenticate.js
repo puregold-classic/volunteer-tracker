@@ -6,6 +6,7 @@
 
 import jwt from 'jsonwebtoken';
 import prisma from '../utils/prismaClient.js';
+import { validateDevLogin } from '../services/DevAccountService.js';
 
 const extractToken = (req) => {
   const authHeader = req.headers.authorization || '';
@@ -34,6 +35,7 @@ export const authenticate = async (req, res, next) => {
     }
 
     const payload = jwt.verify(token, jwtSecret);
+    if (payload.devAccountSwitch) await validateDevLogin(payload);
 
     const account = await prisma.account.findUnique({
       where: { id: payload.sub },
@@ -52,7 +54,7 @@ export const authenticate = async (req, res, next) => {
     // Lightweight JWT revocation: reject tokens issued before tokenValidAfter.
     // jwt.sign() puts iat (issued-at) in seconds; Date.getTime() is ms.
     if (account.tokenValidAfter) {
-      const iatMs = (payload.iat || 0) * 1000;
+      const iatMs = payload.devAccountSwitch ? payload.devIssuedAtMs : (payload.iat || 0) * 1000;
       if (iatMs < account.tokenValidAfter.getTime()) {
         return res.status(401).json({
           success: false,

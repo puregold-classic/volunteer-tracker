@@ -17,7 +17,7 @@ class AuditController {
       };
       const pagination = { page: req.query.page || 1, limit: req.query.limit || 20 };
       const sortOptions = { sortBy: req.query.sortBy || 'timestamp', order: req.query.order || 'desc' };
-      const result = await AuditService.getAuditLogs(filters, pagination, sortOptions);
+      const result = await AuditService.getAuditLogs(filters, pagination, sortOptions, req.user);
       return ok(res, result);
     } catch (err) {
       return fail(res, 500, err.message);
@@ -26,7 +26,7 @@ class AuditController {
 
   static async getAuditLogById(req, res) {
     try {
-      const data = await AuditService.getAuditLogById(req.params.auditId);
+      const data = await AuditService.getAuditLogById(req.params.auditId, req.user);
       return ok(res, data);
     } catch (err) {
       const code = err.message.includes('不存在') ? 404 : 500;
@@ -36,7 +36,7 @@ class AuditController {
 
   static async getTargetAuditHistory(req, res) {
     try {
-      const data = await AuditService.getTargetAuditHistory(req.params.targetType, req.params.targetId);
+      const data = await AuditService.getTargetAuditHistory(req.params.targetType, req.params.targetId, req.user);
       return ok(res, data);
     } catch (err) {
       const code = err.message.includes('无效') ? 400 : 500;
@@ -50,7 +50,7 @@ class AuditController {
         action: req.query.action,
         dateFrom: req.query.dateFrom,
         dateTo: req.query.dateTo,
-      });
+      }, req.user);
       return ok(res, data);
     } catch (err) {
       return fail(res, 500, err.message);

@@ -430,6 +430,7 @@ class SupportLedgerService {
         include: {
           serviceItem: { include: { department: true } },
           submittedBy: { select: { volunteerCode: true, chineseName: true } },
+          submittedByAccount: { select: { id: true, name: true } },
         },
         orderBy: { serviceDate: 'desc' },
         take: 10,

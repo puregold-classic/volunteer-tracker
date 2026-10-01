@@ -305,7 +305,10 @@ export const deleteAccount = async (accountId, operator) => {
   const volunteerId = target.volunteerId;
 
   return prisma.$transaction(async (tx) => {
-    // Account first (FK from account → volunteer)
+    // v4: database FKs anonymize forum authors/actors/likes (SetNull) and
+    // remove private favorites/follows/inbox/roles (Cascade). Do not delete
+    // posts/comments here. If a ledger check below fails, all FK changes
+    // roll back with this transaction, including the account deletion.
     await tx.account.delete({ where: { id: accountId } });
 
     if (!volunteerId) return { accountId };

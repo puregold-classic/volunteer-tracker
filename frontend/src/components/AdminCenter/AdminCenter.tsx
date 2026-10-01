@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 // frontend/src/components/AdminCenter/AdminCenter.tsx — chunk 6 phase E
 //
 // Desktop-first admin dashboard. Replaces the v1 / chunk 3 long-form stack
@@ -914,6 +915,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ currentAccountId }) => {
           <p className="mt-0.5 text-xs text-muted-foreground">志愿者 / 账号 / 系统配置</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {!isDeptHead && <Button variant="outline" size="sm" asChild><Link to="/forum">圈子管理</Link></Button>}
           <Button type="button" variant="outline" size="sm" onClick={refresh} disabled={loading}>
             <RefreshCcw className={cn('h-4 w-4', loading && 'animate-spin')} />
             刷新

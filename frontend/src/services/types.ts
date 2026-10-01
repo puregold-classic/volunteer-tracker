@@ -126,7 +126,10 @@ export interface ProjectSupport {
   supportId: string;   // "PS-PG-0003-001"
   volunteerId: string; // owner cuid
   volunteer: VolunteerSummary | null;
-  submittedById: string;
+  submittedById: string | null;
+  submittedByAccountId?: string | null;
+  submittedByAccount?: { id: string; name: string } | null;
+  trainingSessionId?: string | null;
   submittedBy: VolunteerSummary | null;
   serviceItemId: string;
   serviceItem: {
@@ -158,6 +161,7 @@ export type TagOpMode = 'managed' | 'tag_only';
 export type TagOpenness = 'closed' | 'open';
 
 export interface Tag {
+  isActive?: boolean;
   id: string;
   groupId: string;
   name: string;
@@ -167,6 +171,9 @@ export interface Tag {
 }
 
 export interface TagGroup {
+  applicability?: 'all' | 'specified' | 'legacy';
+  isActive?: boolean;
+  invalidServiceItemIds?: string[];
   id: string;
   name: string;
   description: string | null;
@@ -263,3 +270,111 @@ export interface VolunteerFilterParams {
 }
 
 export type VolunteersParams = PaginationParams & VolunteerFilterParams;
+
+// ─── Forum ───────────────────────────────────────────────────────────────────
+export interface ForumAuthorIdentity {
+  accountId: string | null;
+  name: string;
+  avatar: string | null;
+  volunteerId: string | null;
+  isSystemAdmin: boolean;
+  isDeleted?: boolean;
+}
+export interface ForumAccount extends ForumAuthorIdentity {
+  accountId: string;
+  volunteerCode?: string | null;
+  isActive?: boolean;
+}
+export interface CircleCapabilities {
+  accountId: string;
+  circleRole: 'OWNER' | 'STEWARD' | null;
+  isSystemAdmin: boolean;
+  canCreateCircle: boolean;
+  canViewManagement: boolean;
+  canEditCircle: boolean;
+  canManageAssets: boolean;
+  canManageStewards: boolean;
+  canManageOwners: boolean;
+  canTransferOwnership: boolean;
+  canChangeSlug: boolean;
+  canArchiveCircle: boolean;
+  canRestoreCircle: boolean;
+}
+export interface ForumCircle {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  status: 'ACTIVE' | 'ARCHIVED';
+  archivedAt: string | null;
+  createdAt: string;
+  postCount: number;
+  coverId: string | null;
+  isFollowing: boolean;
+  needsOwner: boolean;
+  roles: Array<{ role: 'OWNER' | 'STEWARD'; account: ForumAccount }>;
+  capabilities: CircleCapabilities;
+}
+
+export interface ForumContentCapabilities {
+  canRead: boolean; canManageRead: boolean; canInteract: boolean;
+  canEdit: boolean; canDelete: boolean; canRestore: boolean;
+  canPin: boolean; canFeature: boolean;
+}
+export type ForumBodyFormat = 'MARKDOWN' | 'RICH_TEXT';
+export interface ForumContent {
+  bodyFormat: ForumBodyFormat;
+  id: string; author: ForumAuthorIdentity; status: 'ACTIVE' | 'DELETED';
+  createdAt: string; updatedAt: string; editedAt: string | null;
+  deletedAt: string | null; lastEditKind: 'AUTHOR' | 'ADMIN' | null;
+  capabilities: ForumContentCapabilities;
+}
+export interface ForumPost extends ForumContent {
+  circle: Pick<ForumCircle, 'id' | 'slug' | 'name' | 'status'>;
+  title: string; body?: string; excerpt?: string; commentCount: number; lastActivityAt: string;
+  likeCount: number; isLiked: boolean; isFavorited: boolean;
+  isPinned: boolean; pinnedAt: string | null; isFeatured: boolean; featuredAt: string | null;
+}
+export interface ForumComment extends ForumContent { postId: string; circleId: string; body: string; isPinned: boolean; pinnedAt: string | null; isFavorited: boolean }
+export interface ForumPageResult<T> {
+  data: T[]; count: number; total: number; totalPages: number; currentPage: number;
+}
+export interface ForumCommentPage extends ForumPageResult<ForumComment> {
+  nextCursor: string | null; locatedCommentId: string | null; hasEarlier: boolean;
+}
+export interface MyForumContent {
+  id: string; postId: string; circle: ForumPost['circle']; createdAt: string; deletedAt: string | null;
+  status: 'ACTIVE' | 'DELETED'; unavailableReason: string | null;
+  title: string | null; excerpt: string | null; commentCount: number | null;
+}
+
+export type ForumSort = 'hot' | 'activity' | 'new';
+export interface ForumPostListResult extends ForumPageResult<ForumPost> { sort: ForumSort; featuredOnly: boolean }
+export interface MyForumCircle {
+  id: string; slug: string; name: string; status: 'ACTIVE' | 'ARCHIVED'; description: string | null;
+  isFollowing: boolean; circleRole: 'OWNER' | 'STEWARD' | null; canManage: boolean;
+}
+
+export interface CircleFile {
+  id: string; circleId: string; name: string; size: number; createdAt: string; deletedAt: string | null;
+  uploader: ForumAuthorIdentity;
+}
+export interface CircleFilePage { data: CircleFile[]; total: number; totalPages: number; currentPage: number }
+
+export interface ForumDirectoryIdentity {
+  id: string; label: string; mine: boolean; saved: boolean;
+  status: 'ACTIVE' | 'ARCHIVED' | 'DELETED'; unavailableReason: string | null; createdAt: string;
+}
+export interface ForumDirectoryComment extends ForumDirectoryIdentity {
+  postId: string; circleId: string; excerpt: string | null; body: string | null; bodyFormat: ForumBodyFormat | null;
+  author: ForumAuthorIdentity | null; isPinned: boolean;
+}
+export interface ForumDirectoryPost extends ForumDirectoryIdentity {
+  circleId: string; title: string | null; excerpt: string | null; author: ForumAuthorIdentity | null;
+  commentCount: number | null; comments: ForumDirectoryComment[];
+}
+export interface ForumDirectoryCircle extends ForumDirectoryIdentity {
+  name: string | null; slug: string | null; description: string | null; coverId: string | null;
+  circleRole: 'OWNER' | 'STEWARD' | null; canManage: boolean; managementSlug: string | null; posts: ForumDirectoryPost[];
+}
+export interface ForumDirectory { circles: ForumDirectoryCircle[] }

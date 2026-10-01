@@ -1,7 +1,5 @@
-version: "3.9"
-
 # Volunteer Tracker - Docker Compose
-# 使用方法: docker compose up --build
+# 使用方法: 在仓库根目录运行 npm run dev
 
 services:
   # PostgreSQL 数据库服务
@@ -39,6 +37,7 @@ services:
       - "5000:5000"
     environment:
       - NODE_ENV=development
+      - DEV_ACCOUNT_SWITCHER=true
       - DATABASE_URL=postgresql://volunteer_user:${POSTGRES_PASSWORD:-dev_pg_password}@postgres:5432/volunteer_tracker
       - CORS_ORIGIN=http://localhost:3000
       - JWT_SECRET=${JWT_SECRET:-dev_jwt_secret_change_this}
@@ -54,6 +53,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - backend-deps:/app/node_modules
     working_dir: /app
     stdin_open: true
     tty: true
@@ -70,4 +70,6 @@ networks:
 
 volumes:
   pg-data:
+    driver: local
+  backend-deps:
     driver: local

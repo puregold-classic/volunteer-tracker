@@ -11,7 +11,23 @@
 import prisma from '../utils/prismaClient.js';
 import QueryUtils from '../utils/queryUtils.js';
 
+export const FORUM_AUDIT_TARGETS = ['Circle', 'Post', 'PostComment'];
+
+// Ledger reviewers do not acquire forum powers through the audit API. Forum
+// audit snapshots (including moderation edits) are system-admin-only here.
+const restrictForumAudits = (where, viewer) => viewer?.role === 'admin'
+  ? where
+  : { AND: [where, { targetType: { notIn: FORUM_AUDIT_TARGETS } }] };
+
 const ACTION_DESCRIPTIONS = {
+  training_create: () => '创建了培训场次',
+  training_update: () => '修改了培训场次并同步有效考勤',
+  training_add: () => '补录了培训参加人员',
+  training_remove: () => '移除了培训考勤',
+  training_restore: () => '恢复了培训考勤',
+  training_migrate: () => '将历史受训记录迁移至培训场次',
+  tag_attach: () => '更新了服务记录的标签关联',
+  tag_detach: () => '解除了服务记录的标签关联',
   support_create:       (log) => `创建项目服务记录 ${log.modifiedId || ''}`,
   support_update:       (log) => `修改项目服务记录 ${log.modifiedId || ''}`,
   support_delete:       (log) => `删除项目服务记录 ${log.modifiedId || ''}`,
@@ -25,6 +41,25 @@ const ACTION_DESCRIPTIONS = {
   month_lock:           (log) => `执行月结封档（lockedBefore=${log.actionDetails?.lockedBefore || ''}）`,
   system_cleanup:       ()    => `执行系统清理`,
   seed_import:          ()    => `执行 seed 数据导入`,
+  circle_create:        ()    => '创建了圈子',
+  circle_update:        ()    => '修改了圈子资料',
+  circle_archive:       ()    => '归档了圈子',
+  circle_restore:       ()    => '恢复了圈子',
+  circle_role_assign:   ()    => '任命了圈务成员',
+  circle_role_remove:   ()    => '移除了圈务成员',
+  circle_ownership_transfer: () => '转让了圈主身份',
+  post_moderation_edit: () => '管理编辑了帖子',
+  post_moderation_delete: () => '管理删除了帖子',
+  post_moderation_restore: () => '恢复了帖子',
+  comment_moderation_edit: () => '管理编辑了评论',
+  comment_moderation_delete: () => '管理删除了评论',
+  comment_moderation_restore: () => '恢复了评论',
+  comment_pin: () => '帖主置顶了评论',
+  comment_unpin: () => '帖主取消置顶了评论',
+  post_pin: () => '置顶了帖子',
+  post_unpin: () => '取消了帖子置顶',
+  post_feature: () => '将帖子设为精华',
+  post_unfeature: () => '取消了帖子精华',
 };
 
 const buildAuditWhere = (filters = {}) => {
@@ -53,7 +88,7 @@ const buildAuditWhere = (filters = {}) => {
 };
 
 class AuditService {
-  static async getAuditLogs(filters = {}, pagination = {}, sortOptions = {}) {
+  static async getAuditLogs(filters = {}, pagination = {}, sortOptions = {}, viewer = null) {
     const { page = 1, limit = 20 } = pagination;
     const { sortBy = 'timestamp', order = 'desc' } = sortOptions;
     const pg = QueryUtils.buildPaginationOptions(page, limit);
@@ -62,7 +97,7 @@ class AuditService {
     const sortField = allowedSortFields.includes(sortBy) ? sortBy : 'timestamp';
     const sortOrder = order.toLowerCase() === 'asc' ? 'asc' : 'desc';
 
-    const where = buildAuditWhere(filters);
+    const where = restrictForumAudits(buildAuditWhere(filters), viewer);
 
     const [auditLogs, total] = await Promise.all([
       prisma.auditLog.findMany({ where, orderBy: { [sortField]: sortOrder }, skip: pg.skip, take: pg.limit }),
@@ -82,8 +117,8 @@ class AuditService {
     };
   }
 
-  static async getAuditLogById(auditId) {
-    const log = await prisma.auditLog.findUnique({ where: { auditId } });
+  static async getAuditLogById(auditId, viewer = null) {
+    const log = await prisma.auditLog.findFirst({ where: restrictForumAudits({ auditId }, viewer) });
     if (!log) throw new Error(`审计日志不存在: ${auditId}`);
 
     const operator = log.operator || {};
@@ -120,19 +155,19 @@ class AuditService {
   }
 
   /** Audit history for a specific target (e.g. one ProjectSupport row). */
-  static async getTargetAuditHistory(targetType, targetId) {
-    const validTargetTypes = ['ProjectSupport', 'Volunteer', 'Account', 'SystemSettings'];
+  static async getTargetAuditHistory(targetType, targetId, viewer = null) {
+    const validTargetTypes = ['ProjectSupport', 'TrainingSession', 'Volunteer', 'Account', 'SystemSettings', ...FORUM_AUDIT_TARGETS];
     if (!validTargetTypes.includes(targetType)) {
       throw new Error(`无效的目标类型: ${targetType}`);
     }
 
     const auditHistory = await prisma.auditLog.findMany({
-      where: {
+      where: restrictForumAudits({
         OR: [
           { targetType, targetId },
           { modifiedId: targetId },
         ],
-      },
+      }, viewer),
       orderBy: { timestamp: 'desc' },
     });
 
@@ -152,8 +187,8 @@ class AuditService {
   }
 
   /** Aggregate stats over the audit log. Used by admin dashboards. */
-  static async getAuditStatistics(filters = {}) {
-    const where = buildAuditWhere(filters);
+  static async getAuditStatistics(filters = {}, viewer = null) {
+    const where = restrictForumAudits(buildAuditWhere(filters), viewer);
 
     const [total, byAction, byTargetType, byDay] = await Promise.all([
       prisma.auditLog.count({ where }),
@@ -174,6 +209,7 @@ class AuditService {
         SELECT TO_CHAR(timestamp, 'YYYY-MM-DD') AS period,
                COUNT(*)::int AS count
         FROM audit_logs
+        WHERE (${viewer?.role === 'admin'} OR "targetType"::text NOT IN ('Circle', 'Post', 'PostComment'))
         GROUP BY period
         ORDER BY period DESC
         LIMIT 30

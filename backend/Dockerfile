@@ -21,6 +21,9 @@ RUN npx prisma generate
 # Application code
 COPY src ./src
 
+# Maintenance commands use the same version of the application and Prisma client.
+COPY scripts/training-inventory.js scripts/migrate-training.js ./scripts/
+
 # Drop privileges
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001 && \

@@ -17,7 +17,7 @@ export interface ProjectSupportListFilters extends PaginationParams {
   submittedById?: string;
   serviceItemId?: string;
   departmentId?: string;
-  status?: string;
+  status?: string | string[];
   serviceDateFrom?: string;
   serviceDateTo?: string;
   minDuration?: number;
@@ -31,6 +31,7 @@ export interface ProjectSupportListResult {
 }
 
 export interface CreateProjectSupportPayload {
+  tagIds?: string[];
   // omit volunteerId for self-submit (backend defaults to operator's own)
   volunteerId?: string;
   serviceItemId: string;
@@ -42,6 +43,7 @@ export interface CreateProjectSupportPayload {
 }
 
 export interface UpdateProjectSupportPayload {
+  tagIds?: string[];
   serviceItemId?: string;
   serviceDate?: string;
   duration?: number;
@@ -49,6 +51,20 @@ export interface UpdateProjectSupportPayload {
 }
 
 export const projectSupportService = {
+  /** Personal summaries and history must include every page, not only recent records. */
+  listPersonalRecords: async (
+    filters: { volunteerId: string } | { submittedById: string }
+  ): Promise<ProjectSupport[]> => {
+    const records = new Map<string, ProjectSupport>();
+    for (let page = 1; ; page += 1) {
+      const result: ApiResponse<ProjectSupportListResult> = await api.get('/project-supports', {
+        params: { ...filters, status: ['ACTIVE', 'PENDING_CONFIRMATION', 'REJECTED_BY_OWNER', 'DELETED'], page, limit: 100 },
+      });
+      if (!result.success || !result.data) throw new Error(result.error || '服务记录加载失败');
+      for (const record of result.data.records) records.set(record.id, record);
+      if (!result.data.pagination.hasNext) return [...records.values()];
+    }
+  },
   list: async (
     filters: ProjectSupportListFilters = {}
   ): Promise<ApiResponse<ProjectSupportListResult>> => {
